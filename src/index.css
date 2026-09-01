@@ -1,0 +1,215 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,400;1,9..144,600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap');
+@import 'tailwindcss';
+
+@theme {
+  /* === READER APP === */
+  --color-bg: #0d0b18;
+  --color-surface: #1a1726;
+  --color-surface2: #231f35;
+  --color-gold: #e8a84c;
+  --color-gold-dim: #c4882e;
+  --color-terra: #c9603a;
+  --color-ink: #f0ece4;
+  --color-muted: #8b7ea8;
+  --color-border: #2e2945;
+
+  /* === WRITER STUDIO === */
+  --color-writer-bg: #131510;
+  --color-writer-surface: #1e2118;
+  --color-writer-accent: #4ade80;
+  --color-writer-accent-dim: #22c55e;
+
+  /* === ADMIN CONSOLE === */
+  --color-admin-bg: #0e1422;
+  --color-admin-surface: #162035;
+  --color-admin-accent: #60a5fa;
+  --color-admin-accent-dim: #3b82f6;
+}
+
+html, body, #root {
+  height: 100%;
+  background: #06040f;
+  color: #f0ece4;
+  font-family: 'Nunito', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.font-display  { font-family: 'Fraunces', Georgia, serif; }
+.font-serif    { font-family: 'Lora', Georgia, serif; }
+
+* { scrollbar-width: none; }
+*::-webkit-scrollbar { display: none; }
+
+/* ─── CORE ANIMATIONS ─────────────────────────────── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.55; }
+}
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position:  200% center; }
+}
+
+.anim-fade-up    { animation: fadeUp 0.4s ease both; }
+.anim-fade-in    { animation: fadeIn 0.3s ease both; }
+.anim-pulse-soft { animation: pulse-soft 2.2s ease infinite; }
+
+/* ─── PHYSICAL PAGE CURL ANIMATIONS ───────────────── */
+/*
+ * Forward flip: bottom edge lifts UP toward viewer, page folds over.
+ * transform-origin: center top  → top edge is the pivot, bottom is the free end.
+ * rotateX(-90deg) → bottom comes forward toward viewer then past perpendicular.
+ */
+@keyframes curlOut {
+  0%   {
+    transform: perspective(1100px) rotateX(0deg);
+    opacity: 1;
+  }
+  30%  {
+    transform: perspective(1100px) rotateX(-28deg) translateZ(24px);
+    opacity: 1;
+    box-shadow: 0 20px 48px rgba(0,0,0,0.35);
+  }
+  65%  {
+    transform: perspective(1100px) rotateX(-65deg) translateZ(14px);
+    opacity: 1;
+    box-shadow: 0 28px 64px rgba(0,0,0,0.5);
+  }
+  100% {
+    transform: perspective(1100px) rotateX(-90deg);
+    opacity: 0;
+    box-shadow: none;
+  }
+}
+
+@keyframes curlIn {
+  0%   {
+    transform: perspective(1100px) rotateX(90deg);
+    opacity: 0;
+  }
+  35%  {
+    transform: perspective(1100px) rotateX(60deg) translateZ(14px);
+    opacity: 1;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+  }
+  70%  {
+    transform: perspective(1100px) rotateX(22deg) translateZ(8px);
+    box-shadow: 0 10px 24px rgba(0,0,0,0.15);
+  }
+  100% {
+    transform: perspective(1100px) rotateX(0deg);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  }
+}
+
+/* Backward flip: top edge dips, previous page comes up from above. */
+@keyframes curlOutPrev {
+  0%   { transform: perspective(1100px) rotateX(0deg); opacity: 1; }
+  65%  { transform: perspective(1100px) rotateX(65deg) translateZ(14px); opacity: 1; }
+  100% { transform: perspective(1100px) rotateX(90deg); opacity: 0; }
+}
+@keyframes curlInPrev {
+  0%   { transform: perspective(1100px) rotateX(-90deg); opacity: 0; }
+  35%  { transform: perspective(1100px) rotateX(-60deg) translateZ(14px); opacity: 1; }
+  100% { transform: perspective(1100px) rotateX(0deg); }
+}
+
+.page-curl-out       { animation: curlOut     0.46s cubic-bezier(0.42,0,0.18,1) forwards;     transform-origin: center top;    }
+.page-curl-in        { animation: curlIn      0.46s cubic-bezier(0.42,0,0.18,1) 0.12s both;   transform-origin: center top;    }
+.page-curl-out-prev  { animation: curlOutPrev 0.46s cubic-bezier(0.42,0,0.18,1) forwards;     transform-origin: center bottom; }
+.page-curl-in-prev   { animation: curlInPrev  0.46s cubic-bezier(0.42,0,0.18,1) 0.12s both;  transform-origin: center bottom; }
+
+/* ─── READING SURFACE THEMES ──────────────────────── */
+
+/* Light / Paper — warm cream like a physical novel */
+.reader-surface-light {
+  background: radial-gradient(ellipse at 50% 0%, #FAF6EA 0%, #F2ECD6 100%);
+  color: #2C1A0A;
+}
+.reader-outer-light {
+  background: #D4C8A0;
+}
+
+/* Sepia — aged parchment */
+.reader-surface-sepia {
+  background: radial-gradient(ellipse at 50% 0%, #EDD9A3 0%, #DEC98A 100%);
+  color: #4A2A06;
+}
+.reader-outer-sepia {
+  background: #B8A060;
+}
+
+/* Dark — deep warm charcoal (NOT pure black) */
+.reader-surface-dark {
+  background: linear-gradient(160deg, #1E1A12 0%, #18140E 100%);
+  color: #E8E0CC;
+}
+.reader-outer-dark {
+  background: #0D0A06;
+}
+
+/* Paper drop shadow for the page surface */
+.page-shadow-light { box-shadow: 0 4px 40px rgba(80,60,20,0.3), 2px 2px 12px rgba(80,60,20,0.2); }
+.page-shadow-sepia { box-shadow: 0 4px 40px rgba(60,40,10,0.35), 2px 2px 12px rgba(60,40,10,0.25); }
+.page-shadow-dark  { box-shadow: 0 4px 40px rgba(0,0,0,0.6), 2px 2px 12px rgba(0,0,0,0.4); }
+
+/* ─── GOLD SHIMMER ─────────────────────────────────── */
+.gold-shimmer {
+  background: linear-gradient(90deg, #e8a84c 0%, #f5d087 40%, #e8a84c 60%, #c4882e 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: shimmer 3s linear infinite;
+}
+
+/* ─── BOOK SHADOW ──────────────────────────────────── */
+.book-shadow {
+  box-shadow: 4px 6px 20px rgba(0,0,0,0.6), 0 2px 8px rgba(0,0,0,0.4);
+}
+
+/* ─── WRITER / ADMIN SHARED ────────────────────────── */
+.env-card {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.env-card:active { transform: scale(0.98); }
+
+/* ─── READER TYPOGRAPHY ────────────────────────────── */
+.reader-text {
+  line-height: 1.9;
+  letter-spacing: 0.008em;
+  hanging-punctuation: first last;
+}
+
+/* ─── REDUCED MOTION ────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .page-curl-out,
+  .page-curl-in,
+  .page-curl-out-prev,
+  .page-curl-in-prev {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+  .anim-fade-up,
+  .anim-fade-in,
+  .anim-pulse-soft { animation: none; }
+}
+
+/* ─── DESKTOP SCROLLBAR ─────────────────────────────── */
+@media (pointer: fine) {
+  * { scrollbar-width: thin; scrollbar-color: #2e2945 transparent; }
+  *::-webkit-scrollbar { display: block; width: 4px; height: 4px; }
+  *::-webkit-scrollbar-thumb { background: #2e2945; border-radius: 4px; }
+  *::-webkit-scrollbar-track { background: transparent; }
+}
