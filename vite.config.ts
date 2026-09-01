@@ -23,9 +23,4 @@ export default defineConfig({
     port: parseInt(process.env.PORT || "4173", 10),
     strictPort: false,
   },
-
-  build: {
-    sourcemap: false,
-    minify: "esbuild",
-  },
 });
