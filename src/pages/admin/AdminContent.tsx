@@ -6,7 +6,10 @@ import AdminActionDialog from "../../components/AdminActionDialog";
 import { StatusBadge } from "../../components/DesignPrimitives";
 import type { CommonProps } from "../../types";
 
-const statusConfig: Record<string, { label: string; tone: "success" | "warning" | "danger" | "info" | "neutral" }> = {
+const statusConfig: Record<
+  string,
+  { label: string; tone: "success" | "warning" | "danger" | "info" | "neutral" }
+> = {
   DRAFT: { label: "Draft", tone: "neutral" },
   EDITING: { label: "Editing", tone: "warning" },
   READY_FOR_REVIEW: { label: "Ready for review", tone: "info" },
@@ -21,13 +24,23 @@ export default function AdminContent({ navigate }: CommonProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [query, setQuery] = useState(searchParams.get("q") ?? "");
   const [status, setStatus] = useState(
-    ["ALL", "DRAFT", "EDITING", "READY_FOR_REVIEW", "PUBLISHED", "REJECTED", "UNPUBLISHED", "ARCHIVED"].includes(
-      searchParams.get("status") ?? "",
-    )
+    [
+      "ALL",
+      "DRAFT",
+      "EDITING",
+      "READY_FOR_REVIEW",
+      "PUBLISHED",
+      "REJECTED",
+      "UNPUBLISHED",
+      "ARCHIVED",
+    ].includes(searchParams.get("status") ?? "")
       ? (searchParams.get("status") ?? "ALL")
       : "ALL",
   );
-  const [dialog, setDialog] = useState<{ bookId: string; action: "approve" | "reject" | "changes" | "unpublish" } | null>(null);
+  const [dialog, setDialog] = useState<{
+    bookId: string;
+    action: "approve" | "reject" | "changes" | "unpublish";
+  } | null>(null);
 
   useEffect(() => {
     const next = new URLSearchParams();
@@ -119,8 +132,12 @@ export default function AdminContent({ navigate }: CommonProps) {
   return (
     <div className="flex min-h-full flex-col bg-[var(--color-background)] px-5 py-8 text-[var(--color-text-primary)]">
       <div className="mb-5">
-        <p className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--color-text-muted)]">Admin Console</p>
-        <h1 className="mt-2 text-2xl font-bold text-[var(--color-text-primary)]">Content</h1>
+        <p className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--color-text-muted)]">
+          Admin Console
+        </p>
+        <h1 className="mt-2 text-2xl font-bold text-[var(--color-text-primary)]">
+          Content
+        </h1>
       </div>
 
       <div className="mb-4 flex items-center gap-3 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface)] px-4 py-3">
@@ -134,15 +151,32 @@ export default function AdminContent({ navigate }: CommonProps) {
       </div>
 
       <div className="mb-5 flex flex-wrap gap-2">
-        {(["ALL", "DRAFT", "EDITING", "READY_FOR_REVIEW", "PUBLISHED", "REJECTED", "UNPUBLISHED", "ARCHIVED"] as const).map((value) => (
+        {(
+          [
+            "ALL",
+            "DRAFT",
+            "EDITING",
+            "READY_FOR_REVIEW",
+            "PUBLISHED",
+            "REJECTED",
+            "UNPUBLISHED",
+            "ARCHIVED",
+          ] as const
+        ).map((value) => (
           <button
             key={value}
             type="button"
             onClick={() => setStatus(value)}
             className="somi-control rounded-lg px-3 py-1.5 text-xs font-semibold"
             style={{
-              background: status === value ? "var(--color-accent-primary)" : "var(--color-surface)",
-              color: status === value ? "var(--color-background)" : "var(--color-text-secondary)",
+              background:
+                status === value
+                  ? "var(--color-accent-primary)"
+                  : "var(--color-surface)",
+              color:
+                status === value
+                  ? "var(--color-background)"
+                  : "var(--color-text-secondary)",
             }}
           >
             {value}
@@ -159,18 +193,29 @@ export default function AdminContent({ navigate }: CommonProps) {
           books.map((book) => {
             const statusBadge = statusConfig[book.status] ?? statusConfig.DRAFT;
             return (
-              <div key={book.id} className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface)] p-4">
+              <div
+                key={book.id}
+                className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface)] p-4"
+              >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-start gap-3">
                     <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[rgba(96,165,250,0.12)] text-[var(--color-accent-primary)]">
                       <BookOpen size={18} />
                     </div>
                     <div>
-                      <p className="text-base font-semibold text-[var(--color-text-primary)]">{book.title}</p>
-                      <p className="text-xs text-[var(--color-text-muted)]">by {book.writer}</p>
+                      <p className="text-base font-semibold text-[var(--color-text-primary)]">
+                        {book.title}
+                      </p>
+                      <p className="text-xs text-[var(--color-text-muted)]">
+                        by {book.writer}
+                      </p>
                     </div>
                   </div>
-                  <StatusBadge label={statusBadge.label} tone={statusBadge.tone} compact />
+                  <StatusBadge
+                    label={statusBadge.label}
+                    tone={statusBadge.tone}
+                    compact
+                  />
                 </div>
 
                 <div className="mt-3 flex flex-wrap gap-3 text-[10px] text-[var(--color-text-muted)]">
@@ -180,24 +225,52 @@ export default function AdminContent({ navigate }: CommonProps) {
                 </div>
 
                 <div className="mt-4 flex flex-wrap gap-2">
-                  <button type="button" onClick={() => navigate("admin-content", book.id)} className="somi-control rounded-lg bg-[rgba(96,165,250,0.12)] px-3 py-2 text-[10px] font-semibold text-[var(--color-accent-primary)]">
+                  <button
+                    type="button"
+                    onClick={() => navigate("admin-content", book.id)}
+                    className="somi-control rounded-lg bg-[rgba(96,165,250,0.12)] px-3 py-2 text-[10px] font-semibold text-[var(--color-accent-primary)]"
+                  >
                     Review
                   </button>
                   {book.status !== "PUBLISHED" && (
-                    <button type="button" onClick={() => setDialog({ bookId: book.id, action: "approve" })} className="somi-control rounded-lg bg-[rgba(74,222,128,0.12)] px-3 py-2 text-[10px] font-semibold text-[var(--color-status-success)]">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setDialog({ bookId: book.id, action: "approve" })
+                      }
+                      className="somi-control rounded-lg bg-[rgba(74,222,128,0.12)] px-3 py-2 text-[10px] font-semibold text-[var(--color-status-success)]"
+                    >
                       Approve
                     </button>
                   )}
                   {book.status !== "REJECTED" && (
-                    <button type="button" onClick={() => setDialog({ bookId: book.id, action: "reject" })} className="somi-control rounded-lg bg-[rgba(251,113,133,0.12)] px-3 py-2 text-[10px] font-semibold text-[var(--color-status-danger)]">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setDialog({ bookId: book.id, action: "reject" })
+                      }
+                      className="somi-control rounded-lg bg-[rgba(251,113,133,0.12)] px-3 py-2 text-[10px] font-semibold text-[var(--color-status-danger)]"
+                    >
                       Reject
                     </button>
                   )}
-                  <button type="button" onClick={() => setDialog({ bookId: book.id, action: "changes" })} className="somi-control flex items-center gap-1 rounded-lg bg-[var(--color-background)] px-3 py-2 text-[10px] font-semibold text-[var(--color-text-secondary)]">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setDialog({ bookId: book.id, action: "changes" })
+                    }
+                    className="somi-control flex items-center gap-1 rounded-lg bg-[var(--color-background)] px-3 py-2 text-[10px] font-semibold text-[var(--color-text-secondary)]"
+                  >
                     <ShieldAlert size={11} />
                     Request changes
                   </button>
-                  <button type="button" onClick={() => setDialog({ bookId: book.id, action: "unpublish" })} className="somi-control rounded-lg bg-[rgba(251,191,36,0.12)] px-3 py-2 text-[10px] font-semibold text-[var(--color-status-warning)]">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setDialog({ bookId: book.id, action: "unpublish" })
+                    }
+                    className="somi-control rounded-lg bg-[rgba(251,191,36,0.12)] px-3 py-2 text-[10px] font-semibold text-[var(--color-status-warning)]"
+                  >
                     Unpublish
                   </button>
                 </div>
@@ -228,7 +301,11 @@ export default function AdminContent({ navigate }: CommonProps) {
                 ? "Request changes"
                 : "Unpublish"
         }
-        variant={dialog?.action === "reject" || dialog?.action === "unpublish" ? "danger" : "default"}
+        variant={
+          dialog?.action === "reject" || dialog?.action === "unpublish"
+            ? "danger"
+            : "default"
+        }
         onConfirm={confirmBookAction}
         onCancel={() => setDialog(null)}
       />

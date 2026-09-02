@@ -19,10 +19,12 @@ export default function AdminAudit({}: CommonProps) {
 
   const events = useMemo(() => {
     const all = [...mockAdminRepository.getAuditEvents()].sort(
-      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+      (a, b) =>
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
     );
     return all.filter((event) => {
-      const text = `${event.action} ${event.actorName} ${event.targetType} ${event.targetId}`.toLowerCase();
+      const text =
+        `${event.action} ${event.actorName} ${event.targetType} ${event.targetId}`.toLowerCase();
       const matchesQuery = !query || text.includes(query.toLowerCase());
       const matchesAction = action === "ALL" || event.action === action;
       return matchesQuery && matchesAction;
@@ -32,8 +34,12 @@ export default function AdminAudit({}: CommonProps) {
   return (
     <div className="min-h-full bg-[var(--color-background)] px-5 py-8 text-[var(--color-text-primary)]">
       <div className="mb-6">
-        <p className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-muted)]">Admin Console</p>
-        <h1 className="mt-1 text-2xl font-bold text-[var(--color-text-primary)]">Audit Log</h1>
+        <p className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-muted)]">
+          Admin Console
+        </p>
+        <h1 className="mt-1 text-2xl font-bold text-[var(--color-text-primary)]">
+          Audit Log
+        </h1>
       </div>
 
       <div className="mb-4 flex items-center gap-3 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface)] px-4 py-3">
@@ -48,15 +54,30 @@ export default function AdminAudit({}: CommonProps) {
       </div>
 
       <div className="mb-5 flex flex-wrap gap-2">
-        {(["ALL", "BOOK_APPROVED", "USER_SUSPENDED", "REPORT_RESOLVED", "ROLE_CHANGED", "SETTING_CHANGED"] as const).map((value) => (
+        {(
+          [
+            "ALL",
+            "BOOK_APPROVED",
+            "USER_SUSPENDED",
+            "REPORT_RESOLVED",
+            "ROLE_CHANGED",
+            "SETTING_CHANGED",
+          ] as const
+        ).map((value) => (
           <button
             key={value}
             type="button"
             onClick={() => setAction(value)}
             className="somi-control rounded-lg px-3 py-1.5 text-xs font-semibold"
             style={{
-              background: action === value ? "var(--color-accent-primary)" : "var(--color-surface)",
-              color: action === value ? "var(--color-background)" : "var(--color-text-secondary)",
+              background:
+                action === value
+                  ? "var(--color-accent-primary)"
+                  : "var(--color-surface)",
+              color:
+                action === value
+                  ? "var(--color-background)"
+                  : "var(--color-text-secondary)",
             }}
           >
             {value}
@@ -71,19 +92,31 @@ export default function AdminAudit({}: CommonProps) {
           </div>
         ) : (
           events.map((event) => (
-            <div key={event.id} className="flex items-start gap-3 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface)] p-4">
+            <div
+              key={event.id}
+              className="flex items-start gap-3 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface)] p-4"
+            >
               <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-lg bg-[rgba(96,165,250,0.12)] text-[var(--color-accent-primary)]">
                 <FileText size={15} />
               </div>
               <div className="flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="font-semibold text-[var(--color-text-primary)]">{event.action}</p>
+                  <p className="font-semibold text-[var(--color-text-primary)]">
+                    {event.action}
+                  </p>
                   <StatusBadge label={event.targetType} tone="info" compact />
                 </div>
-                <p className="mt-1 text-sm text-[var(--color-text-secondary)]">Actor: {event.actorName}</p>
-                <p className="mt-1 text-xs text-[var(--color-text-muted)]">{event.targetId} · {new Date(event.timestamp).toLocaleString()}</p>
+                <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
+                  Actor: {event.actorName}
+                </p>
+                <p className="mt-1 text-xs text-[var(--color-text-muted)]">
+                  {event.targetId} ·{" "}
+                  {new Date(event.timestamp).toLocaleString()}
+                </p>
                 {event.metadata && Object.keys(event.metadata).length > 0 && (
-                  <p className="mt-2 text-[11px] text-[var(--color-text-secondary)]">Details: {JSON.stringify(event.metadata)}</p>
+                  <p className="mt-2 text-[11px] text-[var(--color-text-secondary)]">
+                    Details: {JSON.stringify(event.metadata)}
+                  </p>
                 )}
               </div>
             </div>

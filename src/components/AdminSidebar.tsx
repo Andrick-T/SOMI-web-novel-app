@@ -70,8 +70,12 @@ export default function AdminSidebar({
               onClick={() => navigate(item.page)}
               className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium transition-all hover:bg-[var(--color-hover-surface)]"
               style={{
-                background: active ? "var(--color-active-surface)" : "transparent",
-                color: active ? "var(--color-accent-primary)" : "var(--color-text-muted)",
+                background: active
+                  ? "var(--color-active-surface)"
+                  : "transparent",
+                color: active
+                  ? "var(--color-accent-primary)"
+                  : "var(--color-text-muted)",
               }}
             >
               <Icon size={16} strokeWidth={active ? 2.5 : 1.8} />
@@ -89,7 +93,9 @@ export default function AdminSidebar({
       <div className="mt-4 rounded-xl border border-[rgba(251,113,133,0.2)] bg-[rgba(251,113,133,0.07)] p-3">
         <div className="mb-1 flex items-center gap-2">
           <ShieldCheck size={13} color="var(--color-status-danger)" />
-          <span className="text-xs font-bold text-[var(--color-status-danger)]">4 reports</span>
+          <span className="text-xs font-bold text-[var(--color-status-danger)]">
+            4 reports
+          </span>
         </div>
         <p className="text-[10px] text-[var(--color-text-muted)]">
           Flagged content and user reports need review.

@@ -12,7 +12,10 @@ const roleColors: Record<string, { bg: string; text: string }> = {
   ADMIN: { bg: "rgba(167,139,250,0.12)", text: "var(--color-status-info)" },
 };
 
-const statusColors: Record<string, { tone: "success" | "warning" | "danger" | "info" | "neutral"; label: string }> = {
+const statusColors: Record<
+  string,
+  { tone: "success" | "warning" | "danger" | "info" | "neutral"; label: string }
+> = {
   ACTIVE: { tone: "success", label: "Active" },
   SUSPENDED: { tone: "danger", label: "Suspended" },
   BANNED: { tone: "danger", label: "Banned" },
@@ -23,12 +26,16 @@ export default function AdminUsers({ navigate }: CommonProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState(searchParams.get("q") ?? "");
   const [role, setRole] = useState(
-    ["ALL", "READER", "WRITER", "ADMIN"].includes(searchParams.get("role") ?? "")
+    ["ALL", "READER", "WRITER", "ADMIN"].includes(
+      searchParams.get("role") ?? "",
+    )
       ? (searchParams.get("role") ?? "ALL")
       : "ALL",
   );
   const [status, setStatus] = useState(
-    ["ALL", "ACTIVE", "SUSPENDED", "BANNED", "PENDING"].includes(searchParams.get("status") ?? "")
+    ["ALL", "ACTIVE", "SUSPENDED", "BANNED", "PENDING"].includes(
+      searchParams.get("status") ?? "",
+    )
       ? (searchParams.get("status") ?? "ALL")
       : "ALL",
   );
@@ -64,7 +71,11 @@ export default function AdminUsers({ navigate }: CommonProps) {
 
     if (dialog.action === "role") {
       const nextRole =
-        target.role === "READER" ? "WRITER" : target.role === "WRITER" ? "ADMIN" : "READER";
+        target.role === "READER"
+          ? "WRITER"
+          : target.role === "WRITER"
+            ? "ADMIN"
+            : "READER";
 
       mockAdminRepository.updateUser(dialog.userId, { role: nextRole });
       mockAdminRepository.createAuditEvent({
@@ -152,9 +163,15 @@ export default function AdminUsers({ navigate }: CommonProps) {
   return (
     <div className="flex min-h-full flex-col bg-[var(--color-background)] px-5 py-8 text-[var(--color-text-primary)]">
       <div className="mb-5">
-        <p className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--color-text-muted)]">Admin Console</p>
-        <h1 className="mt-2 text-2xl font-bold text-[var(--color-text-primary)]">Users</h1>
-        <p className="mt-1 text-xs text-[var(--color-text-muted)]">{users.length} total accounts</p>
+        <p className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--color-text-muted)]">
+          Admin Console
+        </p>
+        <h1 className="mt-2 text-2xl font-bold text-[var(--color-text-primary)]">
+          Users
+        </h1>
+        <p className="mt-1 text-xs text-[var(--color-text-muted)]">
+          {users.length} total accounts
+        </p>
       </div>
 
       <div className="mb-4 flex items-center gap-3 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface)] px-4 py-3">
@@ -175,8 +192,14 @@ export default function AdminUsers({ navigate }: CommonProps) {
             onClick={() => setRole(value)}
             className="somi-control rounded-lg px-3 py-1.5 text-xs font-semibold"
             style={{
-              background: role === value ? "var(--color-accent-primary)" : "var(--color-surface)",
-              color: role === value ? "var(--color-background)" : "var(--color-text-secondary)",
+              background:
+                role === value
+                  ? "var(--color-accent-primary)"
+                  : "var(--color-surface)",
+              color:
+                role === value
+                  ? "var(--color-background)"
+                  : "var(--color-text-secondary)",
             }}
           >
             {value}
@@ -185,20 +208,28 @@ export default function AdminUsers({ navigate }: CommonProps) {
       </div>
 
       <div className="mb-5 flex flex-wrap gap-2">
-        {(["ALL", "ACTIVE", "SUSPENDED", "BANNED", "PENDING"] as const).map((value) => (
-          <button
-            key={value}
-            type="button"
-            onClick={() => setStatus(value)}
-            className="somi-control rounded-lg px-3 py-1.5 text-xs font-semibold"
-            style={{
-              background: status === value ? "var(--color-accent-primary)" : "var(--color-surface)",
-              color: status === value ? "var(--color-background)" : "var(--color-text-secondary)",
-            }}
-          >
-            {value}
-          </button>
-        ))}
+        {(["ALL", "ACTIVE", "SUSPENDED", "BANNED", "PENDING"] as const).map(
+          (value) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setStatus(value)}
+              className="somi-control rounded-lg px-3 py-1.5 text-xs font-semibold"
+              style={{
+                background:
+                  status === value
+                    ? "var(--color-accent-primary)"
+                    : "var(--color-surface)",
+                color:
+                  status === value
+                    ? "var(--color-background)"
+                    : "var(--color-text-secondary)",
+              }}
+            >
+              {value}
+            </button>
+          ),
+        )}
       </div>
 
       <div className="space-y-3 pb-8">
@@ -212,30 +243,64 @@ export default function AdminUsers({ navigate }: CommonProps) {
               bg: "rgba(96,165,250,0.12)",
               text: "var(--color-accent-primary)",
             };
-            const statusMeta = statusColors[user.status] ?? { tone: "neutral", label: user.status };
+            const statusMeta = statusColors[user.status] ?? {
+              tone: "neutral",
+              label: user.status,
+            };
             return (
-              <div key={user.id} className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface)] p-4">
+              <div
+                key={user.id}
+                className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface)] p-4"
+              >
                 <div className="flex items-start gap-3">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-full text-sm font-bold" style={{ background: roleStyle.bg, color: roleStyle.text }}>
+                  <div
+                    className="flex h-11 w-11 items-center justify-center rounded-full text-sm font-bold"
+                    style={{ background: roleStyle.bg, color: roleStyle.text }}
+                  >
                     {user.avatar}
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-semibold text-[var(--color-text-primary)]">{user.name}</p>
-                      <span className="rounded-full px-2 py-1 text-[9px] font-bold" style={{ background: roleStyle.bg, color: roleStyle.text }}>{user.role}</span>
-                      <StatusBadge label={statusMeta.label} tone={statusMeta.tone} compact />
+                      <p className="font-semibold text-[var(--color-text-primary)]">
+                        {user.name}
+                      </p>
+                      <span
+                        className="rounded-full px-2 py-1 text-[9px] font-bold"
+                        style={{
+                          background: roleStyle.bg,
+                          color: roleStyle.text,
+                        }}
+                      >
+                        {user.role}
+                      </span>
+                      <StatusBadge
+                        label={statusMeta.label}
+                        tone={statusMeta.tone}
+                        compact
+                      />
                     </div>
-                    <p className="mt-1 text-xs text-[var(--color-text-muted)]">{user.email}</p>
+                    <p className="mt-1 text-xs text-[var(--color-text-muted)]">
+                      {user.email}
+                    </p>
                     <div className="mt-2 flex flex-wrap gap-3 text-[10px] text-[var(--color-text-muted)]">
                       <span className="flex items-center gap-1">
-                        <Coins size={10} color="var(--color-status-warning)" /> {user.booksPublished} books
+                        <Coins size={10} color="var(--color-status-warning)" />{" "}
+                        {user.booksPublished} books
                       </span>
                       <span className="flex items-center gap-1">
-                        <BookOpen size={10} color="var(--color-accent-primary)" /> Joined {new Date(user.joinedAt).toLocaleDateString()}
+                        <BookOpen
+                          size={10}
+                          color="var(--color-accent-primary)"
+                        />{" "}
+                        Joined {new Date(user.joinedAt).toLocaleDateString()}
                       </span>
                     </div>
                   </div>
-                  <button type="button" onClick={() => navigate("admin-users", user.id)} className="somi-control rounded-lg bg-[rgba(96,165,250,0.12)] px-3 py-2 text-[10px] font-semibold text-[var(--color-accent-primary)]">
+                  <button
+                    type="button"
+                    onClick={() => navigate("admin-users", user.id)}
+                    className="somi-control rounded-lg bg-[rgba(96,165,250,0.12)] px-3 py-2 text-[10px] font-semibold text-[var(--color-accent-primary)]"
+                  >
                     View
                   </button>
                 </div>
@@ -243,8 +308,16 @@ export default function AdminUsers({ navigate }: CommonProps) {
                   {[
                     { label: "View profile", action: "view" },
                     { label: "Change role", action: "role" },
-                    { label: user.status === "SUSPENDED" ? "Restore" : "Suspend", action: user.status === "SUSPENDED" ? "restore" : "suspend" },
-                    { label: user.status === "BANNED" ? "Restore" : "Ban", action: user.status === "BANNED" ? "restore" : "ban" },
+                    {
+                      label:
+                        user.status === "SUSPENDED" ? "Restore" : "Suspend",
+                      action:
+                        user.status === "SUSPENDED" ? "restore" : "suspend",
+                    },
+                    {
+                      label: user.status === "BANNED" ? "Restore" : "Ban",
+                      action: user.status === "BANNED" ? "restore" : "ban",
+                    },
                   ].map(({ label, action }) => (
                     <button
                       key={label}
@@ -257,7 +330,11 @@ export default function AdminUsers({ navigate }: CommonProps) {
                         }
                         setDialog({
                           userId: user.id,
-                          action: action as "role" | "suspend" | "ban" | "restore",
+                          action: action as
+                            | "role"
+                            | "suspend"
+                            | "ban"
+                            | "restore",
                         });
                       }}
                     >
@@ -274,7 +351,11 @@ export default function AdminUsers({ navigate }: CommonProps) {
       <AdminActionDialog
         open={Boolean(dialog)}
         title={dialog ? getActionTitle(dialog.action) : "Confirm action"}
-        description={dialog ? "This action will update the selected account and record an audit event in the admin log." : ""}
+        description={
+          dialog
+            ? "This action will update the selected account and record an audit event in the admin log."
+            : ""
+        }
         confirmLabel={
           dialog?.action === "role"
             ? "Apply role change"

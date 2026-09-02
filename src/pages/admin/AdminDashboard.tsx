@@ -52,7 +52,9 @@ export default function AdminDashboard({ navigate }: CommonProps) {
         <p className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--color-text-muted)]">
           Admin Console
         </p>
-        <h1 className="mt-2 text-2xl font-bold text-[var(--color-text-primary)]">Admin Overview</h1>
+        <h1 className="mt-2 text-2xl font-bold text-[var(--color-text-primary)]">
+          Admin Overview
+        </h1>
         <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
           Monitor the health of SOMI and resolve platform issues.
         </p>
@@ -84,14 +86,19 @@ export default function AdminDashboard({ navigate }: CommonProps) {
 
       <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {kpis.map((kpi) => (
-          <div key={kpi.label} className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface)] p-4">
+          <div
+            key={kpi.label}
+            className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface)] p-4"
+          >
             <div className="flex items-center justify-between">
               {kpi.icon}
               <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-[var(--color-accent-primary)]">
                 Live
               </span>
             </div>
-            <p className="mt-4 text-2xl font-bold text-[var(--color-text-primary)]">{kpi.value}</p>
+            <p className="mt-4 text-2xl font-bold text-[var(--color-text-primary)]">
+              {kpi.value}
+            </p>
             <p className="mt-1 text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-muted)]">
               {kpi.label}
             </p>
@@ -102,7 +109,9 @@ export default function AdminDashboard({ navigate }: CommonProps) {
       <div className="mb-6 grid gap-5 xl:grid-cols-[1.2fr,0.8fr]">
         <section className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface)] p-4">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">Needs attention</h2>
+            <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">
+              Needs attention
+            </h2>
             <span className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-accent-primary)]">
               Operational queue
             </span>
@@ -121,8 +130,12 @@ export default function AdminDashboard({ navigate }: CommonProps) {
                   className="flex w-full items-center justify-between rounded-xl bg-[var(--color-background)] px-3 py-2.5 text-left transition-colors hover:bg-[var(--color-hover-surface)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-primary)]"
                 >
                   <div>
-                    <p className="text-sm font-medium text-[var(--color-text-primary)]">{item.label}</p>
-                    <p className="text-xs text-[var(--color-text-muted)]">Action required</p>
+                    <p className="text-sm font-medium text-[var(--color-text-primary)]">
+                      {item.label}
+                    </p>
+                    <p className="text-xs text-[var(--color-text-muted)]">
+                      Action required
+                    </p>
                   </div>
                   <span className="rounded-full bg-[rgba(251,113,133,0.18)] px-2 py-1 text-xs font-bold text-[var(--color-status-danger)]">
                     {item.count}
@@ -135,14 +148,21 @@ export default function AdminDashboard({ navigate }: CommonProps) {
 
         <section className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface)] p-4">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">Platform activity</h2>
+            <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">
+              Platform activity
+            </h2>
           </div>
           <div className="space-y-3">
             {summary.activity.map((entry) => (
-              <div key={entry.id} className="flex gap-2 rounded-xl bg-[var(--color-background)] p-3">
+              <div
+                key={entry.id}
+                className="flex gap-2 rounded-xl bg-[var(--color-background)] p-3"
+              >
                 <span className="mt-1 h-2.5 w-2.5 rounded-full bg-[var(--color-accent-primary)]" />
                 <div className="flex-1">
-                  <p className="text-sm text-[var(--color-text-secondary)]">{entry.text}</p>
+                  <p className="text-sm text-[var(--color-text-secondary)]">
+                    {entry.text}
+                  </p>
                   <p className="mt-1 text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-muted)]">
                     {entry.time}
                   </p>
@@ -155,24 +175,41 @@ export default function AdminDashboard({ navigate }: CommonProps) {
 
       <div className="grid gap-5 xl:grid-cols-2">
         <section className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface)] p-4">
-          <h2 className="mb-3 text-sm font-semibold text-[var(--color-text-primary)]">Content health</h2>
+          <h2 className="mb-3 text-sm font-semibold text-[var(--color-text-primary)]">
+            Content health
+          </h2>
           <div className="grid gap-2 sm:grid-cols-2">
             {[
-              ["Books published this week", summary.contentHealth.booksPublishedThisWeek],
-              ["Chapters published this week", summary.contentHealth.chaptersPublishedThisWeek],
+              [
+                "Books published this week",
+                summary.contentHealth.booksPublishedThisWeek,
+              ],
+              [
+                "Chapters published this week",
+                summary.contentHealth.chaptersPublishedThisWeek,
+              ],
               ["Pending submissions", summary.contentHealth.pendingSubmissions],
               ["Rejected content", summary.contentHealth.rejectedContent],
             ].map(([label, value]) => (
-              <div key={label} className="rounded-xl bg-[var(--color-background)] p-3">
-                <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-muted)]">{label}</p>
-                <p className="mt-2 text-xl font-bold text-[var(--color-text-primary)]">{String(value)}</p>
+              <div
+                key={label}
+                className="rounded-xl bg-[var(--color-background)] p-3"
+              >
+                <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-muted)]">
+                  {label}
+                </p>
+                <p className="mt-2 text-xl font-bold text-[var(--color-text-primary)]">
+                  {String(value)}
+                </p>
               </div>
             ))}
           </div>
         </section>
 
         <section className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface)] p-4">
-          <h2 className="mb-3 text-sm font-semibold text-[var(--color-text-primary)]">Economy health</h2>
+          <h2 className="mb-3 text-sm font-semibold text-[var(--color-text-primary)]">
+            Economy health
+          </h2>
           <div className="grid gap-2 sm:grid-cols-2">
             {[
               ["Coins purchased", summary.economyHealth.coinsPurchased],
@@ -181,9 +218,16 @@ export default function AdminDashboard({ navigate }: CommonProps) {
               ["Refunds", summary.economyHealth.refunds],
               ["Failed transactions", summary.economyHealth.failedTransactions],
             ].map(([label, value]) => (
-              <div key={label} className="rounded-xl bg-[var(--color-background)] p-3">
-                <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-muted)]">{label}</p>
-                <p className="mt-2 text-xl font-bold text-[var(--color-text-primary)]">{String(value)}</p>
+              <div
+                key={label}
+                className="rounded-xl bg-[var(--color-background)] p-3"
+              >
+                <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-muted)]">
+                  {label}
+                </p>
+                <p className="mt-2 text-xl font-bold text-[var(--color-text-primary)]">
+                  {String(value)}
+                </p>
               </div>
             ))}
           </div>
