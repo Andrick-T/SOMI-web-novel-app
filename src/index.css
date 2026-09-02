@@ -590,7 +590,7 @@ textarea:focus-visible,
   overflow-x: auto;
   overflow-y: auto;
   overscroll-behavior-x: contain;
-  touch-action: pan-x;
+  touch-action: pan-y pinch-zoom;
   scroll-snap-type: x proximity;
   scrollbar-width: none;
   -ms-overflow-style: none;

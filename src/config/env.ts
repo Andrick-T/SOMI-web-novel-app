@@ -1,6 +1,7 @@
 export type AppConfig = {
   appName: string;
   appUrl: string;
+  frontendUrl: string;
   apiBaseUrl: string;
   enablePwa: boolean;
   enableOfflineReading: boolean;
@@ -16,9 +17,26 @@ const normalizeBoolean = (value: string | undefined, fallback: boolean) => {
   return value === "true" || value === "1";
 };
 
+const defaultFrontendUrl = "https://somi-z5dq.onrender.com";
+const configuredFrontendUrl = readEnv("VITE_FRONTEND_URL", defaultFrontendUrl);
+const configuredAppUrl = readEnv("VITE_APP_URL", configuredFrontendUrl);
+
+export const resolveFrontendUrl = (override?: string): string => {
+  if (override) return override;
+
+  if (typeof window !== "undefined" && import.meta.env.DEV) {
+    return configuredAppUrl.startsWith("http")
+      ? configuredAppUrl
+      : window.location.origin || configuredFrontendUrl;
+  }
+
+  return configuredFrontendUrl;
+};
+
 export const appConfig: AppConfig = {
   appName: readEnv("VITE_APP_NAME", "SOMI"),
-  appUrl: readEnv("VITE_APP_URL", "https://somi.app"),
+  appUrl: resolveFrontendUrl(),
+  frontendUrl: configuredFrontendUrl,
   apiBaseUrl: readEnv("VITE_API_BASE_URL", "/"),
   enablePwa: normalizeBoolean(readEnv("VITE_ENABLE_PWA", "true"), true),
   enableOfflineReading: normalizeBoolean(
@@ -30,8 +48,10 @@ export const appConfig: AppConfig = {
 };
 
 export const getPublicOrigin = () => {
-  if (typeof window === "undefined") return appConfig.appUrl;
-  return window.location.origin || appConfig.appUrl;
+  if (typeof window === "undefined") return appConfig.frontendUrl;
+  return import.meta.env.DEV && configuredAppUrl.startsWith("http")
+    ? configuredAppUrl
+    : window.location.origin || appConfig.frontendUrl;
 };
 
 export const validateAppConfig = () => {
@@ -43,6 +63,10 @@ export const validateAppConfig = () => {
 
   if (!appConfig.appUrl.startsWith("http")) {
     errors.push("VITE_APP_URL must be an absolute URL");
+  }
+
+  if (!appConfig.frontendUrl.startsWith("http")) {
+    errors.push("VITE_FRONTEND_URL must be an absolute URL");
   }
 
   return {
