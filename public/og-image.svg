@@ -1,0 +1,18 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="630" rx="36" fill="#0D0B18"/>
+  <rect x="60" y="60" width="1080" height="510" rx="28" fill="url(#paint0_linear)" stroke="#2E2945"/>
+  <circle cx="300" cy="315" r="140" fill="#E8A84C" fill-opacity="0.14"/>
+  <path d="M258 200L348 200L348 430H258V200Z" fill="#E8A84C" fill-opacity="0.95"/>
+  <path d="M228 250C228 214.863 256.863 186 292 186H346C381.137 186 410 214.863 410 250V370C410 405.137 381.137 434 346 434H292C256.863 434 228 405.137 228 370V250Z" fill="#0D0B18" fill-opacity="0.25"/>
+  <path d="M352 200H410V430H352V200Z" fill="#E8A84C" fill-opacity="0.7"/>
+  <path d="M290 233H360C372.15 233 382 242.85 382 255V370C382 382.15 372.15 392 360 392H290C277.85 392 268 382.15 268 370V255C268 242.85 277.85 233 290 233Z" fill="#F0ECE4" fill-opacity="0.15"/>
+  <text x="520" y="280" fill="#F0ECE4" font-family="Georgia, serif" font-size="96" font-weight="700">SOMI</text>
+  <text x="520" y="360" fill="#8B7EA8" font-family="Arial, sans-serif" font-size="40">Read. Discover. Write.</text>
+  <text x="520" y="430" fill="#E8A84C" font-family="Arial, sans-serif" font-size="28" letter-spacing="7">AFRICAN STORIES, BEAUTIFULLY READ</text>
+  <defs>
+    <linearGradient id="paint0_linear" x1="60" y1="60" x2="1140" y2="570" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1A1726"/>
+      <stop offset="1" stop-color="#0D0B18"/>
+    </linearGradient>
+  </defs>
+</svg>

@@ -1,4 +1,14 @@
-import { LayoutDashboard, Users, BookOpen, Coins, Settings, ArrowLeft, ShieldAlert } from "lucide-react";
+import {
+  ArrowLeft,
+  BadgeAlert,
+  BookOpen,
+  Coins,
+  FileText,
+  LayoutDashboard,
+  Settings,
+  ShieldCheck,
+  UserRound,
+} from "lucide-react";
 import type { Page } from "../types";
 
 interface Props {
@@ -7,52 +17,67 @@ interface Props {
   setEnvironment: (env: "reader" | "writer" | "admin") => void;
 }
 
-const links: { page: Page; label: string; icon: React.ElementType; badge?: number }[] = [
-  { page: "admin-dashboard", label: "Overview",  icon: LayoutDashboard },
-  { page: "admin-users",     label: "Users",     icon: Users },
-  { page: "admin-content",   label: "Content",   icon: BookOpen, badge: 2 },
-  { page: "admin-economy",   label: "Economy",   icon: Coins },
-  { page: "admin-settings",  label: "Settings",  icon: Settings },
+const links: {
+  page: Page;
+  label: string;
+  icon: React.ElementType;
+  badge?: number;
+}[] = [
+  { page: "admin-dashboard", label: "Overview", icon: LayoutDashboard },
+  { page: "admin-users", label: "Users", icon: UserRound },
+  { page: "admin-writers", label: "Writers", icon: BookOpen },
+  { page: "admin-content", label: "Content", icon: BookOpen, badge: 12 },
+  { page: "admin-reports", label: "Reports", icon: BadgeAlert, badge: 4 },
+  { page: "admin-economy", label: "Economy", icon: Coins },
+  { page: "admin-transactions", label: "Transactions", icon: FileText },
+  { page: "admin-audit", label: "Audit Log", icon: FileText },
+  { page: "admin-settings", label: "Settings", icon: Settings },
 ];
 
-export default function AdminSidebar({ page, navigate, setEnvironment }: Props) {
+export default function AdminSidebar({
+  page,
+  navigate,
+  setEnvironment,
+}: Props) {
   return (
-    <aside
-      className="hidden md:flex flex-col w-52 flex-shrink-0 py-6 px-3"
-      style={{ background: "#08101c", borderRight: "1px solid rgba(96,165,250,0.1)" }}
-    >
-      {/* Back to reader */}
+    <aside className="hidden w-64 flex-shrink-0 flex-col border-r border-[var(--color-border-subtle)] bg-[var(--color-background)] px-3 py-6 md:flex">
       <button
-        onClick={() => { setEnvironment("reader"); navigate("home"); }}
-        className="flex items-center gap-2 px-3 py-2 rounded-lg mb-6 text-xs font-semibold transition-all hover:opacity-80"
-        style={{ color: "#3b5278" }}
+        type="button"
+        onClick={() => {
+          setEnvironment("reader");
+          navigate("home");
+        }}
+        className="mb-6 flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold text-[var(--color-text-muted)] transition-all hover:opacity-80"
       >
         <ArrowLeft size={13} />
         Reader App
       </button>
 
-      {/* Nav links */}
-      <nav className="flex flex-col gap-1 flex-1">
-        {links.map(item => {
+      <div className="mb-4 px-3">
+        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--color-text-muted)]">
+          Operations
+        </p>
+      </div>
+
+      <nav className="flex flex-1 flex-col gap-1">
+        {links.map((item) => {
           const active = page === item.page;
           const Icon = item.icon;
           return (
             <button
               key={item.page}
+              type="button"
               onClick={() => navigate(item.page)}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-left transition-all"
+              className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium transition-all hover:bg-[var(--color-hover-surface)]"
               style={{
-                background: active ? "rgba(96,165,250,0.12)" : "transparent",
-                color: active ? "#60a5fa" : "#4a6888",
+                background: active ? "var(--color-active-surface)" : "transparent",
+                color: active ? "var(--color-accent-primary)" : "var(--color-text-muted)",
               }}
             >
               <Icon size={16} strokeWidth={active ? 2.5 : 1.8} />
               <span className="flex-1">{item.label}</span>
-              {item.badge && (
-                <span
-                  className="text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0"
-                  style={{ background: "rgba(251,113,133,0.2)", color: "#fb7185" }}
-                >
+              {typeof item.badge === "number" && item.badge > 0 && (
+                <span className="flex h-5 min-w-5 flex-shrink-0 items-center justify-center rounded-full bg-[rgba(251,113,133,0.18)] px-1 text-[9px] font-bold text-[var(--color-status-danger)]">
                   {item.badge}
                 </span>
               )}
@@ -61,22 +86,20 @@ export default function AdminSidebar({ page, navigate, setEnvironment }: Props) 
         })}
       </nav>
 
-      {/* Moderation alert */}
-      <div
-        className="mt-4 p-3 rounded-xl"
-        style={{ background: "rgba(251,113,133,0.06)", border: "1px solid rgba(251,113,133,0.15)" }}
-      >
-        <div className="flex items-center gap-2 mb-1">
-          <ShieldAlert size={13} color="#fb7185" />
-          <span className="text-xs font-bold" style={{ color: "#fb7185" }}>2 Reports</span>
+      <div className="mt-4 rounded-xl border border-[rgba(251,113,133,0.2)] bg-[rgba(251,113,133,0.07)] p-3">
+        <div className="mb-1 flex items-center gap-2">
+          <ShieldCheck size={13} color="var(--color-status-danger)" />
+          <span className="text-xs font-bold text-[var(--color-status-danger)]">4 reports</span>
         </div>
-        <p className="text-[10px]" style={{ color: "#7a4055" }}>Flagged content awaits review</p>
+        <p className="text-[10px] text-[var(--color-text-muted)]">
+          Flagged content and user reports need review.
+        </p>
         <button
-          onClick={() => navigate("admin-content")}
-          className="mt-2 text-[10px] font-semibold"
-          style={{ color: "#fb7185" }}
+          type="button"
+          onClick={() => navigate("admin-reports")}
+          className="mt-2 text-[10px] font-semibold text-[var(--color-status-danger)]"
         >
-          Review now →
+          Review queue →
         </button>
       </div>
     </aside>

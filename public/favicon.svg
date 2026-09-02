@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="SOMI favicon">
+  <rect width="64" height="64" rx="16" fill="#0d0b18"/>
+  <path d="M14 18C14 14.686 16.686 12 20 12H44C47.314 12 50 14.686 50 18V34C50 37.314 47.314 40 44 40H28L22 48L23 40H20C16.686 40 14 37.314 14 34V18Z" fill="#E8A84C"/>
+  <text x="32" y="34" text-anchor="middle" font-size="22" font-family="Georgia, serif" font-weight="700" fill="#F0ECE4">S</text>
+</svg>

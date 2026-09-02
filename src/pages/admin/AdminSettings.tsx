@@ -1,126 +1,129 @@
-import { useState } from "react";
-import { Bell, Shield, Globe, ChevronRight, ToggleLeft, ToggleRight } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Bell, ShieldCheck } from "lucide-react";
+import { adminService, mockAdminRepository } from "../../features/admin";
+import AdminActionDialog from "../../components/AdminActionDialog";
+import { StatusBadge, Toggle } from "../../components/DesignPrimitives";
 import type { CommonProps } from "../../types";
 
-type Toggle = {
-  id: string;
-  label: string;
-  desc: string;
-  value: boolean;
-};
+export default function AdminSettings({}: CommonProps) {
+  const initialSettings = useMemo(() => mockAdminRepository.getPlatformSettings(), []);
+  const [settings, setSettings] = useState(initialSettings);
+  const [dialog, setDialog] = useState(false);
 
-export default function AdminSettings({ }: CommonProps) {
-  const [toggles, setToggles] = useState<Toggle[]>([
-    { id: "maintenance",    label: "Maintenance Mode",      desc: "Redirect all users to maintenance page", value: false },
-    { id: "newRegistration",label: "Allow New Registrations", desc: "Toggle user sign-up globally",         value: true },
-    { id: "writerApply",    label: "Writer Applications",   desc: "Let readers apply to become writers",    value: true },
-    { id: "pushNotifs",     label: "Push Notifications",    desc: "Platform-wide push dispatch",            value: true },
-    { id: "emailDigest",    label: "Weekly Email Digest",   desc: "Send digest emails to active users",     value: false },
-  ]);
+  const hasChanges = JSON.stringify(settings) !== JSON.stringify(initialSettings);
 
-  const toggle = (id: string) => {
-    setToggles(prev => prev.map(t => t.id === id ? { ...t, value: !t.value } : t));
+  const toggle = (key: keyof typeof settings, value: boolean) => {
+    setSettings((current) => ({ ...current, [key]: value }));
+  };
+
+  const saveSettings = () => {
+    adminService.updatePlatformSettings(settings);
+    setDialog(false);
   };
 
   return (
-    <div className="flex flex-col min-h-full" style={{ background: "#0e1422" }}>
-      <div className="px-5 pt-12 pb-5">
-        <p className="text-xs uppercase tracking-widest font-bold mb-0.5" style={{ color: "#60a5fa88" }}>Admin Console</p>
-        <h1 className="font-display text-2xl font-bold" style={{ color: "#f0ece4" }}>Settings</h1>
-      </div>
-
-      {/* Platform toggles */}
-      <div className="px-5 mb-6">
-        <h3 className="font-display text-sm font-semibold mb-3" style={{ color: "#f0ece4" }}>Platform Controls</h3>
-        <div className="flex flex-col gap-2">
-          {toggles.map(item => (
-            <div
-              key={item.id}
-              className="flex items-center gap-3 p-4 rounded-xl"
-              style={{ background: "#162035", border: "1px solid rgba(96,165,250,0.08)" }}
-            >
-              <div className="flex-1">
-                <p className="text-sm font-semibold" style={{ color: "#f0ece4" }}>{item.label}</p>
-                <p className="text-xs mt-0.5" style={{ color: "#3b5278" }}>{item.desc}</p>
-              </div>
-              <button onClick={() => toggle(item.id)} className="flex-shrink-0">
-                {item.value
-                  ? <ToggleRight size={28} color="#60a5fa" />
-                  : <ToggleLeft  size={28} color="#3b5278" />
-                }
-              </button>
-            </div>
-          ))}
+    <div className="min-h-full bg-[var(--color-background)] px-5 py-8 text-[var(--color-text-primary)]">
+      <div className="mb-6 flex items-center justify-between gap-3">
+        <div>
+          <p className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-muted)]">Admin Console</p>
+          <h1 className="mt-2 text-2xl font-bold text-[var(--color-text-primary)]">Settings</h1>
         </div>
+        <StatusBadge label={hasChanges ? "Dirty" : "Clean"} tone={hasChanges ? "warning" : "success"} compact />
       </div>
 
-      {/* Config sections */}
-      {[
-        {
-          title: "Notifications",
-          icon: <Bell size={15} color="#60a5fa" />,
-          items: ["Email Templates", "SMS Fallback Settings", "Notification Queue"],
-        },
-        {
-          title: "Security",
-          icon: <Shield size={15} color="#60a5fa" />,
-          items: ["Two-Factor Auth Policy", "Session Timeout", "Rate Limit Rules", "Banned Words List"],
-        },
-        {
-          title: "Localization",
-          icon: <Globe size={15} color="#60a5fa" />,
-          items: ["Supported Languages", "Default Currency", "Date & Time Format"],
-        },
-      ].map(section => (
-        <div key={section.title} className="px-5 mb-5">
-          <div className="flex items-center gap-2 mb-3">
-            {section.icon}
-            <h3 className="font-display text-sm font-semibold" style={{ color: "#f0ece4" }}>{section.title}</h3>
+      <div className="space-y-5 pb-8">
+        <section className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface)] p-4">
+          <h2 className="mb-3 text-sm font-semibold text-[var(--color-text-primary)]">Platform</h2>
+          <div className="grid gap-3 md:grid-cols-2">
+            <label className="text-sm text-[var(--color-text-secondary)]">
+              <span className="mb-1 block text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-muted)]">Platform name</span>
+              <input value={settings.platformName} className="w-full rounded-lg border border-[var(--color-border-default)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none" />
+            </label>
+            <label className="text-sm text-[var(--color-text-secondary)]">
+              <span className="mb-1 block text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-muted)]">Support email</span>
+              <input value={settings.supportEmail} className="w-full rounded-lg border border-[var(--color-border-default)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none" />
+            </label>
           </div>
-          <div
-            className="rounded-xl overflow-hidden"
-            style={{ border: "1px solid rgba(96,165,250,0.1)" }}
-          >
-            {section.items.map((item, i) => (
-              <button
-                key={i}
-                className="flex items-center justify-between w-full px-4 py-3 active:bg-white/5"
-                style={{
-                  background: "#162035",
-                  borderBottom: i < section.items.length - 1 ? "1px solid rgba(96,165,250,0.08)" : "none",
-                }}
-              >
-                <span className="text-sm" style={{ color: "#a0c0e8" }}>{item}</span>
-                <ChevronRight size={14} color="#3b5278" />
-              </button>
+        </section>
+
+        <section className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface)] p-4">
+          <h2 className="mb-3 text-sm font-semibold text-[var(--color-text-primary)]">Content</h2>
+          <div className="space-y-3">
+            {[
+              ["Moderation enabled", "moderationEnabled"],
+              ["Writer registration enabled", "writerRegistrationEnabled"],
+              ["Auto-publish enabled", "autoPublishEnabled"],
+            ].map(([label, key]) => (
+              <div key={key} className="flex w-full items-center justify-between rounded-xl bg-[var(--color-background)] px-3 py-3 text-left">
+                <span className="text-sm text-[var(--color-text-secondary)]">{label}</span>
+                <Toggle checked={Boolean(settings[key as keyof typeof settings])} onChange={(checked) => toggle(key as keyof typeof settings, checked)} label={String(label)} />
+              </div>
             ))}
           </div>
-        </div>
-      ))}
+        </section>
 
-      {/* Danger zone */}
-      <div className="px-5 mb-10">
-        <h3 className="font-display text-sm font-semibold mb-3" style={{ color: "#fb7185" }}>Danger Zone</h3>
-        <div className="flex flex-col gap-2">
-          {[
-            { label: "Flush CDN Cache",      sub: "Force assets to re-propagate" },
-            { label: "Reset All Rate Limits", sub: "Unblock temporarily rate-limited IPs" },
-            { label: "Export User Data",      sub: "Download full platform data archive" },
-          ].map((item, i) => (
-            <button
-              key={i}
-              className="flex items-center justify-between px-4 py-3.5 rounded-xl active:scale-[0.98]"
-              style={{ background: "rgba(251,113,133,0.06)", border: "1px solid rgba(251,113,133,0.15)" }}
-            >
-              <div className="text-left">
-                <p className="text-sm font-semibold" style={{ color: "#fb7185" }}>{item.label}</p>
-                <p className="text-xs mt-0.5" style={{ color: "#7a4055" }}>{item.sub}</p>
+        <section className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface)] p-4">
+          <h2 className="mb-3 text-sm font-semibold text-[var(--color-text-primary)]">Economy</h2>
+          <div className="grid gap-3 md:grid-cols-2">
+            <label className="text-sm text-[var(--color-text-secondary)]">
+              <span className="mb-1 block text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-muted)]">Coin conversion rate</span>
+              <input value={settings.coinConversionRate} className="w-full rounded-lg border border-[var(--color-border-default)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none" />
+            </label>
+            <label className="text-sm text-[var(--color-text-secondary)]">
+              <span className="mb-1 block text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-muted)]">Minimum purchase</span>
+              <input value={settings.minimumPurchase} className="w-full rounded-lg border border-[var(--color-border-default)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none" />
+            </label>
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface)] p-4">
+          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-[var(--color-text-primary)]"><Bell size={14} color="var(--color-accent-primary)" /> Notifications</h2>
+          <div className="space-y-3">
+            {[
+              ["Email notifications", "emailNotifications"],
+              ["Moderation notifications", "moderationNotifications"],
+              ["Payment notifications", "paymentNotifications"],
+            ].map(([label, key]) => (
+              <div key={key} className="flex w-full items-center justify-between rounded-xl bg-[var(--color-background)] px-3 py-3 text-left">
+                <span className="text-sm text-[var(--color-text-secondary)]">{label}</span>
+                <Toggle checked={Boolean(settings[key as keyof typeof settings])} onChange={(checked) => toggle(key as keyof typeof settings, checked)} label={String(label)} />
               </div>
-              <ChevronRight size={14} color="#fb7185" />
-            </button>
-          ))}
+            ))}
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface)] p-4">
+          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-[var(--color-text-primary)]"><ShieldCheck size={14} color="var(--color-accent-primary)" /> Security</h2>
+          <div className="grid gap-3 md:grid-cols-2">
+            <label className="text-sm text-[var(--color-text-secondary)]">
+              <span className="mb-1 block text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-muted)]">Session policy</span>
+              <input value={settings.sessionPolicy} className="w-full rounded-lg border border-[var(--color-border-default)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none" />
+            </label>
+            <label className="text-sm text-[var(--color-text-secondary)]">
+              <span className="mb-1 block text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-muted)]">Admin timeout</span>
+              <input value={settings.adminSessionTimeoutMinutes} className="w-full rounded-lg border border-[var(--color-border-default)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none" />
+            </label>
+          </div>
+        </section>
+
+        <div className="flex justify-end gap-2 pt-2">
+          <button type="button" onClick={() => setSettings(initialSettings)} className="somi-control rounded-lg border border-[var(--color-border-default)] bg-[var(--color-background)] px-3 py-2 text-xs font-semibold text-[var(--color-text-secondary)]">
+            Reset
+          </button>
+          <button type="button" onClick={() => setDialog(true)} className="somi-control rounded-lg bg-[var(--color-accent-primary)] px-3 py-2 text-xs font-semibold text-[var(--color-background)]">
+            Save changes
+          </button>
         </div>
       </div>
+
+      <AdminActionDialog
+        open={dialog}
+        title="Apply settings"
+        description="Save the updated platform controls and write the changes to the operational audit log."
+        confirmLabel="Save settings"
+        onConfirm={saveSettings}
+        onCancel={() => setDialog(false)}
+      />
     </div>
   );
 }

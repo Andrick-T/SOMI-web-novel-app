@@ -1,289 +1,420 @@
-import { useState } from "react";
-import { Search, Bell, ChevronRight, Star, Eye, Flame, Bookmark, TrendingUp } from "lucide-react";
+import {
+  ArrowRight,
+  Feather,
+  Flame,
+  Library,
+  Search,
+  Sparkles,
+  Star,
+} from "lucide-react";
 import BookCard from "../components/BookCard";
-import { books, genres, popularBooks, recentlyUpdated, featuredBook } from "../data/books";
+import { bookRepository } from "../services/repositories";
+import type { Book } from "../data/books";
 import type { CommonProps } from "../types";
 
-const genreIcons: Record<string, string> = {
-  "Fantasy": "◈",
-  "Adventure": "◆",
-  "Children's": "◇",
-  "African Culture": "◉",
-  "Thriller": "▲",
-  "Family Saga": "◎",
-  "Historical": "○",
-  "Romance": "◇",
-};
+const reads = (views: number) =>
+  views >= 1000
+    ? `${(views / 1000).toFixed(views >= 100000 ? 0 : 1)}k reads`
+    : `${views} reads`;
 
-export default function HomePage({ navigate, isLoggedIn, libraryBooks }: CommonProps) {
-  const [activeGenre, setActiveGenre] = useState<string>("All");
-  const featured = featuredBook;
+function Heading({
+  eyebrow,
+  title,
+  description,
+  action,
+}: {
+  eyebrow?: string;
+  title: string;
+  description?: string;
+  action?: () => void;
+}) {
+  return (
+    <div className="mb-5 flex items-end justify-between gap-4">
+      <div>
+        {eyebrow && <p className="somi-eyebrow">{eyebrow}</p>}
+        <h2 className="font-display text-2xl font-semibold tracking-tight text-[#f4eee3] md:text-3xl">
+          {title}
+        </h2>
+        {description && (
+          <p className="mt-1 text-sm text-[#9d927f]">{description}</p>
+        )}
+      </div>
+      {action && (
+        <button className="somi-text-link" onClick={action}>
+          View all <ArrowRight size={14} />
+        </button>
+      )}
+    </div>
+  );
+}
 
-  const filteredBooks = activeGenre === "All"
-    ? books
-    : books.filter(b => b.genres.includes(activeGenre as never));
+function Shelf({
+  books,
+  navigate,
+  size = "md",
+}: {
+  books: Book[];
+  navigate: CommonProps["navigate"];
+  size?: "sm" | "md" | "lg";
+}) {
+  return (
+    <div className="somi-shelf">
+      {books.map((book) => (
+        <BookCard key={book.id} book={book} navigate={navigate} size={size} />
+      ))}
+    </div>
+  );
+}
 
-  const readingProgress = [
-    { book: books[2], progress: 68 },
-    { book: books[4], progress: 32 },
-  ];
+function RatedCard({
+  book,
+  navigate,
+}: {
+  book: Book;
+  navigate: CommonProps["navigate"];
+}) {
+  return (
+    <button
+      className="somi-rated-card"
+      onClick={() => navigate("book", book.id)}
+    >
+      <img src={book.cover} alt={`${book.title} cover`} loading="lazy" />
+      <div className="min-w-0 text-left">
+        <p className="truncate font-display text-lg font-semibold text-[#f4eee3]">
+          {book.title}
+        </p>
+        <p className="mt-1 text-xs text-[#a99d8a]">{book.author}</p>
+        <div className="mt-3 flex items-center gap-1 text-xs text-[#e8b363]">
+          <Star size={12} fill="currentColor" /> {book.rating.toFixed(1)}
+          <span className="ml-1 text-[#827766]">{reads(book.views)}</span>
+        </div>
+        <p className="mt-3 line-clamp-3 text-xs leading-relaxed text-[#b7ac9b]">
+          {book.synopsis}
+        </p>
+      </div>
+    </button>
+  );
+}
+
+function UpdateItem({
+  book,
+  navigate,
+}: {
+  book: Book;
+  navigate: CommonProps["navigate"];
+}) {
+  const chapter = book.chapters[book.chapters.length - 1] ?? book.chapters[0];
+  return (
+    <button
+      className="somi-update-item"
+      onClick={() => navigate("book", book.id)}
+    >
+      <img src={book.cover} alt={`${book.title} cover`} loading="lazy" />
+      <span className="min-w-0 flex-1 text-left">
+        <span className="block truncate font-display text-base font-semibold text-[#f4eee3]">
+          {book.title}
+        </span>
+        <span className="mt-1 block text-xs text-[#998d7c]">{book.author}</span>
+        <span className="mt-2 block text-xs text-[#e8b363]">
+          Chapter {chapter?.number}: {chapter?.title}
+        </span>
+      </span>
+      <span className="shrink-0 text-right text-[10px] uppercase tracking-wider text-[#827766]">
+        {book.lastUpdate}
+      </span>
+    </button>
+  );
+}
+
+export default function HomePage({
+  navigate,
+  isLoggedIn,
+  isWriter,
+}: CommonProps) {
+  const books = bookRepository.getBooks();
+  const featured = bookRepository.getFeaturedBook();
+  const trending = bookRepository.getPopularBooks();
+  const topRated = bookRepository.getTopRatedBooks();
+  const updates = bookRepository.getRecentlyUpdatedBooks();
+  const genres = bookRepository.getGenres().filter((genre) => genre !== "All");
+  const newBooks = books.slice(-4).reverse();
+  const shortStories = books.filter((book) => book.totalChapters <= 24);
 
   return (
-    <div className="flex flex-col min-h-full" style={{ background: "#0d0b18" }}>
-      {/* Top Bar — mobile only (TopNav handles desktop) */}
-      <div className="md:hidden flex items-center justify-between px-5 pt-12 pb-4">
-        <div>
-          <h1 className="font-display text-2xl font-bold gold-shimmer">SOMI</h1>
-          <p className="text-[11px] mt-0.5" style={{ color: "#8b7ea8" }}>
-            {isLoggedIn ? "Welcome back, Kemi" : "Discover African stories"}
-          </p>
-        </div>
-        <div className="flex items-center gap-2.5">
+    <div className="somi-home">
+      <div className="somi-home-inner">
+        <div className="somi-mobile-intro md:hidden">
+          <div>
+            <p className="font-display text-2xl font-semibold text-[#f4eee3]">
+              SOMI
+            </p>
+            <p className="mt-1 text-xs text-[#a99d8a]">
+              African stories, beautifully read
+            </p>
+          </div>
           <button
-            className="w-9 h-9 rounded-full flex items-center justify-center active:scale-90"
-            style={{ background: "#1a1726" }}
+            className="somi-icon-button"
             onClick={() => navigate("discover")}
+            aria-label="Search stories"
           >
-            <Search size={16} color="#8b7ea8" />
+            <Search size={17} />
           </button>
-          {isLoggedIn && (
-            <button
-              className="w-9 h-9 rounded-full flex items-center justify-center relative active:scale-90"
-              style={{ background: "#1a1726" }}
-            >
-              <Bell size={16} color="#8b7ea8" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full border-2" style={{ background: "#c9603a", borderColor: "#0d0b18" }} />
-            </button>
-          )}
         </div>
-      </div>
-
-      {/* Desktop header — shown on md+ when TopNav is present */}
-      <div className="hidden md:flex items-center justify-between px-8 pt-8 pb-4">
-        <div>
-          <h2 className="font-display text-3xl font-bold" style={{ color: "#f0ece4" }}>
-            {isLoggedIn ? "Welcome back, Kemi" : "Stories that move you"}
-          </h2>
-          <p className="text-sm mt-1" style={{ color: "#8b7ea8" }}>
-            Discover African literature — fantasy, thrillers, family sagas and more
-          </p>
-        </div>
-      </div>
-
-      {/* ── HERO FEATURED BOOK ───────────────────────────── */}
-      <div className="px-4 md:px-8 mb-8">
-        <button
-          className="relative w-full rounded-2xl overflow-hidden active:scale-[0.99] transition-transform"
-          style={{ height: "min(52vw, 340px)", minHeight: 200, background: "#1a1726" }}
-          onClick={() => navigate("book", featured.id)}
-        >
-          <img
-            src={featured.heroImage}
-            alt={featured.title}
-            className="absolute inset-0 w-full h-full object-cover"
-          />
-          <div
-            className="absolute inset-0"
-            style={{ background: "linear-gradient(105deg, rgba(13,11,24,0.94) 0%, rgba(13,11,24,0.6) 50%, transparent 100%)" }}
-          />
-
-          <div className="absolute top-4 left-4 md:top-6 md:left-6">
-            <div
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full"
-              style={{ background: "rgba(232,168,76,0.15)", border: "1px solid rgba(232,168,76,0.35)" }}
+        <section className="somi-hero" aria-labelledby="home-heading">
+          <div className="somi-hero-copy">
+            <p className="somi-eyebrow">
+              <Sparkles size={13} /> SOMI EDITORIAL
+            </p>
+            <h1
+              id="home-heading"
+              className="font-display text-4xl leading-[0.98] text-[#fff8ed] md:text-6xl"
             >
-              <Flame size={10} color="#e8a84c" />
-              <span className="text-[10px] font-bold tracking-widest uppercase" style={{ color: "#e8a84c" }}>
-                Editor's Pick
+              Stories with
+              <br />
+              <em>something to say.</em>
+            </h1>
+            <p className="mt-5 max-w-xl text-sm leading-7 text-[#c6bbaa] md:text-base">
+              Discover powerful fiction, contemporary voices, and unforgettable
+              worlds from Africa and beyond.
+            </p>
+            <div className="mt-7 flex flex-wrap gap-3">
+              <button
+                className="somi-primary-button"
+                onClick={() => navigate("book", featured.id)}
+              >
+                Read the featured story <ArrowRight size={16} />
+              </button>
+              <button
+                className="somi-quiet-button"
+                onClick={() => navigate("discover")}
+              >
+                Explore the library
+              </button>
+            </div>
+          </div>
+          <button
+            className="somi-featured-book"
+            onClick={() => navigate("book", featured.id)}
+            aria-label={`Read ${featured.title}`}
+          >
+            <div className="somi-featured-art">
+              <img src={featured.heroImage} alt={`${featured.title} cover`} />
+              <span className="somi-featured-stamp">
+                Editor's
+                <br />
+                choice
               </span>
             </div>
-          </div>
-
-          <div className="absolute bottom-4 left-4 right-20 md:bottom-6 md:left-6 md:right-40">
-            <div className="flex gap-1.5 mb-2 flex-wrap">
-              {featured.genres.slice(0, 2).map(g => (
-                <span
-                  key={g}
-                  className="text-[9px] font-semibold px-2 py-0.5 rounded-full"
-                  style={{ background: "rgba(255,255,255,0.1)", color: "rgba(240,236,228,0.8)" }}
-                >
-                  {g}
-                </span>
-              ))}
+            <div className="mt-4 text-left">
+              <p className="text-[10px] uppercase tracking-[0.25em] text-[#d6a45d]">
+                Featured story
+              </p>
+              <p className="mt-1 font-display text-xl font-semibold text-[#fff8ed]">
+                {featured.title}
+              </p>
+              <p className="mt-1 text-xs text-[#aa9d8b]">
+                {featured.author} · {featured.rating.toFixed(1)} rating
+              </p>
             </div>
-            <h2 className="font-display text-xl md:text-3xl font-bold leading-tight" style={{ color: "#f0ece4" }}>
-              {featured.title}
-            </h2>
-            <p className="text-xs md:text-sm mt-1" style={{ color: "rgba(240,236,228,0.6)" }}>{featured.author}</p>
-            <div className="flex items-center gap-3 mt-2">
-              <div className="flex items-center gap-1">
-                <Star size={10} fill="#e8a84c" color="#e8a84c" />
-                <span className="text-[11px] font-bold" style={{ color: "#e8a84c" }}>{featured.rating}</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <Eye size={10} color="#8b7ea8" />
-                <span className="text-[11px]" style={{ color: "#8b7ea8" }}>{(featured.views / 1000).toFixed(0)}k reads</span>
-              </div>
-              <span className="text-[11px]" style={{ color: "#8b7ea8" }}>{featured.totalChapters} chapters</span>
-            </div>
-          </div>
-
-          <div className="absolute bottom-4 right-4 md:bottom-6 md:right-6 flex flex-col gap-2">
-            <div
-              className="px-4 py-2.5 rounded-xl text-[12px] font-bold"
-              style={{ background: "#e8a84c", color: "#0d0b18" }}
-            >
-              Read Free
-            </div>
-            <button className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "rgba(255,255,255,0.1)" }}>
-              <Bookmark size={14} color="#f0ece4" />
-            </button>
-          </div>
-        </button>
-      </div>
-
-      {/* ── CONTINUE READING ─────────────────────────────── */}
-      {isLoggedIn && (
-        <div className="mb-8">
-          <div className="flex items-center justify-between px-4 md:px-8 mb-3">
-            <h3 className="font-display text-lg font-semibold" style={{ color: "#f0ece4" }}>Continue Reading</h3>
-            <button className="flex items-center gap-1" onClick={() => navigate("library")}>
-              <span className="text-xs" style={{ color: "#8b7ea8" }}>Library</span>
-              <ChevronRight size={13} color="#8b7ea8" />
-            </button>
-          </div>
-          <div className="flex gap-4 px-4 md:px-8 overflow-x-auto pb-1">
-            {readingProgress.map(({ book, progress }) => (
-              <BookCard key={book.id} book={book} navigate={navigate} size="md" showProgress progress={progress} />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ── GENRE FILTER ─────────────────────────────────── */}
-      <div className="mb-6">
-        <div className="flex gap-2 px-4 md:px-8 overflow-x-auto pb-1">
-          <button
-            onClick={() => setActiveGenre("All")}
-            className="flex-shrink-0 px-4 py-1.5 rounded-full text-[11px] font-semibold transition-all active:scale-95"
-            style={{
-              background: activeGenre === "All" ? "#e8a84c" : "#1a1726",
-              color: activeGenre === "All" ? "#0d0b18" : "#8b7ea8",
-              border: activeGenre === "All" ? "none" : "1px solid #2e2945",
-            }}
-          >
-            All
           </button>
-          {genres.map(g => (
+        </section>
+        <section
+          className="somi-stat-strip"
+          aria-label="SOMI reading highlights"
+        >
+          <div>
+            <span className="somi-stat-value">{books.length}</span>
+            <span>Original stories</span>
+          </div>
+          <div>
+            <span className="somi-stat-value">{genres.length}</span>
+            <span>Worlds to explore</span>
+          </div>
+          <div>
+            <span className="somi-stat-value">
+              {books.reduce((sum, book) => sum + book.totalChapters, 0)}
+            </span>
+            <span>Chapters waiting</span>
+          </div>
+          <div>
+            <span className="somi-stat-value">4.8</span>
+            <span>Community pulse</span>
+          </div>
+        </section>
+        {isLoggedIn && (
+          <section className="somi-continue" aria-labelledby="continue-heading">
+            <div>
+              <p className="somi-eyebrow">
+                <Library size={13} /> YOUR LIBRARY
+              </p>
+              <h2
+                id="continue-heading"
+                className="font-display text-2xl font-semibold text-[#f4eee3]"
+              >
+                Welcome back to your shelf.
+              </h2>
+              <p className="mt-2 max-w-lg text-sm leading-6 text-[#a99d8a]">
+                Your library is ready when you are. Pick up a story or discover
+                your next one.
+              </p>
+            </div>
             <button
-              key={g}
-              onClick={() => setActiveGenre(g)}
-              className="flex-shrink-0 px-3 py-1.5 rounded-full text-[11px] font-semibold transition-all active:scale-95"
-              style={{
-                background: activeGenre === g ? "#e8a84c" : "#1a1726",
-                color: activeGenre === g ? "#0d0b18" : "#8b7ea8",
-                border: activeGenre === g ? "none" : "1px solid #2e2945",
-              }}
+              className="somi-outline-button"
+              onClick={() => navigate("library")}
             >
-              {g}
+              Open library <ArrowRight size={15} />
             </button>
-          ))}
-        </div>
-      </div>
-
-      {/* ── POPULAR STORIES ──────────────────────────────── */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between px-4 md:px-8 mb-4">
-          <h3 className="font-display text-lg font-semibold flex items-center gap-2" style={{ color: "#f0ece4" }}>
-            <Flame size={15} color="#c9603a" />
-            Trending Now
-          </h3>
-          <button className="flex items-center gap-1" onClick={() => navigate("discover")}>
-            <span className="text-xs" style={{ color: "#8b7ea8" }}>See all</span>
-            <ChevronRight size={13} color="#8b7ea8" />
-          </button>
-        </div>
-        <div className="flex gap-4 px-4 md:px-8 overflow-x-auto pb-1">
-          {popularBooks.slice(0, 8).map(book => (
-            <BookCard key={book.id} book={book} navigate={navigate} size="md" />
-          ))}
-        </div>
-      </div>
-
-      {/* ── RECENTLY UPDATED ─────────────────────────────── */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between px-4 md:px-8 mb-4">
-          <h3 className="font-display text-lg font-semibold flex items-center gap-2" style={{ color: "#f0ece4" }}>
-            <TrendingUp size={14} color="#8b7ea8" />
-            New Chapters
-          </h3>
-          <button className="flex items-center gap-1" onClick={() => navigate("discover")}>
-            <span className="text-xs" style={{ color: "#8b7ea8" }}>See all</span>
-            <ChevronRight size={13} color="#8b7ea8" />
-          </button>
-        </div>
-        <div className="flex gap-3 px-4 md:px-8 overflow-x-auto pb-1">
-          {recentlyUpdated.slice(0, 6).map(book => (
-            <BookCard key={book.id} book={book} navigate={navigate} size="sm" />
-          ))}
-        </div>
-      </div>
-
-      {/* ── GENRE BROWSE ─────────────────────────────────── */}
-      {activeGenre === "All" && (
-        <div className="px-4 md:px-8 mb-8">
-          <h3 className="font-display text-lg font-semibold mb-4" style={{ color: "#f0ece4" }}>Browse by Genre</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {genres.map((g, i) => {
-              const bookCount = books.filter(b => b.genres.includes(g as never)).length;
-              const colors = [
-                ["#3b1d5e", "#6d28d9"],
-                ["#5e2d0d", "#c2410c"],
-                ["#0e3d3d", "#0f766e"],
-                ["#4a1942", "#9333ea"],
-                ["#1a2030", "#334155"],
-                ["#1a3a1a", "#16a34a"],
-                ["#3d2e00", "#ca8a04"],
-                ["#3d0e15", "#be123c"],
-              ];
-              const [from, to] = colors[i % colors.length];
-              return (
-                <button
-                  key={g}
-                  onClick={() => setActiveGenre(g)}
-                  className="relative rounded-2xl overflow-hidden px-4 py-5 text-left active:scale-[0.97] transition-transform"
-                  style={{ background: `linear-gradient(135deg, ${from} 0%, ${to} 100%)`, border: "1px solid rgba(255,255,255,0.06)" }}
-                >
-                  <p className="text-xs font-mono mb-1" style={{ color: "rgba(255,255,255,0.45)" }}>
-                    {genreIcons[g]}
-                  </p>
-                  <p className="font-display font-semibold text-sm" style={{ color: "#f0ece4" }}>{g}</p>
-                  <p className="text-[10px] mt-0.5" style={{ color: "rgba(255,255,255,0.45)" }}>
-                    {bookCount} {bookCount === 1 ? "story" : "stories"}
-                  </p>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Filtered books grid */}
-      {activeGenre !== "All" && (
-        <div className="px-4 md:px-8 mb-8">
-          <h3 className="font-display text-lg font-semibold mb-4" style={{ color: "#f0ece4" }}>
-            {activeGenre}
-          </h3>
-          <div className="grid grid-cols-3 md:grid-cols-6 gap-4">
-            {filteredBooks.map(book => (
-              <BookCard key={book.id} book={book} navigate={navigate} size="sm" />
+          </section>
+        )}
+        <section className="somi-section">
+          <Heading
+            eyebrow="WHAT READERS ARE INTO"
+            title="Trending on SOMI"
+            description="Stories readers can't stop reading."
+            action={() => navigate("discover")}
+          />
+          <Shelf books={trending.slice(0, 6)} navigate={navigate} />
+        </section>
+        <section className="somi-section somi-tinted-section">
+          <Heading
+            eyebrow="THE COMMUNITY HAS SPOKEN"
+            title="Readers' Choice"
+            description="The stories our community rated highest."
+            action={() => navigate("discover")}
+          />
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+            {topRated.slice(0, 6).map((book) => (
+              <RatedCard key={book.id} book={book} navigate={navigate} />
             ))}
           </div>
-        </div>
-      )}
-
-      {/* Editorial spacer for bottom nav */}
-      <div className="h-4" />
+        </section>
+        <section className="somi-section">
+          <Heading
+            eyebrow="JUST ARRIVED"
+            title="New & Noteworthy"
+            description="Fresh stories worth discovering."
+            action={() => navigate("discover")}
+          />
+          <Shelf books={newBooks} navigate={navigate} size="lg" />
+        </section>
+        <section className="somi-section">
+          <Heading
+            eyebrow={isLoggedIn ? "BASED ON YOUR TASTE" : "A PLACE TO START"}
+            title={isLoggedIn ? "Picked for You" : "You Might Love"}
+            description={
+              isLoggedIn
+                ? "A considered place to find your next favorite."
+                : "Popular stories with a little something extra."
+            }
+            action={() => navigate("discover")}
+          />
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+            {topRated.slice(0, 3).map((book) => (
+              <RatedCard key={book.id} book={book} navigate={navigate} />
+            ))}
+          </div>
+        </section>
+        <section className="somi-section somi-short-section">
+          <div className="flex items-end justify-between gap-4">
+            <div>
+              <p className="somi-eyebrow">
+                <Feather size={13} /> BITE-SIZE FICTION
+              </p>
+              <h2 className="font-display text-2xl font-semibold text-[#f4eee3] md:text-3xl">
+                Short Stories
+              </h2>
+              <p className="mt-1 text-sm text-[#a99d8a]">
+                A whole world in a few quiet minutes.
+              </p>
+            </div>
+            <button
+              className="somi-text-link"
+              onClick={() => navigate("discover")}
+            >
+              Explore all <ArrowRight size={14} />
+            </button>
+          </div>
+          <div className="mt-6 grid gap-x-8 md:grid-cols-2">
+            {shortStories.slice(0, 4).map((book) => (
+              <RatedCard key={book.id} book={book} navigate={navigate} />
+            ))}
+          </div>
+        </section>
+        <section className="somi-section">
+          <Heading
+            eyebrow="FIND YOUR NEXT FIXATION"
+            title="Explore by genre"
+            description="Follow the feeling, wherever it leads."
+          />
+          <div className="somi-genre-grid">
+            {genres.map((genre, index) => (
+              <button
+                key={genre}
+                className={`somi-genre genre-${index % 4}`}
+                onClick={() => navigate("discover")}
+              >
+                <span>{String(index + 1).padStart(2, "0")}</span>
+                <strong>{genre}</strong>
+                <ArrowRight size={17} />
+              </button>
+            ))}
+          </div>
+        </section>
+        <section className="somi-section">
+          <Heading
+            eyebrow="KEEP READING"
+            title="Latest Updates"
+            description="New chapters from stories you don't want to miss."
+            action={() => navigate("discover")}
+          />
+          <div className="somi-updates">
+            {updates.slice(0, 5).map((book) => (
+              <UpdateItem key={book.id} book={book} navigate={navigate} />
+            ))}
+          </div>
+        </section>
+        {!isWriter && (
+          <section className="somi-writer-cta">
+            <div>
+              <p className="somi-eyebrow">
+                <Flame size={13} /> FOR STORYTELLERS
+              </p>
+              <h2 className="font-display text-3xl font-semibold text-[#fff8ed] md:text-4xl">
+                Your story could be
+                <br />
+                <em>someone's next obsession.</em>
+              </h2>
+              <p className="mt-3 max-w-md text-sm leading-6 text-[#c4b49e]">
+                Bring your voice to a growing community of readers looking for
+                something real.
+              </p>
+            </div>
+            <button
+              className="somi-primary-button"
+              onClick={() => navigate("auth")}
+            >
+              Start writing <ArrowRight size={16} />
+            </button>
+          </section>
+        )}
+        <footer className="somi-footer">
+          <div>
+            <p className="font-display text-2xl font-semibold text-[#f4eee3]">
+              SOMI
+            </p>
+            <p className="mt-2 max-w-xs text-xs leading-5 text-[#8f8371]">
+              A home for stories that stay with you.
+            </p>
+          </div>
+          <div className="somi-footer-links">
+            <button onClick={() => navigate("discover")}>Discover</button>
+            <button onClick={() => navigate("library")}>Library</button>
+            <button onClick={() => navigate("profile")}>Profile</button>
+            <button onClick={() => navigate("auth")}>For authors</button>
+          </div>
+          <p className="text-[10px] text-[#716756]">© 2024 SOMI</p>
+        </footer>
+      </div>
     </div>
   );
 }

@@ -1,10 +1,30 @@
 export type Page =
   /* Reader App */
-  | "home" | "discover" | "book" | "reader" | "library" | "wallet" | "profile" | "auth"
+  | "home"
+  | "discover"
+  | "book"
+  | "reader"
+  | "library"
+  | "wallet"
+  | "profile"
+  | "auth"
   /* Writer Studio */
-  | "writer-dashboard" | "writer-books" | "writer-create" | "writer-editor" | "writer-analytics"
+  | "writer-dashboard"
+  | "writer-books"
+  | "writer-create"
+  | "writer-editor"
+  | "writer-analytics"
+  | "writer-earnings"
   /* Admin Console */
-  | "admin-dashboard" | "admin-users" | "admin-content" | "admin-economy" | "admin-settings";
+  | "admin-dashboard"
+  | "admin-users"
+  | "admin-writers"
+  | "admin-content"
+  | "admin-reports"
+  | "admin-economy"
+  | "admin-transactions"
+  | "admin-audit"
+  | "admin-settings";
 
 export type AppEnvironment = "reader" | "writer" | "admin";
 

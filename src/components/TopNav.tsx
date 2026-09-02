@@ -1,5 +1,6 @@
 import { Search, Bell, Coins } from "lucide-react";
 import type { Page, AppEnvironment } from "../types";
+import { navigation } from "../config/designSystem";
 
 interface TopNavProps {
   page: Page;
@@ -12,22 +13,27 @@ interface TopNavProps {
   setEnvironment: (env: AppEnvironment) => void;
 }
 
-const readerLinks: { page: Page; label: string }[] = [
-  { page: "home",     label: "Home" },
-  { page: "discover", label: "Discover" },
-  { page: "library",  label: "Library" },
-];
-
 export default function TopNav({
-  page, navigate, isLoggedIn, coins, isWriter, isAdmin, environment, setEnvironment,
+  page,
+  navigate,
+  isLoggedIn,
+  coins,
+  isWriter,
+  isAdmin,
+  environment,
+  setEnvironment,
 }: TopNavProps) {
-  const isReader  = environment === "reader";
+  const isReader = environment === "reader";
   const isWriterE = environment === "writer";
-  const isAdminE  = environment === "admin";
+  const isAdminE = environment === "admin";
 
   const accent = isAdminE ? "#60a5fa" : isWriterE ? "#4ade80" : "#e8a84c";
-  const bg     = isAdminE ? "#0e1422"  : isWriterE ? "#131510"  : "#0d0b18";
-  const border = isAdminE ? "rgba(96,165,250,0.12)" : isWriterE ? "rgba(74,222,128,0.12)" : "#1e1c2e";
+  const bg = isAdminE ? "#0e1422" : isWriterE ? "#131510" : "#0d0b18";
+  const border = isAdminE
+    ? "rgba(96,165,250,0.12)"
+    : isWriterE
+      ? "rgba(74,222,128,0.12)"
+      : "#1e1c2e";
 
   return (
     <header
@@ -37,10 +43,15 @@ export default function TopNav({
       {/* Logo + app label */}
       <div className="flex items-center gap-4">
         <button
-          onClick={() => { setEnvironment("reader"); navigate("home"); }}
+          onClick={() => {
+            setEnvironment("reader");
+            navigate("home");
+          }}
           className="flex items-center gap-2"
         >
-          <span className="font-display text-lg font-bold gold-shimmer">SOMI</span>
+          <span className="font-display text-lg font-bold gold-shimmer">
+            SOMI
+          </span>
           {!isReader && (
             <span
               className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-md"
@@ -54,7 +65,7 @@ export default function TopNav({
         {/* Reader links */}
         {isReader && (
           <nav className="flex items-center gap-1 ml-2">
-            {readerLinks.map(link => {
+            {navigation.reader.map((link) => {
               const active = page === link.page;
               return (
                 <button
@@ -76,21 +87,21 @@ export default function TopNav({
         {/* Writer links */}
         {isWriterE && (
           <nav className="flex items-center gap-1 ml-2">
-            {(["writer-dashboard", "writer-books", "writer-analytics"] as Page[]).map(p => {
-              const labels: Record<string, string> = {
-                "writer-dashboard": "Dashboard",
-                "writer-books": "My Books",
-                "writer-analytics": "Analytics",
-              };
+            {navigation.writer.slice(0, 3).map(({ page: p, label }) => {
               const active = page === p;
               return (
                 <button
                   key={p}
                   onClick={() => navigate(p)}
                   className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all"
-                  style={{ color: active ? "#4ade80" : "#4a6540", background: active ? "rgba(74,222,128,0.08)" : "transparent" }}
+                  style={{
+                    color: active ? "#4ade80" : "#4a6540",
+                    background: active
+                      ? "rgba(74,222,128,0.08)"
+                      : "transparent",
+                  }}
                 >
-                  {labels[p]}
+                  {label}
                 </button>
               );
             })}
@@ -100,23 +111,21 @@ export default function TopNav({
         {/* Admin links */}
         {isAdminE && (
           <nav className="flex items-center gap-1 ml-2">
-            {(["admin-dashboard", "admin-users", "admin-content", "admin-economy", "admin-settings"] as Page[]).map(p => {
-              const labels: Record<string, string> = {
-                "admin-dashboard": "Overview",
-                "admin-users": "Users",
-                "admin-content": "Content",
-                "admin-economy": "Economy",
-                "admin-settings": "Settings",
-              };
+            {navigation.admin.map(({ page: p, label }) => {
               const active = page === p;
               return (
                 <button
                   key={p}
                   onClick={() => navigate(p)}
                   className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all"
-                  style={{ color: active ? "#60a5fa" : "#3b5278", background: active ? "rgba(96,165,250,0.08)" : "transparent" }}
+                  style={{
+                    color: active ? "#60a5fa" : "#3b5278",
+                    background: active
+                      ? "rgba(96,165,250,0.08)"
+                      : "transparent",
+                  }}
                 >
-                  {labels[p]}
+                  {label}
                 </button>
               );
             })}
@@ -133,7 +142,10 @@ export default function TopNav({
             style={{ background: "#ffffff08" }}
           >
             <button
-              onClick={() => { setEnvironment("reader"); navigate("home"); }}
+              onClick={() => {
+                setEnvironment("reader");
+                navigate("home");
+              }}
               className="px-2.5 py-1 rounded-md text-xs font-semibold transition-all"
               style={{
                 background: isReader ? "#ffffff14" : "transparent",
@@ -144,10 +156,15 @@ export default function TopNav({
             </button>
             {isWriter && (
               <button
-                onClick={() => { setEnvironment("writer"); navigate("writer-dashboard"); }}
+                onClick={() => {
+                  setEnvironment("writer");
+                  navigate("writer-dashboard");
+                }}
                 className="px-2.5 py-1 rounded-md text-xs font-semibold transition-all"
                 style={{
-                  background: isWriterE ? "rgba(74,222,128,0.15)" : "transparent",
+                  background: isWriterE
+                    ? "rgba(74,222,128,0.15)"
+                    : "transparent",
                   color: isWriterE ? "#4ade80" : "#8b7ea8",
                 }}
               >
@@ -156,10 +173,15 @@ export default function TopNav({
             )}
             {isAdmin && (
               <button
-                onClick={() => { setEnvironment("admin"); navigate("admin-dashboard"); }}
+                onClick={() => {
+                  setEnvironment("admin");
+                  navigate("admin-dashboard");
+                }}
                 className="px-2.5 py-1 rounded-md text-xs font-semibold transition-all"
                 style={{
-                  background: isAdminE ? "rgba(96,165,250,0.15)" : "transparent",
+                  background: isAdminE
+                    ? "rgba(96,165,250,0.15)"
+                    : "transparent",
                   color: isAdminE ? "#60a5fa" : "#8b7ea8",
                 }}
               >
@@ -174,10 +196,15 @@ export default function TopNav({
           <button
             onClick={() => navigate("wallet")}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg"
-            style={{ background: "rgba(232,168,76,0.1)", border: "1px solid rgba(232,168,76,0.2)" }}
+            style={{
+              background: "rgba(232,168,76,0.1)",
+              border: "1px solid rgba(232,168,76,0.2)",
+            }}
           >
             <Coins size={13} color="#e8a84c" />
-            <span className="text-xs font-bold" style={{ color: "#e8a84c" }}>{coins.toLocaleString()}</span>
+            <span className="text-xs font-bold" style={{ color: "#e8a84c" }}>
+              {coins.toLocaleString()}
+            </span>
           </button>
         )}
 

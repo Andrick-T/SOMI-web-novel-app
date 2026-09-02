@@ -1,142 +1,193 @@
-import { Users, BookOpen, Coins, TrendingUp, ShieldAlert, CheckCircle, Clock } from "lucide-react";
+import {
+  AlertTriangle,
+  BookOpen,
+  Coins,
+  ShieldAlert,
+  TrendingUp,
+  Users,
+} from "lucide-react";
+import { mockAdminRepository } from "../../features/admin";
 import type { CommonProps } from "../../types";
 
-const kpis = [
-  { label: "Total Users",    value: "18.4k", delta: "+320",  icon: <Users    size={16} color="#60a5fa" /> },
-  { label: "Active Writers", value: "234",   delta: "+12",   icon: <BookOpen size={16} color="#60a5fa" /> },
-  { label: "Total Books",    value: "1,287", delta: "+48",   icon: <BookOpen size={16} color="#a78bfa" /> },
-  { label: "Coins Spent",    value: "892k",  delta: "+14%",  icon: <Coins    size={16} color="#fbbf24" /> },
-];
-
-const recentFlags = [
-  { type: "content", text: "Flagged: «Dark River» Ch.4 — adult content", time: "5m ago",  status: "pending" },
-  { type: "user",    text: "Account report: spam comments from user #9821", time: "22m ago", status: "pending" },
-  { type: "content", text: "Book removed: «Hidden Throne» — plagiarism",  time: "1h ago",  status: "resolved" },
-  { type: "economy", text: "Suspicious coin purchase: 50k coins in 1 tx",  time: "3h ago",  status: "reviewing" },
-];
-
-const statusColors: Record<string, { bg: string; text: string }> = {
-  pending:   { bg: "rgba(251,191,36,0.12)",  text: "#fbbf24" },
-  resolved:  { bg: "rgba(74,222,128,0.12)",  text: "#4ade80" },
-  reviewing: { bg: "rgba(96,165,250,0.12)",  text: "#60a5fa" },
-};
-
 export default function AdminDashboard({ navigate }: CommonProps) {
+  const summary = mockAdminRepository.getDashboardSummary();
+  const attentionItems = summary.needsAttention;
+
+  const kpis = [
+    {
+      label: "Active readers",
+      value: summary.activeReaders.toLocaleString(),
+      icon: <Users size={16} color="var(--color-accent-primary)" />,
+    },
+    {
+      label: "Active writers",
+      value: summary.activeWriters.toString(),
+      icon: <BookOpen size={16} color="var(--color-accent-primary)" />,
+    },
+    {
+      label: "Published books",
+      value: summary.publishedBooks.toLocaleString(),
+      icon: <BookOpen size={16} color="var(--color-status-info)" />,
+    },
+    {
+      label: "Pending moderation",
+      value: summary.pendingModeration.toString(),
+      icon: <ShieldAlert size={16} color="var(--color-status-warning)" />,
+    },
+    {
+      label: "Transactions today",
+      value: summary.transactionsToday.toString(),
+      icon: <Coins size={16} color="var(--color-status-warning)" />,
+    },
+    {
+      label: "Revenue today",
+      value: `$${summary.revenueToday.toLocaleString()}`,
+      icon: <TrendingUp size={16} color="var(--color-status-success)" />,
+    },
+  ];
+
   return (
-    <div className="flex flex-col min-h-full" style={{ background: "#0e1422" }}>
-      <div className="px-5 pt-12 pb-5">
-        <p className="text-xs uppercase tracking-widest font-bold mb-0.5" style={{ color: "#60a5fa88" }}>Admin Console</p>
-        <h1 className="font-display text-2xl font-bold" style={{ color: "#f0ece4" }}>Dashboard</h1>
+    <div className="flex min-h-full flex-col bg-[var(--color-background)] px-5 py-8 text-[var(--color-text-primary)]">
+      <div className="mb-6">
+        <p className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--color-text-muted)]">
+          Admin Console
+        </p>
+        <h1 className="mt-2 text-2xl font-bold text-[var(--color-text-primary)]">Admin Overview</h1>
+        <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
+          Monitor the health of SOMI and resolve platform issues.
+        </p>
       </div>
 
-      {/* KPIs */}
-      <div className="px-5 mb-6">
-        <div className="grid grid-cols-2 gap-3">
-          {kpis.map(k => (
-            <div
-              key={k.label}
-              className="p-4 rounded-xl"
-              style={{ background: "#162035", border: "1px solid rgba(96,165,250,0.12)" }}
-            >
-              <div className="flex items-center justify-between mb-2">
-                {k.icon}
-                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(96,165,250,0.12)", color: "#60a5fa" }}>
-                  {k.delta}
-                </span>
-              </div>
-              <p className="font-display text-2xl font-bold" style={{ color: "#f0ece4" }}>{k.value}</p>
-              <p className="text-[9px] mt-0.5" style={{ color: "#3b5278" }}>{k.label}</p>
+      <div className="mb-6 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => navigate("admin-content")}
+          className="somi-control rounded-lg bg-[rgba(96,165,250,0.12)] px-3 py-2 text-xs font-semibold text-[var(--color-accent-primary)]"
+        >
+          Review moderation
+        </button>
+        <button
+          type="button"
+          onClick={() => navigate("admin-reports")}
+          className="somi-control rounded-lg bg-[rgba(96,165,250,0.12)] px-3 py-2 text-xs font-semibold text-[var(--color-accent-primary)]"
+        >
+          View reports
+        </button>
+        <button
+          type="button"
+          onClick={() => navigate("admin-economy")}
+          className="somi-control rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface)] px-3 py-2 text-xs font-semibold text-[var(--color-text-secondary)]"
+        >
+          Review economy
+        </button>
+      </div>
+
+      <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {kpis.map((kpi) => (
+          <div key={kpi.label} className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface)] p-4">
+            <div className="flex items-center justify-between">
+              {kpi.icon}
+              <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-[var(--color-accent-primary)]">
+                Live
+              </span>
             </div>
-          ))}
-        </div>
+            <p className="mt-4 text-2xl font-bold text-[var(--color-text-primary)]">{kpi.value}</p>
+            <p className="mt-1 text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-muted)]">
+              {kpi.label}
+            </p>
+          </div>
+        ))}
       </div>
 
-      {/* Quick nav */}
-      <div className="px-5 mb-6">
-        <h3 className="font-display text-sm font-semibold mb-3" style={{ color: "#f0ece4" }}>Quick Access</h3>
-        <div className="grid grid-cols-3 gap-3">
-          {[
-            { label: "Users",   icon: <Users    size={20} />, page: "admin-users"    as const },
-            { label: "Content", icon: <BookOpen size={20} />, page: "admin-content"  as const },
-            { label: "Economy", icon: <Coins    size={20} />, page: "admin-economy"  as const },
-          ].map(item => (
-            <button
-              key={item.label}
-              onClick={() => navigate(item.page)}
-              className="flex flex-col items-center gap-2 py-4 rounded-xl active:scale-95 transition-transform"
-              style={{ background: "#162035", border: "1px solid rgba(96,165,250,0.12)", color: "#60a5fa" }}
-            >
-              {item.icon}
-              <span className="text-xs font-semibold" style={{ color: "#a0c0e8" }}>{item.label}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Platform health */}
-      <div className="px-5 mb-6">
-        <h3 className="font-display text-sm font-semibold mb-3" style={{ color: "#f0ece4" }}>Platform Health</h3>
-        <div className="flex flex-col gap-2">
-          {[
-            { label: "API Response",   value: "98ms",  good: true },
-            { label: "CDN Uptime",     value: "99.9%", good: true },
-            { label: "Coin Ledger",    value: "Sync",  good: true },
-            { label: "Content Queue",  value: "12 pending", good: false },
-          ].map(item => (
-            <div
-              key={item.label}
-              className="flex items-center justify-between px-4 py-3 rounded-xl"
-              style={{ background: "#162035" }}
-            >
-              <div className="flex items-center gap-2">
-                {item.good
-                  ? <CheckCircle size={14} color="#4ade80" />
-                  : <Clock       size={14} color="#fbbf24" />
-                }
-                <span className="text-sm" style={{ color: "#a0c0e8" }}>{item.label}</span>
+      <div className="mb-6 grid gap-5 xl:grid-cols-[1.2fr,0.8fr]">
+        <section className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface)] p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">Needs attention</h2>
+            <span className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-accent-primary)]">
+              Operational queue
+            </span>
+          </div>
+          <div className="space-y-2">
+            {attentionItems.length === 0 ? (
+              <div className="rounded-xl bg-[var(--color-background)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">
+                No immediate operational issues detected.
               </div>
-              <span className="text-xs font-bold" style={{ color: item.good ? "#4ade80" : "#fbbf24" }}>{item.value}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Moderation queue */}
-      <div className="px-5 pb-8">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="font-display text-sm font-semibold" style={{ color: "#f0ece4" }}>Moderation Queue</h3>
-          <button
-            className="flex items-center gap-1 text-xs"
-            style={{ color: "#60a5fa" }}
-            onClick={() => navigate("admin-content")}
-          >
-            View all <ShieldAlert size={11} />
-          </button>
-        </div>
-        <div className="flex flex-col gap-2">
-          {recentFlags.map((flag, i) => {
-            const sc = statusColors[flag.status];
-            return (
-              <div
-                key={i}
-                className="flex items-start gap-3 p-3 rounded-xl"
-                style={{ background: "#162035", border: "1px solid rgba(96,165,250,0.08)" }}
-              >
-                <TrendingUp size={14} color="#60a5fa" className="flex-shrink-0 mt-0.5" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs leading-snug" style={{ color: "#a0c0e8" }}>{flag.text}</p>
-                  <p className="text-[9px] mt-0.5" style={{ color: "#3b5278" }}>{flag.time}</p>
-                </div>
-                <span
-                  className="text-[9px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
-                  style={{ background: sc.bg, color: sc.text }}
+            ) : (
+              attentionItems.map((item) => (
+                <button
+                  type="button"
+                  key={item.id}
+                  onClick={() => navigate(item.path as any)}
+                  className="flex w-full items-center justify-between rounded-xl bg-[var(--color-background)] px-3 py-2.5 text-left transition-colors hover:bg-[var(--color-hover-surface)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-primary)]"
                 >
-                  {flag.status}
-                </span>
+                  <div>
+                    <p className="text-sm font-medium text-[var(--color-text-primary)]">{item.label}</p>
+                    <p className="text-xs text-[var(--color-text-muted)]">Action required</p>
+                  </div>
+                  <span className="rounded-full bg-[rgba(251,113,133,0.18)] px-2 py-1 text-xs font-bold text-[var(--color-status-danger)]">
+                    {item.count}
+                  </span>
+                </button>
+              ))
+            )}
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface)] p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">Platform activity</h2>
+          </div>
+          <div className="space-y-3">
+            {summary.activity.map((entry) => (
+              <div key={entry.id} className="flex gap-2 rounded-xl bg-[var(--color-background)] p-3">
+                <span className="mt-1 h-2.5 w-2.5 rounded-full bg-[var(--color-accent-primary)]" />
+                <div className="flex-1">
+                  <p className="text-sm text-[var(--color-text-secondary)]">{entry.text}</p>
+                  <p className="mt-1 text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-muted)]">
+                    {entry.time}
+                  </p>
+                </div>
               </div>
-            );
-          })}
-        </div>
+            ))}
+          </div>
+        </section>
+      </div>
+
+      <div className="grid gap-5 xl:grid-cols-2">
+        <section className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface)] p-4">
+          <h2 className="mb-3 text-sm font-semibold text-[var(--color-text-primary)]">Content health</h2>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {[
+              ["Books published this week", summary.contentHealth.booksPublishedThisWeek],
+              ["Chapters published this week", summary.contentHealth.chaptersPublishedThisWeek],
+              ["Pending submissions", summary.contentHealth.pendingSubmissions],
+              ["Rejected content", summary.contentHealth.rejectedContent],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-xl bg-[var(--color-background)] p-3">
+                <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-muted)]">{label}</p>
+                <p className="mt-2 text-xl font-bold text-[var(--color-text-primary)]">{String(value)}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface)] p-4">
+          <h2 className="mb-3 text-sm font-semibold text-[var(--color-text-primary)]">Economy health</h2>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {[
+              ["Coins purchased", summary.economyHealth.coinsPurchased],
+              ["Coins spent", summary.economyHealth.coinsSpent],
+              ["Revenue", `$${summary.economyHealth.revenue.toLocaleString()}`],
+              ["Refunds", summary.economyHealth.refunds],
+              ["Failed transactions", summary.economyHealth.failedTransactions],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-xl bg-[var(--color-background)] p-3">
+                <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-muted)]">{label}</p>
+                <p className="mt-2 text-xl font-bold text-[var(--color-text-primary)]">{String(value)}</p>
+              </div>
+            ))}
+          </div>
+        </section>
       </div>
     </div>
   );

@@ -1,10 +1,20 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
-  ArrowLeft, Star, Eye, Heart, BookOpen, Lock, Unlock, ChevronDown, ChevronUp,
-  BookmarkPlus, Share2, Clock, FileText
+  ArrowLeft,
+  ArrowRight,
+  BookOpen,
+  BookmarkPlus,
+  Check,
+  Eye,
+  Heart,
+  LockKeyhole,
+  Share2,
+  Star,
 } from "lucide-react";
-import { books } from "../data/books";
-import type { Book } from "../data/books";
+import BookCard from "../components/BookCard";
+import { readingProgressRepository } from "../features/reader/services/readingProgressService";
+import { bookRepository } from "../services/repositories";
+import type { Book } from "../services/repositories";
 import type { CommonProps } from "../types";
 
 interface Props extends CommonProps {
@@ -14,373 +24,449 @@ interface Props extends CommonProps {
 const statusLabels: Record<string, string> = {
   ONGOING: "Ongoing",
   COMPLETED: "Completed",
-  UPCOMING: "Coming Soon",
-  PAUSED: "On Hold",
+  UPCOMING: "Coming soon",
+  PAUSED: "On hold",
 };
 const statusColors: Record<string, string> = {
-  ONGOING: "#3ecf8e",
-  COMPLETED: "#8b7ea8",
-  UPCOMING: "#e8a84c",
-  PAUSED: "#c9603a",
+  ONGOING: "#74c69d",
+  COMPLETED: "#d6a45d",
+  UPCOMING: "#e8b363",
+  PAUSED: "#c96b4b",
+};
+const reads = (views: number) =>
+  views >= 1000
+    ? `${(views / 1000).toFixed(views >= 100000 ? 0 : 1)}k reads`
+    : `${views} reads`;
+
+const previewFrom = (content: string, limit = 1450) => {
+  const paragraphs = content
+    .split(/\n{2,}|\n/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean);
+  const preview: string[] = [];
+  let length = 0;
+  for (const paragraph of paragraphs) {
+    if (length + paragraph.length > limit && preview.length > 0) break;
+    preview.push(paragraph);
+    length += paragraph.length;
+    if (length >= limit) break;
+  }
+  return preview;
 };
 
 export default function BookDetailPage({
-  book, navigate, isLoggedIn, libraryBooks, addToLibrary, unlockedChapters, unlockChapter, coins
+  book,
+  navigate,
+  isLoggedIn,
+  libraryBooks,
+  addToLibrary,
+  unlockedChapters,
+  unlockChapter,
+  coins,
 }: Props) {
-  const [synopsisExpanded, setSynopsisExpanded] = useState(false);
-  const [activeTab, setActiveTab] = useState<"chapters" | "about" | "similar">("chapters");
-  const [showUnlockModal, setShowUnlockModal] = useState<string | null>(null);
-
+  const [showAllChapters, setShowAllChapters] = useState(false);
+  const [unlockingChapterId, setUnlockingChapterId] = useState<string | null>(
+    null,
+  );
   const inLibrary = libraryBooks.includes(book.id);
   const firstChapter = book.chapters[0];
-
-  const handleChapterTap = (chapterId: string, accessType: string, price: number) => {
-    if (accessType === "FREE" || unlockedChapters.includes(chapterId)) {
-      navigate("reader", book.id, chapterId);
-    } else if (!isLoggedIn) {
-      navigate("auth");
-    } else {
-      setShowUnlockModal(chapterId);
-    }
-  };
-
-  const confirmUnlock = (chapterId: string, price: number) => {
-    unlockChapter(chapterId, price);
-    setShowUnlockModal(null);
-    navigate("reader", book.id, chapterId);
-  };
-
-  const unlockChapterData = showUnlockModal
-    ? book.chapters.find(c => c.id === showUnlockModal)
+  const readingProgress = readingProgressRepository.getBookProgress(book.id);
+  const relatedBooks = bookRepository
+    .getBooks()
+    .filter((entry) => entry.id !== book.id);
+  const authorBooks = relatedBooks.filter(
+    (entry) => entry.author === book.author,
+  );
+  const recommendations = relatedBooks
+    .filter((entry) =>
+      entry.genres.some((genre) => book.genres.includes(genre)),
+    )
+    .slice(0, 6);
+  const chapterPreview = useMemo(
+    () =>
+      firstChapter?.accessType === "FREE"
+        ? previewFrom(firstChapter.content)
+        : [],
+    [firstChapter],
+  );
+  const visibleChapters = showAllChapters
+    ? book.chapters
+    : book.chapters.slice(0, 6);
+  const primaryChapterId = readingProgress?.chapterId ?? firstChapter?.id;
+  const primaryLabel = readingProgress
+    ? `Continue from Ch. ${readingProgress.chapterId.split("-").at(-1) ?? 1}`
+    : "Start reading";
+  const unlockCandidate = unlockingChapterId
+    ? (book.chapters.find((chapter) => chapter.id === unlockingChapterId) ??
+      null)
     : null;
 
+  const openChapter = (chapterId: string) => {
+    const chapter = book.chapters.find((entry) => entry.id === chapterId);
+    if (!chapter) return;
+    if (
+      chapter.accessType === "FREE" ||
+      unlockedChapters.includes(chapter.id)
+    ) {
+      navigate("reader", book.id, chapter.id);
+      return;
+    }
+    if (!isLoggedIn) {
+      navigate("auth");
+      return;
+    }
+    setUnlockingChapterId(chapter.id);
+  };
+
+  const confirmUnlock = () => {
+    if (!unlockCandidate) return;
+    if (coins < unlockCandidate.price) {
+      setUnlockingChapterId(null);
+      navigate("wallet");
+      return;
+    }
+    unlockChapter(unlockCandidate.id, unlockCandidate.price);
+    setUnlockingChapterId(null);
+    navigate("reader", book.id, unlockCandidate.id);
+  };
+
   return (
-    <div className="relative flex flex-col min-h-full" style={{ background: "#0d0b18" }}>
-      {/* Hero */}
-      <div className="relative" style={{ height: 280 }}>
-        <img
-          src={book.heroImage}
-          alt={book.title}
-          className="absolute inset-0 w-full h-full object-cover"
-        />
-        <div
-          className="absolute inset-0"
-          style={{ background: "linear-gradient(to bottom, rgba(13,11,24,0.3) 0%, rgba(13,11,24,0.85) 60%, #0d0b18 100%)" }}
-        />
-
-        {/* Back button */}
-        <button
-          onClick={() => navigate("home")}
-          className="absolute top-12 left-4 w-9 h-9 flex items-center justify-center rounded-full active:scale-90"
-          style={{ background: "rgba(13,11,24,0.6)", backdropFilter: "blur(8px)" }}
-        >
-          <ArrowLeft size={18} color="#f0ece4" />
-        </button>
-
-        {/* Share */}
-        <button
-          className="absolute top-12 right-4 w-9 h-9 flex items-center justify-center rounded-full active:scale-90"
-          style={{ background: "rgba(13,11,24,0.6)", backdropFilter: "blur(8px)" }}
-        >
-          <Share2 size={16} color="#f0ece4" />
-        </button>
-
-        {/* Book cover floating */}
-        <div className="absolute left-5 bottom-0 translate-y-1/3">
-          <div
-            className="rounded-xl overflow-hidden book-shadow"
-            style={{ width: 100, height: 150, background: "#1a1726" }}
-          >
-            <img src={book.cover} alt={book.title} className="w-full h-full object-cover" />
+    <div className="somi-home min-h-full">
+      <div className="somi-home-inner pb-10">
+        <section className="relative border-b border-[#3b2a20] py-6 md:py-10">
+          <div className="absolute inset-0 -mx-10 overflow-hidden opacity-25 md:-mx-20">
+            <img
+              src={book.heroImage}
+              alt=""
+              className="h-full w-full object-cover blur-2xl"
+            />
+            <div className="absolute inset-0 bg-[#100d0b]/80" />
           </div>
-        </div>
-      </div>
-
-      {/* Book Info */}
-      <div className="px-5 pt-16 pb-4">
-        {/* Status + genre row */}
-        <div className="flex items-center gap-2 flex-wrap mb-2">
-          <span
-            className="text-[10px] font-bold px-2.5 py-0.5 rounded-full"
-            style={{ background: `${statusColors[book.status]}22`, color: statusColors[book.status], border: `1px solid ${statusColors[book.status]}44` }}
-          >
-            {statusLabels[book.status]}
-          </span>
-          {book.genres.map(g => (
-            <span
-              key={g}
-              className="text-[10px] px-2 py-0.5 rounded-full"
-              style={{ background: "#231f35", color: "#8b7ea8" }}
-            >
-              {g}
+          <div className="relative grid gap-8 md:grid-cols-[220px_minmax(0,1fr)] md:items-center lg:grid-cols-[270px_minmax(0,1fr)] lg:gap-14">
+            <div className="mx-auto w-[190px] md:w-full">
+              <div className="relative aspect-[2/3] overflow-hidden shadow-[16px_20px_35px_rgba(0,0,0,0.35)]">
+                <img
+                  src={book.cover}
+                  alt={`${book.title} cover`}
+                  className="h-full w-full object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-tr from-[#160c07]/35 to-transparent" />
+              </div>
+            </div>
+            <div className="max-w-3xl">
+              <button
+                onClick={() => navigate("home")}
+                className="somi-quiet-button mb-7 -ml-1"
+                aria-label="Back to home"
+              >
+                <ArrowLeft size={15} /> Back to stories
+              </button>
+              <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-[10px] font-bold uppercase tracking-[0.18em]">
+                <span style={{ color: statusColors[book.status] }}>
+                  {statusLabels[book.status]}
+                </span>
+                <span className="text-[#806e5b]">
+                  Updated {book.lastUpdate}
+                </span>
+              </div>
+              <h1 className="max-w-2xl font-display text-4xl font-semibold leading-[1.05] text-[#f4eee3] md:text-6xl">
+                {book.title}
+              </h1>
+              <p className="mt-3 font-serif text-base italic text-[#b7a995]">
+                by {book.author}
+              </p>
+              <p className="mt-6 max-w-2xl text-sm leading-7 text-[#c6b8a6] md:text-base md:leading-8">
+                {book.synopsis}
+              </p>
+              <div className="mt-7 flex flex-wrap items-center gap-x-6 gap-y-3 text-xs text-[#a99d8a]">
+                <span className="flex items-center gap-1.5 text-[#e8b363]">
+                  <Star size={14} fill="currentColor" />{" "}
+                  {book.rating.toFixed(1)} rating
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <Eye size={14} /> {reads(book.views)}
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <Heart size={14} /> {book.favorites.toLocaleString()}{" "}
+                  favorites
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <BookOpen size={14} /> {book.totalChapters} chapters
+                </span>
+              </div>
+              <div className="mt-8 flex flex-wrap items-center gap-4">
+                <button
+                  className="somi-primary-button"
+                  onClick={() =>
+                    primaryChapterId && openChapter(primaryChapterId)
+                  }
+                >
+                  <BookOpen size={16} /> {primaryLabel}
+                </button>
+                <button
+                  className="somi-outline-button"
+                  onClick={() => addToLibrary(book.id)}
+                >
+                  {inLibrary ? <Check size={15} /> : <BookmarkPlus size={15} />}
+                  {inLibrary ? "In your library" : "Add to library"}
+                </button>
+                <button
+                  className="somi-icon-button"
+                  aria-label="Share this book"
+                  title="Share this book"
+                >
+                  <Share2 size={16} />
+                </button>
+              </div>
+              <div className="mt-7 flex flex-wrap gap-2 border-t border-[#3b2a20] pt-5">
+                {[...book.genres, ...book.tags].map((tag) => (
+                  <span
+                    key={tag}
+                    className="border-b border-[#715137] px-1 pb-1 text-[11px] text-[#d6a45d]"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+        {chapterPreview.length > 0 && (
+          <section className="somi-section max-w-4xl">
+            <div className="mb-6 flex items-end justify-between gap-4">
+              <div>
+                <p className="somi-eyebrow">A taste of the story</p>
+                <h2 className="font-display text-3xl font-semibold text-[#f4eee3]">
+                  Chapter {firstChapter.number}: {firstChapter.title}
+                </h2>
+              </div>
+              <span className="hidden text-xs text-[#8f8371] sm:block">
+                {firstChapter.readingTime} min read
+              </span>
+            </div>
+            <article className="border-y border-[#443126] py-8 md:px-10 md:py-12">
+              <div className="max-w-2xl font-serif text-[1.05rem] leading-[2] text-[#ddcfbd] md:text-lg">
+                {chapterPreview.map((paragraph, index) => (
+                  <p
+                    key={`${paragraph.slice(0, 24)}-${index}`}
+                    className="mb-6 last:mb-0"
+                  >
+                    {paragraph}
+                  </p>
+                ))}
+              </div>
+              <div className="somi-continue">
+                <div>
+                  <p className="somi-eyebrow mb-1">Keep reading</p>
+                  <p className="font-display text-xl text-[#f4eee3]">
+                    The story is just beginning.
+                  </p>
+                </div>
+                <button
+                  className="somi-primary-button shrink-0"
+                  onClick={() => openChapter(firstChapter.id)}
+                >
+                  Continue reading <ArrowRight size={15} />
+                </button>
+              </div>
+            </article>
+          </section>
+        )}
+        <section className="somi-section border-t border-[#443126] pt-8">
+          <div className="mb-5 flex items-end justify-between gap-4">
+            <div>
+              <p className="somi-eyebrow">The reader signal</p>
+              <h2 className="font-display text-3xl font-semibold text-[#f4eee3]">
+                Why readers stay
+              </h2>
+            </div>
+            <div className="text-right">
+              <p className="font-serif text-3xl text-[#e8b363]">
+                {book.rating.toFixed(1)}
+              </p>
+              <p className="text-[10px] uppercase tracking-[0.16em] text-[#8f8371]">
+                reader rating
+              </p>
+            </div>
+          </div>
+          <div className="grid gap-6 border-y border-[#443126] py-6 text-sm text-[#b7a995] md:grid-cols-3">
+            <div>
+              <p className="mb-1 text-[10px] uppercase tracking-[0.16em] text-[#8f8371]">
+                Reach
+              </p>
+              <p className="font-serif text-lg text-[#f4eee3]">
+                {reads(book.views)}
+              </p>
+            </div>
+            <div>
+              <p className="mb-1 text-[10px] uppercase tracking-[0.16em] text-[#8f8371]">
+                Loved by
+              </p>
+              <p className="font-serif text-lg text-[#f4eee3]">
+                {book.favorites.toLocaleString()} readers
+              </p>
+            </div>
+            <div>
+              <p className="mb-1 text-[10px] uppercase tracking-[0.16em] text-[#8f8371]">
+                Commitment
+              </p>
+              <p className="font-serif text-lg text-[#f4eee3]">
+                {book.totalChapters} chapters to discover
+              </p>
+            </div>
+          </div>
+        </section>
+        <section className="somi-section">
+          <div className="mb-4 flex items-end justify-between gap-4">
+            <div>
+              <p className="somi-eyebrow">Follow the thread</p>
+              <h2 className="font-display text-3xl font-semibold text-[#f4eee3]">
+                Chapters
+              </h2>
+            </div>
+            <span className="text-xs text-[#8f8371]">
+              {book.totalChapters} chapters
             </span>
-          ))}
-        </div>
-
-        <h1 className="font-display text-2xl font-bold leading-tight" style={{ color: "#f0ece4" }}>
-          {book.title}
-        </h1>
-        <p className="text-sm mt-1" style={{ color: "#8b7ea8" }}>by {book.author}</p>
-
-        {/* Stats row */}
-        <div className="flex items-center gap-4 mt-3">
-          <div className="flex items-center gap-1.5">
-            <Star size={13} fill="#e8a84c" color="#e8a84c" />
-            <span className="text-sm font-bold" style={{ color: "#e8a84c" }}>{book.rating}</span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <Eye size={13} color="#8b7ea8" />
-            <span className="text-sm" style={{ color: "#8b7ea8" }}>{(book.views / 1000).toFixed(0)}k reads</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <Heart size={13} color="#8b7ea8" />
-            <span className="text-sm" style={{ color: "#8b7ea8" }}>{(book.favorites / 1000).toFixed(1)}k</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <BookOpen size={13} color="#8b7ea8" />
-            <span className="text-sm" style={{ color: "#8b7ea8" }}>{book.totalChapters} ch.</span>
-          </div>
-        </div>
-
-        {/* Last update */}
-        <p className="text-[11px] mt-2" style={{ color: "#8b7ea8" }}>Updated {book.lastUpdate}</p>
-
-        {/* CTA Buttons */}
-        <div className="flex gap-3 mt-5">
-          <button
-            onClick={() => navigate("reader", book.id, firstChapter.id)}
-            className="flex-1 h-11 rounded-xl font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform"
-            style={{ background: "#e8a84c", color: "#0d0b18" }}
-          >
-            <BookOpen size={16} />
-            Start Reading
-          </button>
-          <button
-            onClick={() => addToLibrary(book.id)}
-            className="w-11 h-11 rounded-xl flex items-center justify-center active:scale-95 transition-transform"
-            style={{
-              background: inLibrary ? "#231f35" : "#1a1726",
-              border: "1px solid #2e2945",
-              color: inLibrary ? "#e8a84c" : "#8b7ea8",
-            }}
-          >
-            {inLibrary ? <BookmarkPlus size={18} fill="#e8a84c" /> : <BookmarkPlus size={18} />}
-          </button>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex px-5 gap-1 mb-4 border-b" style={{ borderColor: "#2e2945" }}>
-        {(["chapters", "about", "similar"] as const).map(tab => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className="px-4 py-2.5 text-xs font-semibold capitalize transition-all"
-            style={{
-              color: activeTab === tab ? "#e8a84c" : "#8b7ea8",
-              borderBottom: activeTab === tab ? "2px solid #e8a84c" : "2px solid transparent",
-            }}
-          >
-            {tab}
-          </button>
-        ))}
-      </div>
-
-      {/* Tab: Chapters */}
-      {activeTab === "chapters" && (
-        <div className="flex-1 px-5 pb-8">
-          <div className="flex flex-col gap-2">
-            {book.chapters.map((ch, i) => {
-              const isOwned = ch.accessType === "FREE" || unlockedChapters.includes(ch.id);
+          <div className="border-t border-[#443126]">
+            {visibleChapters.map((chapter) => {
+              const locked =
+                chapter.accessType === "PREMIUM" &&
+                !unlockedChapters.includes(chapter.id);
+              const current = readingProgress?.chapterId === chapter.id;
               return (
                 <button
-                  key={ch.id}
-                  onClick={() => handleChapterTap(ch.id, ch.accessType, ch.price)}
-                  className="flex items-center gap-3 p-3 rounded-xl text-left active:scale-[0.98] transition-transform"
-                  style={{ background: "#1a1726", border: "1px solid #2e2945" }}
+                  key={chapter.id}
+                  onClick={() => openChapter(chapter.id)}
+                  className="group flex w-full items-center gap-4 border-b border-[#34271f] py-4 text-left transition-colors hover:bg-[#1c1510] md:gap-6"
                 >
-                  {/* Chapter number */}
-                  <div
-                    className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-xs font-bold font-display"
-                    style={{
-                      background: isOwned ? "rgba(232,168,76,0.15)" : "#231f35",
-                      color: isOwned ? "#e8a84c" : "#8b7ea8",
-                    }}
+                  <span className="w-8 font-serif text-lg text-[#806e5b]">
+                    {String(chapter.number).padStart(2, "0")}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-display text-base text-[#f4eee3]">
+                      {chapter.title}
+                    </span>
+                    <span className="mt-1 block text-[11px] text-[#8f8371]">
+                      {chapter.readingTime} min ·{" "}
+                      {chapter.wordCount.toLocaleString()} words
+                    </span>
+                  </span>
+                  {current && (
+                    <span className="hidden text-[10px] font-bold uppercase tracking-[0.15em] text-[#e8b363] sm:block">
+                      Current
+                    </span>
+                  )}
+                  <span
+                    className={
+                      locked
+                        ? "flex items-center gap-1 text-xs text-[#c96b4b]"
+                        : "text-xs text-[#8f8371]"
+                    }
                   >
-                    {ch.number}
-                  </div>
-
-                  {/* Chapter info */}
-                  <div className="flex-1 min-w-0">
-                    <p
-                      className="text-sm font-semibold truncate"
-                      style={{ color: isOwned ? "#f0ece4" : "#8b7ea8" }}
-                    >
-                      {ch.title}
-                    </p>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <div className="flex items-center gap-1">
-                        <Clock size={9} color="#8b7ea8" />
-                        <span className="text-[9px]" style={{ color: "#8b7ea8" }}>{ch.readingTime} min</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <FileText size={9} color="#8b7ea8" />
-                        <span className="text-[9px]" style={{ color: "#8b7ea8" }}>{ch.wordCount.toLocaleString()} words</span>
-                      </div>
-                      <span className="text-[9px]" style={{ color: "#8b7ea8" }}>{ch.publishedAt}</span>
-                    </div>
-                  </div>
-
-                  {/* Access indicator */}
-                  <div className="flex-shrink-0">
-                    {ch.accessType === "FREE" ? (
-                      <span
-                        className="text-[9px] font-bold px-2 py-0.5 rounded-full"
-                        style={{ background: "rgba(62,207,142,0.15)", color: "#3ecf8e" }}
-                      >
-                        FREE
-                      </span>
-                    ) : isOwned ? (
-                      <Unlock size={14} color="#e8a84c" />
+                    {locked ? (
+                      <>
+                        <LockKeyhole size={13} /> {chapter.price} coins
+                      </>
                     ) : (
-                      <div className="flex items-center gap-1">
-                        <Lock size={12} color="#8b7ea8" />
-                        <span className="text-[10px] font-bold" style={{ color: "#8b7ea8" }}>{ch.price}🪙</span>
-                      </div>
+                      "Read"
                     )}
-                  </div>
+                  </span>
                 </button>
               );
             })}
           </div>
-        </div>
-      )}
-
-      {/* Tab: About */}
-      {activeTab === "about" && (
-        <div className="flex-1 px-5 pb-8">
-          <div className="rounded-xl p-4 mb-4" style={{ background: "#1a1726", border: "1px solid #2e2945" }}>
-            <p className="text-sm leading-relaxed" style={{ color: "#c9b8e8" }}>
-              {synopsisExpanded ? book.synopsis : `${book.synopsis.slice(0, 180)}${book.synopsis.length > 180 ? "..." : ""}`}
+          {book.chapters.length > 6 && (
+            <button
+              className="somi-text-link mt-5"
+              onClick={() => setShowAllChapters((value) => !value)}
+            >
+              {showAllChapters
+                ? "Show fewer"
+                : `View all ${book.chapters.length} chapters`}{" "}
+              <ArrowRight size={14} />
+            </button>
+          )}
+        </section>
+        {authorBooks.length > 0 && (
+          <section className="somi-section">
+            <p className="somi-eyebrow">From the same author</p>
+            <h2 className="mb-5 font-display text-3xl font-semibold text-[#f4eee3]">
+              More from {book.author}
+            </h2>
+            <div className="somi-shelf">
+              {authorBooks.map((entry) => (
+                <BookCard
+                  key={entry.id}
+                  book={entry}
+                  navigate={navigate}
+                  size="md"
+                />
+              ))}
+            </div>
+          </section>
+        )}
+        {recommendations.length > 0 && (
+          <section className="somi-section">
+            <p className="somi-eyebrow">Keep exploring</p>
+            <h2 className="mb-5 font-display text-3xl font-semibold text-[#f4eee3]">
+              You&apos;ll also like
+            </h2>
+            <div className="somi-shelf">
+              {recommendations.map((entry) => (
+                <BookCard
+                  key={entry.id}
+                  book={entry}
+                  navigate={navigate}
+                  size="md"
+                />
+              ))}
+            </div>
+          </section>
+        )}
+        <footer className="somi-footer">
+          <div>
+            <p className="font-display text-2xl font-semibold text-[#f4eee3]">
+              SOMI
             </p>
-            {book.synopsis.length > 180 && (
+            <p className="mt-2 max-w-xs text-xs leading-5 text-[#8f8371]">
+              A home for stories that stay with you.
+            </p>
+          </div>
+          <div className="somi-footer-links">
+            <button onClick={() => navigate("discover")}>Discover</button>
+            <button onClick={() => navigate("library")}>Library</button>
+            <button onClick={() => navigate("profile")}>Profile</button>
+            <button onClick={() => navigate("auth")}>For authors</button>
+          </div>
+          <p className="text-[10px] text-[#716756]">© 2024 SOMI</p>
+        </footer>
+      </div>
+      {unlockCandidate && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#100d0b]/75 px-4 pb-6 pt-10 backdrop-blur-sm">
+          <div className="w-full max-w-md border border-[#5a402b] bg-[#211710] p-5">
+            <p className="somi-eyebrow">Unlock chapter</p>
+            <h2 className="font-display text-2xl text-[#f4eee3]">
+              {unlockCandidate.title}
+            </h2>
+            <p className="mt-3 text-sm text-[#b7a995]">
+              This chapter costs {unlockCandidate.price} coins. Your balance:{" "}
+              {coins} coins.
+            </p>
+            <div className="mt-6 flex gap-4">
               <button
-                onClick={() => setSynopsisExpanded(!synopsisExpanded)}
-                className="flex items-center gap-1 mt-2 text-xs font-semibold"
-                style={{ color: "#e8a84c" }}
+                className="somi-quiet-button flex-1"
+                onClick={() => setUnlockingChapterId(null)}
               >
-                {synopsisExpanded ? "Show less" : "Read more"}
-                {synopsisExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                Cancel
               </button>
-            )}
-          </div>
-
-          {/* Tags */}
-          <h4 className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: "#8b7ea8" }}>Tags</h4>
-          <div className="flex flex-wrap gap-2 mb-5">
-            {book.tags.map(t => (
-              <span
-                key={t}
-                className="text-xs px-3 py-1 rounded-full"
-                style={{ background: "#231f35", color: "#8b7ea8", border: "1px solid #2e2945" }}
+              <button
+                className="somi-primary-button flex-1"
+                onClick={confirmUnlock}
               >
-                #{t}
-              </span>
-            ))}
-          </div>
-
-          {/* Stats card */}
-          <div className="grid grid-cols-2 gap-3">
-            {[
-              { label: "Total Chapters", value: book.totalChapters },
-              { label: "Total Views", value: `${(book.views / 1000).toFixed(0)}k` },
-              { label: "Favorites", value: `${(book.favorites / 1000).toFixed(1)}k` },
-              { label: "Rating", value: `${book.rating}/5.0` },
-            ].map(({ label, value }) => (
-              <div key={label} className="rounded-xl p-3 text-center" style={{ background: "#1a1726", border: "1px solid #2e2945" }}>
-                <p className="font-display text-xl font-bold" style={{ color: "#e8a84c" }}>{value}</p>
-                <p className="text-[10px] mt-0.5" style={{ color: "#8b7ea8" }}>{label}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Tab: Similar */}
-      {activeTab === "similar" && (
-        <div className="flex-1 px-5 pb-8">
-          <div className="grid grid-cols-3 gap-3">
-            {books.filter(b => b.id !== book.id && b.genres.some(g => book.genres.includes(g))).map(b => (
-              <button key={b.id} onClick={() => navigate("book", b.id)} className="flex flex-col gap-2 active:scale-95 transition-transform">
-                <div className="rounded-xl overflow-hidden book-shadow" style={{ height: 130, background: "#1a1726" }}>
-                  <img src={b.cover} alt={b.title} className="w-full h-full object-cover" />
-                </div>
-                <p className="text-[10px] font-semibold leading-tight" style={{ color: "#f0ece4" }}>{b.title}</p>
+                {coins >= unlockCandidate.price ? "Unlock" : "Top up"}
               </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Unlock Modal */}
-      {showUnlockModal && unlockChapterData && (
-        <div className="absolute inset-0 flex items-end z-50" style={{ background: "rgba(6,4,15,0.85)", backdropFilter: "blur(4px)" }}>
-          <div className="w-full rounded-t-2xl p-6" style={{ background: "#1a1726", border: "1px solid #2e2945" }}>
-            <div className="w-10 h-1 rounded-full mx-auto mb-5" style={{ background: "#2e2945" }} />
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: "rgba(232,168,76,0.15)" }}>
-                <Lock size={20} color="#e8a84c" />
-              </div>
-              <div>
-                <p className="font-display text-base font-semibold" style={{ color: "#f0ece4" }}>Unlock Chapter</p>
-                <p className="text-sm" style={{ color: "#8b7ea8" }}>{unlockChapterData.title}</p>
-              </div>
             </div>
-
-            <div className="rounded-xl p-3 mb-4 flex items-center justify-between" style={{ background: "#231f35" }}>
-              <span className="text-sm" style={{ color: "#8b7ea8" }}>Cost</span>
-              <span className="font-bold" style={{ color: "#e8a84c" }}>{unlockChapterData.price} Somi Coins</span>
-            </div>
-
-            <div className="rounded-xl p-3 mb-5 flex items-center justify-between" style={{ background: "#231f35" }}>
-              <span className="text-sm" style={{ color: "#8b7ea8" }}>Your balance</span>
-              <span className="font-bold" style={{ color: coins >= unlockChapterData.price ? "#3ecf8e" : "#c9603a" }}>
-                {coins} Somi Coins
-              </span>
-            </div>
-
-            {coins < unlockChapterData.price ? (
-              <div className="flex flex-col gap-3">
-                <p className="text-sm text-center" style={{ color: "#8b7ea8" }}>Not enough coins.</p>
-                <button
-                  onClick={() => { setShowUnlockModal(null); navigate("wallet"); }}
-                  className="w-full h-12 rounded-xl font-bold text-sm"
-                  style={{ background: "#e8a84c", color: "#0d0b18" }}
-                >
-                  Buy Somi Coins
-                </button>
-                <button onClick={() => setShowUnlockModal(null)} className="w-full h-10 text-sm" style={{ color: "#8b7ea8" }}>
-                  Cancel
-                </button>
-              </div>
-            ) : (
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setShowUnlockModal(null)}
-                  className="flex-1 h-12 rounded-xl text-sm font-semibold"
-                  style={{ background: "#231f35", color: "#8b7ea8" }}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => confirmUnlock(showUnlockModal, unlockChapterData.price)}
-                  className="flex-1 h-12 rounded-xl font-bold text-sm"
-                  style={{ background: "#e8a84c", color: "#0d0b18" }}
-                >
-                  Unlock Now
-                </button>
-              </div>
-            )}
           </div>
         </div>
       )}

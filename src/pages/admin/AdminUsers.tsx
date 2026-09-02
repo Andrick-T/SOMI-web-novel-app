@@ -1,167 +1,293 @@
-import { useState } from "react";
-import { Search, Filter, MoreVertical, ShieldCheck, BookOpen, Coins } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { BookOpen, Coins, Search } from "lucide-react";
+import { mockAdminRepository } from "../../features/admin";
+import AdminActionDialog from "../../components/AdminActionDialog";
+import { StatusBadge } from "../../components/DesignPrimitives";
 import type { CommonProps } from "../../types";
 
-type Role = "all" | "reader" | "writer" | "admin";
-
-const users = [
-  { id: "u1", name: "Amara Diallo",   email: "amara@example.com",  role: "writer", status: "active",  coins: 1420, books: 3,  joined: "Mar 2024" },
-  { id: "u2", name: "Kwame Mensah",   email: "kwame@example.com",  role: "reader", status: "active",  coins: 680,  books: 0,  joined: "Apr 2024" },
-  { id: "u3", name: "Fatou Ndiaye",   email: "fatou@example.com",  role: "writer", status: "active",  coins: 290,  books: 1,  joined: "Jan 2024" },
-  { id: "u4", name: "Chidi Okonkwo",  email: "chidi@example.com",  role: "reader", status: "suspended", coins: 0,  books: 0,  joined: "Feb 2024" },
-  { id: "u5", name: "Zintle Dlamini", email: "zintle@example.com", role: "admin",  status: "active",  coins: 5780, books: 2,  joined: "Jan 2024" },
-];
-
 const roleColors: Record<string, { bg: string; text: string }> = {
-  reader:  { bg: "rgba(96,165,250,0.12)",  text: "#60a5fa" },
-  writer:  { bg: "rgba(74,222,128,0.12)",  text: "#4ade80" },
-  admin:   { bg: "rgba(167,139,250,0.12)", text: "#a78bfa" },
-};
-const statusColors: Record<string, { bg: string; text: string }> = {
-  active:    { bg: "rgba(74,222,128,0.12)",  text: "#4ade80" },
-  suspended: { bg: "rgba(251,113,133,0.12)", text: "#fb7185" },
+  READER: { bg: "rgba(96,165,250,0.12)", text: "var(--color-accent-primary)" },
+  WRITER: { bg: "rgba(74,222,128,0.12)", text: "var(--color-status-success)" },
+  ADMIN: { bg: "rgba(167,139,250,0.12)", text: "var(--color-status-info)" },
 };
 
-function initials(name: string) {
-  return name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
-}
+const statusColors: Record<string, { tone: "success" | "warning" | "danger" | "info" | "neutral"; label: string }> = {
+  ACTIVE: { tone: "success", label: "Active" },
+  SUSPENDED: { tone: "danger", label: "Suspended" },
+  BANNED: { tone: "danger", label: "Banned" },
+  PENDING: { tone: "warning", label: "Pending" },
+};
 
-export default function AdminUsers({ }: CommonProps) {
-  const [search, setSearch] = useState("");
-  const [role, setRole] = useState<Role>("all");
-  const [menuOpen, setMenuOpen] = useState<string | null>(null);
+export default function AdminUsers({ navigate }: CommonProps) {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [search, setSearch] = useState(searchParams.get("q") ?? "");
+  const [role, setRole] = useState(
+    ["ALL", "READER", "WRITER", "ADMIN"].includes(searchParams.get("role") ?? "")
+      ? (searchParams.get("role") ?? "ALL")
+      : "ALL",
+  );
+  const [status, setStatus] = useState(
+    ["ALL", "ACTIVE", "SUSPENDED", "BANNED", "PENDING"].includes(searchParams.get("status") ?? "")
+      ? (searchParams.get("status") ?? "ALL")
+      : "ALL",
+  );
+  const [dialog, setDialog] = useState<{
+    userId: string;
+    action: "role" | "suspend" | "ban" | "restore";
+  } | null>(null);
 
-  const filtered = users.filter(u => {
-    const matchSearch = u.name.toLowerCase().includes(search.toLowerCase()) || u.email.includes(search);
-    const matchRole = role === "all" || u.role === role;
-    return matchSearch && matchRole;
-  });
+  useEffect(() => {
+    const next = new URLSearchParams();
+    if (search) next.set("q", search);
+    if (role !== "ALL") next.set("role", role);
+    if (status !== "ALL") next.set("status", status);
+    setSearchParams(next, { replace: true });
+  }, [search, role, status, setSearchParams]);
+
+  const users = useMemo(() => {
+    const all = mockAdminRepository.getUsers();
+    return all.filter((user) => {
+      const text = `${user.name} ${user.email}`.toLowerCase();
+      const matchesSearch = !search || text.includes(search.toLowerCase());
+      const matchesRole = role === "ALL" || user.role === role;
+      const matchesStatus = status === "ALL" || user.status === status;
+      return matchesSearch && matchesRole && matchesStatus;
+    });
+  }, [search, role, status]);
+
+  const confirmUserAction = () => {
+    if (!dialog) return;
+
+    const target = mockAdminRepository.getUser(dialog.userId);
+    if (!target) return;
+
+    if (dialog.action === "role") {
+      const nextRole =
+        target.role === "READER" ? "WRITER" : target.role === "WRITER" ? "ADMIN" : "READER";
+
+      mockAdminRepository.updateUser(dialog.userId, { role: nextRole });
+      mockAdminRepository.createAuditEvent({
+        actorId: "admin-ops",
+        actorName: "Admin Console",
+        action: "ROLE_CHANGED",
+        targetType: "USER",
+        targetId: dialog.userId,
+        metadata: { previousRole: target.role, nextRole },
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    if (dialog.action === "suspend") {
+      mockAdminRepository.updateUser(dialog.userId, {
+        status: "SUSPENDED",
+        metadata: {
+          ...(target.metadata ?? {}),
+          suspendedAt: new Date().toISOString(),
+        },
+      });
+      mockAdminRepository.createAuditEvent({
+        actorId: "admin-ops",
+        actorName: "Admin Console",
+        action: "USER_SUSPENDED",
+        targetType: "USER",
+        targetId: dialog.userId,
+        metadata: { reason: "Administrative review" },
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    if (dialog.action === "ban") {
+      mockAdminRepository.updateUser(dialog.userId, {
+        status: "BANNED",
+        metadata: {
+          ...(target.metadata ?? {}),
+          bannedAt: new Date().toISOString(),
+        },
+      });
+      mockAdminRepository.createAuditEvent({
+        actorId: "admin-ops",
+        actorName: "Admin Console",
+        action: "USER_BANNED",
+        targetType: "USER",
+        targetId: dialog.userId,
+        metadata: { reason: "Policy violation" },
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    if (dialog.action === "restore") {
+      mockAdminRepository.updateUser(dialog.userId, {
+        status: "ACTIVE",
+        metadata: {
+          ...(target.metadata ?? {}),
+          restoredAt: new Date().toISOString(),
+        },
+      });
+      mockAdminRepository.createAuditEvent({
+        actorId: "admin-ops",
+        actorName: "Admin Console",
+        action: "USER_REACTIVATED",
+        targetType: "USER",
+        targetId: dialog.userId,
+        metadata: { reason: "Administrative review complete" },
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    setDialog(null);
+    setStatus("ALL");
+  };
+
+  const getActionTitle = (action: string) => {
+    const map = {
+      role: "Change role",
+      suspend: "Suspend account",
+      ban: "Ban account",
+      restore: "Restore account",
+    } as const;
+    return map[action as keyof typeof map] ?? "Confirm action";
+  };
 
   return (
-    <div className="flex flex-col min-h-full" style={{ background: "#0e1422" }}>
-      <div className="px-5 pt-12 pb-4">
-        <p className="text-xs uppercase tracking-widest font-bold mb-0.5" style={{ color: "#60a5fa88" }}>Admin Console</p>
-        <h1 className="font-display text-2xl font-bold" style={{ color: "#f0ece4" }}>Users</h1>
-        <p className="text-xs mt-1" style={{ color: "#3b5278" }}>{users.length} total accounts</p>
+    <div className="flex min-h-full flex-col bg-[var(--color-background)] px-5 py-8 text-[var(--color-text-primary)]">
+      <div className="mb-5">
+        <p className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--color-text-muted)]">Admin Console</p>
+        <h1 className="mt-2 text-2xl font-bold text-[var(--color-text-primary)]">Users</h1>
+        <p className="mt-1 text-xs text-[var(--color-text-muted)]">{users.length} total accounts</p>
       </div>
 
-      {/* Search */}
-      <div className="px-5 mb-3">
-        <div
-          className="flex items-center gap-3 px-4 py-3 rounded-xl"
-          style={{ background: "#162035", border: "1px solid rgba(96,165,250,0.12)" }}
-        >
-          <Search size={15} color="#3b5278" />
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search by name or email…"
-            className="flex-1 bg-transparent outline-none text-sm"
-            style={{ color: "#f0ece4" }}
-          />
-          <Filter size={15} color="#3b5278" />
-        </div>
+      <div className="mb-4 flex items-center gap-3 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface)] px-4 py-3">
+        <Search size={15} color="var(--color-text-muted)" />
+        <input
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Search by name or email"
+          className="w-full bg-transparent text-sm text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-muted)]"
+        />
       </div>
 
-      {/* Role filter */}
-      <div className="flex gap-2 px-5 mb-5">
-        {(["all", "reader", "writer", "admin"] as Role[]).map(r => {
-          const rc = roleColors[r] ?? { bg: "transparent", text: "#60a5fa" };
-          return (
-            <button
-              key={r}
-              onClick={() => setRole(r)}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold capitalize active:scale-95"
-              style={{
-                background: role === r ? "#60a5fa" : "#162035",
-                color: role === r ? "#0e1422" : "#4a7090",
-                border: role === r ? "none" : "1px solid rgba(96,165,250,0.15)",
-              }}
-            >
-              {r}
-            </button>
-          );
-        })}
+      <div className="mb-5 flex flex-wrap gap-2">
+        {(["ALL", "READER", "WRITER", "ADMIN"] as const).map((value) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => setRole(value)}
+            className="somi-control rounded-lg px-3 py-1.5 text-xs font-semibold"
+            style={{
+              background: role === value ? "var(--color-accent-primary)" : "var(--color-surface)",
+              color: role === value ? "var(--color-background)" : "var(--color-text-secondary)",
+            }}
+          >
+            {value}
+          </button>
+        ))}
       </div>
 
-      {/* User list */}
-      <div className="px-5 flex flex-col gap-3 pb-8">
-        {filtered.map(user => {
-          const rc = roleColors[user.role];
-          const sc = statusColors[user.status];
-          return (
-            <div
-              key={user.id}
-              className="p-4 rounded-xl"
-              style={{ background: "#162035", border: "1px solid rgba(96,165,250,0.08)" }}
-            >
-              <div className="flex items-start gap-3">
-                {/* Avatar */}
-                <div
-                  className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 font-bold text-sm"
-                  style={{ background: rc.bg, color: rc.text }}
-                >
-                  {initials(user.name)}
-                </div>
+      <div className="mb-5 flex flex-wrap gap-2">
+        {(["ALL", "ACTIVE", "SUSPENDED", "BANNED", "PENDING"] as const).map((value) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => setStatus(value)}
+            className="somi-control rounded-lg px-3 py-1.5 text-xs font-semibold"
+            style={{
+              background: status === value ? "var(--color-accent-primary)" : "var(--color-surface)",
+              color: status === value ? "var(--color-background)" : "var(--color-text-secondary)",
+            }}
+          >
+            {value}
+          </button>
+        ))}
+      </div>
 
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-semibold text-sm" style={{ color: "#f0ece4" }}>{user.name}</p>
-                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: rc.bg, color: rc.text }}>
-                      {user.role}
-                    </span>
-                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: sc.bg, color: sc.text }}>
-                      {user.status}
-                    </span>
+      <div className="space-y-3 pb-8">
+        {users.length === 0 ? (
+          <div className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface)] p-6 text-center text-[var(--color-text-secondary)]">
+            No users match the current filters.
+          </div>
+        ) : (
+          users.map((user) => {
+            const roleStyle = roleColors[user.role] ?? {
+              bg: "rgba(96,165,250,0.12)",
+              text: "var(--color-accent-primary)",
+            };
+            const statusMeta = statusColors[user.status] ?? { tone: "neutral", label: user.status };
+            return (
+              <div key={user.id} className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface)] p-4">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-full text-sm font-bold" style={{ background: roleStyle.bg, color: roleStyle.text }}>
+                    {user.avatar}
                   </div>
-                  <p className="text-xs mt-0.5" style={{ color: "#3b5278" }}>{user.email}</p>
-                  <div className="flex items-center gap-3 mt-2">
-                    <div className="flex items-center gap-1">
-                      <Coins size={10} color="#fbbf24" />
-                      <span className="text-[10px]" style={{ color: "#8aaccc" }}>{user.coins.toLocaleString()}</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-semibold text-[var(--color-text-primary)]">{user.name}</p>
+                      <span className="rounded-full px-2 py-1 text-[9px] font-bold" style={{ background: roleStyle.bg, color: roleStyle.text }}>{user.role}</span>
+                      <StatusBadge label={statusMeta.label} tone={statusMeta.tone} compact />
                     </div>
-                    {user.books > 0 && (
-                      <div className="flex items-center gap-1">
-                        <BookOpen size={10} color="#60a5fa" />
-                        <span className="text-[10px]" style={{ color: "#8aaccc" }}>{user.books} books</span>
-                      </div>
-                    )}
-                    <span className="text-[10px]" style={{ color: "#3b5278" }}>Joined {user.joined}</span>
+                    <p className="mt-1 text-xs text-[var(--color-text-muted)]">{user.email}</p>
+                    <div className="mt-2 flex flex-wrap gap-3 text-[10px] text-[var(--color-text-muted)]">
+                      <span className="flex items-center gap-1">
+                        <Coins size={10} color="var(--color-status-warning)" /> {user.booksPublished} books
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <BookOpen size={10} color="var(--color-accent-primary)" /> Joined {new Date(user.joinedAt).toLocaleDateString()}
+                      </span>
+                    </div>
                   </div>
+                  <button type="button" onClick={() => navigate("admin-users", user.id)} className="somi-control rounded-lg bg-[rgba(96,165,250,0.12)] px-3 py-2 text-[10px] font-semibold text-[var(--color-accent-primary)]">
+                    View
+                  </button>
                 </div>
-
-                <button onClick={() => setMenuOpen(menuOpen === user.id ? null : user.id)} className="p-1">
-                  <MoreVertical size={15} color="#3b5278" />
-                </button>
-              </div>
-
-              {menuOpen === user.id && (
-                <div
-                  className="mt-3 rounded-xl overflow-hidden"
-                  style={{ background: "#0e1422", border: "1px solid rgba(96,165,250,0.12)" }}
-                >
+                <div className="mt-3 flex flex-wrap gap-2">
                   {[
-                    { label: "View Profile",     icon: <ShieldCheck size={12} /> },
-                    { label: user.status === "active" ? "Suspend User" : "Reinstate User", icon: <MoreVertical size={12} /> },
-                    { label: "Grant Writer Role", icon: <BookOpen size={12} /> },
-                    { label: "Adjust Coins",      icon: <Coins size={12} /> },
-                  ].map((item, i, arr) => (
+                    { label: "View profile", action: "view" },
+                    { label: "Change role", action: "role" },
+                    { label: user.status === "SUSPENDED" ? "Restore" : "Suspend", action: user.status === "SUSPENDED" ? "restore" : "suspend" },
+                    { label: user.status === "BANNED" ? "Restore" : "Ban", action: user.status === "BANNED" ? "restore" : "ban" },
+                  ].map(({ label, action }) => (
                     <button
-                      key={i}
-                      onClick={() => setMenuOpen(null)}
-                      className="flex items-center gap-2 w-full px-4 py-2.5 text-xs active:bg-white/5"
-                      style={{ color: "#a0c0e8", borderBottom: i < arr.length - 1 ? "1px solid rgba(96,165,250,0.08)" : "none" }}
+                      key={label}
+                      type="button"
+                      className="somi-control rounded-lg bg-[var(--color-background)] px-2.5 py-2 text-[10px] font-semibold text-[var(--color-text-secondary)]"
+                      onClick={() => {
+                        if (action === "view") {
+                          navigate("admin-users", user.id);
+                          return;
+                        }
+                        setDialog({
+                          userId: user.id,
+                          action: action as "role" | "suspend" | "ban" | "restore",
+                        });
+                      }}
                     >
-                      <span style={{ color: "#60a5fa" }}>{item.icon}</span>
-                      {item.label}
+                      {label}
                     </button>
                   ))}
                 </div>
-              )}
-            </div>
-          );
-        })}
+              </div>
+            );
+          })
+        )}
       </div>
+
+      <AdminActionDialog
+        open={Boolean(dialog)}
+        title={dialog ? getActionTitle(dialog.action) : "Confirm action"}
+        description={dialog ? "This action will update the selected account and record an audit event in the admin log." : ""}
+        confirmLabel={
+          dialog?.action === "role"
+            ? "Apply role change"
+            : dialog?.action === "suspend"
+              ? "Suspend user"
+              : dialog?.action === "ban"
+                ? "Ban user"
+                : "Restore user"
+        }
+        variant={dialog?.action === "ban" ? "danger" : "default"}
+        onConfirm={confirmUserAction}
+        onCancel={() => setDialog(null)}
+      />
     </div>
   );
 }

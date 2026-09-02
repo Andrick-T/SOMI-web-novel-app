@@ -1,5 +1,12 @@
 import { useState } from "react";
-import { Eye, EyeOff, ArrowLeft, Mail, Lock, User } from "lucide-react";
+import {
+  Eye,
+  EyeOff,
+  ArrowLeft,
+  Mail,
+  Lock as LockIcon,
+  User,
+} from "lucide-react";
 import type { CommonProps } from "../types";
 
 type Mode = "login" | "register" | "forgot";
@@ -17,10 +24,22 @@ export default function AuthPage({ navigate, onLogin }: CommonProps) {
 
   const handleSubmit = () => {
     setError("");
-    if (!email) { setError("Please enter your email."); return; }
-    if (mode !== "forgot" && !password) { setError("Please enter your password."); return; }
-    if (mode === "register" && password !== confirmPassword) { setError("Passwords do not match."); return; }
-    if (mode === "register" && !name) { setError("Please enter your display name."); return; }
+    if (!email) {
+      setError("Please enter your email.");
+      return;
+    }
+    if (mode !== "forgot" && !password) {
+      setError("Please enter your password.");
+      return;
+    }
+    if (mode === "register" && password !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+    if (mode === "register" && !name) {
+      setError("Please enter your display name.");
+      return;
+    }
 
     setLoading(true);
     setTimeout(() => {
@@ -40,7 +59,8 @@ export default function AuthPage({ navigate, onLogin }: CommonProps) {
       <div
         className="absolute top-0 left-0 right-0 h-72 pointer-events-none"
         style={{
-          background: "radial-gradient(ellipse 80% 60% at 50% -10%, rgba(232,168,76,0.12) 0%, transparent 70%)",
+          background:
+            "radial-gradient(ellipse 80% 60% at 50% -10%, rgba(232,168,76,0.12) 0%, transparent 70%)",
         }}
       />
 
@@ -58,7 +78,9 @@ export default function AuthPage({ navigate, onLogin }: CommonProps) {
       {/* Logo */}
       <div className="px-8 pt-8 pb-6 text-center">
         <h1 className="font-display text-3xl font-bold gold-shimmer">SOMI</h1>
-        <p className="text-sm mt-1" style={{ color: "#8b7ea8" }}>Your story begins here</p>
+        <p className="text-sm mt-1" style={{ color: "#8b7ea8" }}>
+          Your story begins here
+        </p>
       </div>
 
       {/* Mode tabs */}
@@ -68,16 +90,28 @@ export default function AuthPage({ navigate, onLogin }: CommonProps) {
           style={{ background: "#1a1726", border: "1px solid #2e2945" }}
         >
           <button
-            onClick={() => { setMode("login"); setError(""); }}
+            onClick={() => {
+              setMode("login");
+              setError("");
+            }}
             className="flex-1 h-9 rounded-lg text-sm font-bold transition-all"
-            style={{ background: mode === "login" ? "#231f35" : "transparent", color: mode === "login" ? "#e8a84c" : "#8b7ea8" }}
+            style={{
+              background: mode === "login" ? "#231f35" : "transparent",
+              color: mode === "login" ? "#e8a84c" : "#8b7ea8",
+            }}
           >
             Sign In
           </button>
           <button
-            onClick={() => { setMode("register"); setError(""); }}
+            onClick={() => {
+              setMode("register");
+              setError("");
+            }}
             className="flex-1 h-9 rounded-lg text-sm font-bold transition-all"
-            style={{ background: mode === "register" ? "#231f35" : "transparent", color: mode === "register" ? "#e8a84c" : "#8b7ea8" }}
+            style={{
+              background: mode === "register" ? "#231f35" : "transparent",
+              color: mode === "register" ? "#e8a84c" : "#8b7ea8",
+            }}
           >
             Create Account
           </button>
@@ -89,28 +123,50 @@ export default function AuthPage({ navigate, onLogin }: CommonProps) {
         {mode === "forgot" && (
           <div className="mb-6">
             <button
-              onClick={() => { setMode("login"); setForgotSent(false); }}
+              onClick={() => {
+                setMode("login");
+                setForgotSent(false);
+              }}
               className="flex items-center gap-2 text-sm mb-4"
               style={{ color: "#8b7ea8" }}
             >
               <ArrowLeft size={14} /> Back to Sign In
             </button>
-            <h2 className="font-display text-xl font-bold mb-1" style={{ color: "#f0ece4" }}>Reset Password</h2>
-            <p className="text-sm" style={{ color: "#8b7ea8" }}>Enter your email and we'll send you a reset link.</p>
+            <h2
+              className="font-display text-xl font-bold mb-1"
+              style={{ color: "#f0ece4" }}
+            >
+              Reset Password
+            </h2>
+            <p className="text-sm" style={{ color: "#8b7ea8" }}>
+              Enter your email and we'll send you a reset link.
+            </p>
           </div>
         )}
 
         {forgotSent ? (
           <div className="flex flex-col items-center py-8 gap-4">
-            <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: "rgba(232,168,76,0.15)" }}>
+            <div
+              className="w-16 h-16 rounded-full flex items-center justify-center"
+              style={{ background: "rgba(232,168,76,0.15)" }}
+            >
               <Mail size={28} color="#e8a84c" />
             </div>
-            <p className="font-display text-lg text-center" style={{ color: "#f0ece4" }}>Check your email</p>
+            <p
+              className="font-display text-lg text-center"
+              style={{ color: "#f0ece4" }}
+            >
+              Check your email
+            </p>
             <p className="text-sm text-center" style={{ color: "#8b7ea8" }}>
-              We sent a password reset link to <strong style={{ color: "#f0ece4" }}>{email}</strong>
+              We sent a password reset link to{" "}
+              <strong style={{ color: "#f0ece4" }}>{email}</strong>
             </p>
             <button
-              onClick={() => { setMode("login"); setForgotSent(false); }}
+              onClick={() => {
+                setMode("login");
+                setForgotSent(false);
+              }}
               className="text-sm font-semibold"
               style={{ color: "#e8a84c" }}
             >
@@ -121,7 +177,12 @@ export default function AuthPage({ navigate, onLogin }: CommonProps) {
           <div className="flex flex-col gap-3">
             {mode === "register" && (
               <div>
-                <label className="text-[11px] font-semibold uppercase tracking-wider mb-1.5 block" style={{ color: "#8b7ea8" }}>Display Name</label>
+                <label
+                  className="text-[11px] font-semibold uppercase tracking-wider mb-1.5 block"
+                  style={{ color: "#8b7ea8" }}
+                >
+                  Display Name
+                </label>
                 <div
                   className="flex items-center gap-3 rounded-xl px-4 h-12"
                   style={{ background: "#1a1726", border: "1px solid #2e2945" }}
@@ -132,14 +193,19 @@ export default function AuthPage({ navigate, onLogin }: CommonProps) {
                     style={{ color: "#f0ece4" }}
                     placeholder="Your name"
                     value={name}
-                    onChange={e => setName(e.target.value)}
+                    onChange={(e) => setName(e.target.value)}
                   />
                 </div>
               </div>
             )}
 
             <div>
-              <label className="text-[11px] font-semibold uppercase tracking-wider mb-1.5 block" style={{ color: "#8b7ea8" }}>Email</label>
+              <label
+                className="text-[11px] font-semibold uppercase tracking-wider mb-1.5 block"
+                style={{ color: "#8b7ea8" }}
+              >
+                Email
+              </label>
               <div
                 className="flex items-center gap-3 rounded-xl px-4 h-12"
                 style={{ background: "#1a1726", border: "1px solid #2e2945" }}
@@ -151,29 +217,38 @@ export default function AuthPage({ navigate, onLogin }: CommonProps) {
                   style={{ color: "#f0ece4" }}
                   placeholder="you@example.com"
                   value={email}
-                  onChange={e => setEmail(e.target.value)}
+                  onChange={(e) => setEmail(e.target.value)}
                 />
               </div>
             </div>
 
             {mode !== "forgot" && (
               <div>
-                <label className="text-[11px] font-semibold uppercase tracking-wider mb-1.5 block" style={{ color: "#8b7ea8" }}>Password</label>
+                <label
+                  className="text-[11px] font-semibold uppercase tracking-wider mb-1.5 block"
+                  style={{ color: "#8b7ea8" }}
+                >
+                  Password
+                </label>
                 <div
                   className="flex items-center gap-3 rounded-xl px-4 h-12"
                   style={{ background: "#1a1726", border: "1px solid #2e2945" }}
                 >
-                  <Lock size={16} color="#8b7ea8" />
+                  <LockIcon size={16} color="#8b7ea8" />
                   <input
                     type={showPassword ? "text" : "password"}
                     className="flex-1 bg-transparent text-sm outline-none"
                     style={{ color: "#f0ece4" }}
                     placeholder="Your password"
                     value={password}
-                    onChange={e => setPassword(e.target.value)}
+                    onChange={(e) => setPassword(e.target.value)}
                   />
                   <button onClick={() => setShowPassword(!showPassword)}>
-                    {showPassword ? <EyeOff size={16} color="#8b7ea8" /> : <Eye size={16} color="#8b7ea8" />}
+                    {showPassword ? (
+                      <EyeOff size={16} color="#8b7ea8" />
+                    ) : (
+                      <Eye size={16} color="#8b7ea8" />
+                    )}
                   </button>
                 </div>
               </div>
@@ -181,19 +256,24 @@ export default function AuthPage({ navigate, onLogin }: CommonProps) {
 
             {mode === "register" && (
               <div>
-                <label className="text-[11px] font-semibold uppercase tracking-wider mb-1.5 block" style={{ color: "#8b7ea8" }}>Confirm Password</label>
+                <label
+                  className="text-[11px] font-semibold uppercase tracking-wider mb-1.5 block"
+                  style={{ color: "#8b7ea8" }}
+                >
+                  Confirm Password
+                </label>
                 <div
                   className="flex items-center gap-3 rounded-xl px-4 h-12"
                   style={{ background: "#1a1726", border: "1px solid #2e2945" }}
                 >
-                  <Lock size={16} color="#8b7ea8" />
+                  <LockIcon size={16} color="#8b7ea8" />
                   <input
                     type="password"
                     className="flex-1 bg-transparent text-sm outline-none"
                     style={{ color: "#f0ece4" }}
                     placeholder="Confirm password"
                     value={confirmPassword}
-                    onChange={e => setConfirmPassword(e.target.value)}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
                   />
                 </div>
               </div>
@@ -203,7 +283,11 @@ export default function AuthPage({ navigate, onLogin }: CommonProps) {
             {error && (
               <div
                 className="px-3 py-2.5 rounded-xl text-sm"
-                style={{ background: "rgba(201,96,58,0.12)", color: "#c9603a", border: "1px solid rgba(201,96,58,0.3)" }}
+                style={{
+                  background: "rgba(201,96,58,0.12)",
+                  color: "#c9603a",
+                  border: "1px solid rgba(201,96,58,0.3)",
+                }}
               >
                 {error}
               </div>
@@ -212,7 +296,10 @@ export default function AuthPage({ navigate, onLogin }: CommonProps) {
             {/* Forgot password */}
             {mode === "login" && (
               <button
-                onClick={() => { setMode("forgot"); setError(""); }}
+                onClick={() => {
+                  setMode("forgot");
+                  setError("");
+                }}
                 className="text-xs text-right"
                 style={{ color: "#8b7ea8" }}
               >
@@ -229,17 +316,27 @@ export default function AuthPage({ navigate, onLogin }: CommonProps) {
             >
               {loading ? (
                 <span className="anim-pulse-soft">
-                  {mode === "login" ? "Signing In..." : mode === "register" ? "Creating Account..." : "Sending Link..."}
+                  {mode === "login"
+                    ? "Signing In..."
+                    : mode === "register"
+                      ? "Creating Account..."
+                      : "Sending Link..."}
                 </span>
+              ) : mode === "login" ? (
+                "Sign In"
+              ) : mode === "register" ? (
+                "Create Account"
               ) : (
-                mode === "login" ? "Sign In" : mode === "register" ? "Create Account" : "Send Reset Link"
+                "Send Reset Link"
               )}
             </button>
 
             {/* Divider */}
             <div className="flex items-center gap-3 my-2">
               <div className="flex-1 h-px" style={{ background: "#2e2945" }} />
-              <span className="text-xs" style={{ color: "#8b7ea8" }}>or continue as</span>
+              <span className="text-xs" style={{ color: "#8b7ea8" }}>
+                or continue as
+              </span>
               <div className="flex-1 h-px" style={{ background: "#2e2945" }} />
             </div>
 
@@ -247,7 +344,11 @@ export default function AuthPage({ navigate, onLogin }: CommonProps) {
             <button
               onClick={() => navigate("home")}
               className="w-full h-12 rounded-xl font-semibold text-sm active:scale-95 transition-all"
-              style={{ background: "#1a1726", color: "#8b7ea8", border: "1px solid #2e2945" }}
+              style={{
+                background: "#1a1726",
+                color: "#8b7ea8",
+                border: "1px solid #2e2945",
+              }}
             >
               Browse as Guest
             </button>

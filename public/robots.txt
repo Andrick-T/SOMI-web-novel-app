@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+
+# Private routes excluded from search indexing
+Disallow: /admin/
+Disallow: /writer/
+Disallow: /reader/
+Disallow: /wallet/
+Disallow: /library/
+Disallow: /auth/
+Disallow: /profile/

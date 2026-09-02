@@ -1,156 +1,237 @@
-import { useState } from "react";
-import { Search, ShieldAlert, CheckCircle, Eye, Trash2, BookOpen } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { BookOpen, Search, ShieldAlert } from "lucide-react";
+import { mockAdminRepository } from "../../features/admin";
+import AdminActionDialog from "../../components/AdminActionDialog";
+import { StatusBadge } from "../../components/DesignPrimitives";
 import type { CommonProps } from "../../types";
 
-type ContentStatus = "all" | "pending" | "live" | "flagged" | "removed";
-
-const contentItems = [
-  { id: "c1", type: "book",    title: "The Baobab Kingdom",   author: "Amara Diallo",   status: "live",    chapters: 12, flags: 0,  updated: "2d ago" },
-  { id: "c2", type: "chapter", title: "Dark River · Ch.4",    author: "Kwame Boateng",  status: "flagged", chapters: 1,  flags: 3,  updated: "5h ago" },
-  { id: "c3", type: "book",    title: "Echoes of Kongo",      author: "Fatou Ndiaye",   status: "pending", chapters: 2,  flags: 0,  updated: "1d ago" },
-  { id: "c4", type: "book",    title: "Shadow Hunters",       author: "Chidi Okonkwo",  status: "live",    chapters: 18, flags: 0,  updated: "3d ago" },
-  { id: "c5", type: "chapter", title: "Night Market · Ch.11", author: "Zintle Dlamini", status: "removed", chapters: 1,  flags: 7,  updated: "1w ago" },
-];
-
-const statusConfig: Record<string, { bg: string; text: string; label: string }> = {
-  live:    { bg: "rgba(74,222,128,0.12)",  text: "#4ade80", label: "Live" },
-  pending: { bg: "rgba(251,191,36,0.12)",  text: "#fbbf24", label: "Pending" },
-  flagged: { bg: "rgba(251,113,133,0.12)", text: "#fb7185", label: "Flagged" },
-  removed: { bg: "rgba(100,100,120,0.15)", text: "#8899aa", label: "Removed" },
+const statusConfig: Record<string, { label: string; tone: "success" | "warning" | "danger" | "info" | "neutral" }> = {
+  DRAFT: { label: "Draft", tone: "neutral" },
+  EDITING: { label: "Editing", tone: "warning" },
+  READY_FOR_REVIEW: { label: "Ready for review", tone: "info" },
+  SCHEDULED: { label: "Scheduled", tone: "info" },
+  PUBLISHED: { label: "Published", tone: "success" },
+  REJECTED: { label: "Rejected", tone: "danger" },
+  UNPUBLISHED: { label: "Unpublished", tone: "neutral" },
+  ARCHIVED: { label: "Archived", tone: "neutral" },
 };
 
-export default function AdminContent({ }: CommonProps) {
-  const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<ContentStatus>("all");
+export default function AdminContent({ navigate }: CommonProps) {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [query, setQuery] = useState(searchParams.get("q") ?? "");
+  const [status, setStatus] = useState(
+    ["ALL", "DRAFT", "EDITING", "READY_FOR_REVIEW", "PUBLISHED", "REJECTED", "UNPUBLISHED", "ARCHIVED"].includes(
+      searchParams.get("status") ?? "",
+    )
+      ? (searchParams.get("status") ?? "ALL")
+      : "ALL",
+  );
+  const [dialog, setDialog] = useState<{ bookId: string; action: "approve" | "reject" | "changes" | "unpublish" } | null>(null);
 
-  const filtered = contentItems.filter(item => {
-    const matchSearch = item.title.toLowerCase().includes(search.toLowerCase()) ||
-      item.author.toLowerCase().includes(search.toLowerCase());
-    const matchFilter = filter === "all" || item.status === filter;
-    return matchSearch && matchFilter;
-  });
+  useEffect(() => {
+    const next = new URLSearchParams();
+    if (query) next.set("q", query);
+    if (status !== "ALL") next.set("status", status);
+    setSearchParams(next, { replace: true });
+  }, [query, status, setSearchParams]);
+
+  const books = useMemo(() => {
+    const all = mockAdminRepository.getBooks();
+    return all.filter((item) => {
+      const text = `${item.title} ${item.writer}`.toLowerCase();
+      const matchesQuery = !query || text.includes(query.toLowerCase());
+      const matchesStatus = status === "ALL" || item.status === status;
+      return matchesQuery && matchesStatus;
+    });
+  }, [query, status]);
+
+  const confirmBookAction = () => {
+    if (!dialog) return;
+
+    const current = mockAdminRepository.getBook(dialog.bookId);
+    if (!current) return;
+
+    if (dialog.action === "approve") {
+      mockAdminRepository.updateBook(dialog.bookId, {
+        status: "PUBLISHED",
+        moderationStatus: "APPROVED",
+        metadata: {
+          ...(current.metadata ?? {}),
+          approvedAt: new Date().toISOString(),
+        },
+      });
+    }
+
+    if (dialog.action === "reject") {
+      mockAdminRepository.updateBook(dialog.bookId, {
+        status: "REJECTED",
+        moderationStatus: "REJECTED",
+        metadata: {
+          ...(current.metadata ?? {}),
+          rejectionReason: "Policy review",
+        },
+      });
+    }
+
+    if (dialog.action === "changes") {
+      mockAdminRepository.updateBook(dialog.bookId, {
+        status: "EDITING",
+        moderationStatus: "CHANGES_REQUESTED",
+        metadata: {
+          ...(current.metadata ?? {}),
+          feedback: "Requires revision before publication.",
+        },
+      });
+    }
+
+    if (dialog.action === "unpublish") {
+      mockAdminRepository.updateBook(dialog.bookId, {
+        status: "UNPUBLISHED",
+        moderationStatus: "REJECTED",
+        metadata: {
+          ...(current.metadata ?? {}),
+          unpublishReason: "Removed for policy review.",
+        },
+      });
+    }
+
+    mockAdminRepository.createAuditEvent({
+      actorId: "admin-ops",
+      actorName: "Admin Console",
+      action:
+        dialog.action === "approve"
+          ? "BOOK_APPROVED"
+          : dialog.action === "reject"
+            ? "BOOK_REJECTED"
+            : dialog.action === "changes"
+              ? "BOOK_REJECTED"
+              : "BOOK_UNPUBLISHED",
+      targetType: "BOOK",
+      targetId: dialog.bookId,
+      metadata: { action: dialog.action },
+      timestamp: new Date().toISOString(),
+    });
+
+    setDialog(null);
+  };
 
   return (
-    <div className="flex flex-col min-h-full" style={{ background: "#0e1422" }}>
-      <div className="px-5 pt-12 pb-4">
-        <p className="text-xs uppercase tracking-widest font-bold mb-0.5" style={{ color: "#60a5fa88" }}>Admin Console</p>
-        <h1 className="font-display text-2xl font-bold" style={{ color: "#f0ece4" }}>Content</h1>
+    <div className="flex min-h-full flex-col bg-[var(--color-background)] px-5 py-8 text-[var(--color-text-primary)]">
+      <div className="mb-5">
+        <p className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--color-text-muted)]">Admin Console</p>
+        <h1 className="mt-2 text-2xl font-bold text-[var(--color-text-primary)]">Content</h1>
       </div>
 
-      {/* Search */}
-      <div className="px-5 mb-3">
-        <div
-          className="flex items-center gap-3 px-4 py-3 rounded-xl"
-          style={{ background: "#162035", border: "1px solid rgba(96,165,250,0.12)" }}
-        >
-          <Search size={15} color="#3b5278" />
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search titles or authors…"
-            className="flex-1 bg-transparent outline-none text-sm"
-            style={{ color: "#f0ece4" }}
-          />
-        </div>
+      <div className="mb-4 flex items-center gap-3 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface)] px-4 py-3">
+        <Search size={15} color="var(--color-text-muted)" />
+        <input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search titles or writers"
+          className="w-full bg-transparent text-sm text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-muted)]"
+        />
       </div>
 
-      {/* Filter */}
-      <div className="flex gap-2 px-5 mb-5 overflow-x-auto">
-        {(["all", "live", "pending", "flagged", "removed"] as ContentStatus[]).map(s => (
+      <div className="mb-5 flex flex-wrap gap-2">
+        {(["ALL", "DRAFT", "EDITING", "READY_FOR_REVIEW", "PUBLISHED", "REJECTED", "UNPUBLISHED", "ARCHIVED"] as const).map((value) => (
           <button
-            key={s}
-            onClick={() => setFilter(s)}
-            className="px-3 py-1.5 rounded-lg text-xs font-semibold capitalize flex-shrink-0 active:scale-95"
+            key={value}
+            type="button"
+            onClick={() => setStatus(value)}
+            className="somi-control rounded-lg px-3 py-1.5 text-xs font-semibold"
             style={{
-              background: filter === s ? "#60a5fa" : "#162035",
-              color: filter === s ? "#0e1422" : "#4a7090",
-              border: filter === s ? "none" : "1px solid rgba(96,165,250,0.15)",
+              background: status === value ? "var(--color-accent-primary)" : "var(--color-surface)",
+              color: status === value ? "var(--color-background)" : "var(--color-text-secondary)",
             }}
           >
-            {s}
-            {s === "flagged" && <span className="ml-1 w-4 h-4 inline-flex items-center justify-center rounded-full text-[8px]" style={{ background: "rgba(251,113,133,0.2)", color: "#fb7185" }}>2</span>}
+            {value}
           </button>
         ))}
       </div>
 
-      {/* Content list */}
-      <div className="px-5 flex flex-col gap-3 pb-8">
-        {filtered.map(item => {
-          const sc = statusConfig[item.status];
-          return (
-            <div
-              key={item.id}
-              className="p-4 rounded-xl"
-              style={{
-                background: "#162035",
-                border: item.status === "flagged"
-                  ? "1px solid rgba(251,113,133,0.3)"
-                  : "1px solid rgba(96,165,250,0.08)",
-              }}
-            >
-              <div className="flex items-start justify-between gap-2 mb-2">
-                <div className="flex items-start gap-2 min-w-0">
-                  <div
-                    className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-                    style={{ background: "rgba(96,165,250,0.1)" }}
-                  >
-                    <BookOpen size={13} color="#60a5fa" />
+      <div className="space-y-3 pb-8">
+        {books.length === 0 ? (
+          <div className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface)] p-6 text-center text-[var(--color-text-secondary)]">
+            No content matches these filters.
+          </div>
+        ) : (
+          books.map((book) => {
+            const statusBadge = statusConfig[book.status] ?? statusConfig.DRAFT;
+            return (
+              <div key={book.id} className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface)] p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[rgba(96,165,250,0.12)] text-[var(--color-accent-primary)]">
+                      <BookOpen size={18} />
+                    </div>
+                    <div>
+                      <p className="text-base font-semibold text-[var(--color-text-primary)]">{book.title}</p>
+                      <p className="text-xs text-[var(--color-text-muted)]">by {book.writer}</p>
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold leading-tight" style={{ color: "#f0ece4" }}>{item.title}</p>
-                    <p className="text-[10px] mt-0.5" style={{ color: "#3b5278" }}>by {item.author}</p>
-                  </div>
+                  <StatusBadge label={statusBadge.label} tone={statusBadge.tone} compact />
                 </div>
-                <span
-                  className="text-[9px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
-                  style={{ background: sc.bg, color: sc.text }}
-                >
-                  {sc.label}
-                </span>
-              </div>
 
-              <div className="flex items-center gap-3 mb-3">
-                <span className="text-[10px]" style={{ color: "#4a7090" }}>
-                  {item.chapters} {item.type === "book" ? "chapters" : "chapter"}
-                </span>
-                {item.flags > 0 && (
-                  <div className="flex items-center gap-1">
-                    <ShieldAlert size={10} color="#fb7185" />
-                    <span className="text-[10px]" style={{ color: "#fb7185" }}>{item.flags} flag{item.flags > 1 ? "s" : ""}</span>
-                  </div>
-                )}
-                <span className="text-[10px]" style={{ color: "#3b5278" }}>Updated {item.updated}</span>
-              </div>
+                <div className="mt-3 flex flex-wrap gap-3 text-[10px] text-[var(--color-text-muted)]">
+                  <span>{book.genre}</span>
+                  <span>{book.chapters} chapters</span>
+                  <span>{book.moderationStatus}</span>
+                </div>
 
-              {/* Actions */}
-              <div className="flex gap-2">
-                <button
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold active:scale-95"
-                  style={{ background: "rgba(96,165,250,0.12)", color: "#60a5fa" }}
-                >
-                  <Eye size={11} /> Review
-                </button>
-                {item.status === "pending" && (
-                  <button
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold active:scale-95"
-                    style={{ background: "rgba(74,222,128,0.12)", color: "#4ade80" }}
-                  >
-                    <CheckCircle size={11} /> Approve
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button type="button" onClick={() => navigate("admin-content", book.id)} className="somi-control rounded-lg bg-[rgba(96,165,250,0.12)] px-3 py-2 text-[10px] font-semibold text-[var(--color-accent-primary)]">
+                    Review
                   </button>
-                )}
-                {(item.status === "flagged" || item.status === "live") && (
-                  <button
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold active:scale-95"
-                    style={{ background: "rgba(251,113,133,0.12)", color: "#fb7185" }}
-                  >
-                    <Trash2 size={11} /> Remove
+                  {book.status !== "PUBLISHED" && (
+                    <button type="button" onClick={() => setDialog({ bookId: book.id, action: "approve" })} className="somi-control rounded-lg bg-[rgba(74,222,128,0.12)] px-3 py-2 text-[10px] font-semibold text-[var(--color-status-success)]">
+                      Approve
+                    </button>
+                  )}
+                  {book.status !== "REJECTED" && (
+                    <button type="button" onClick={() => setDialog({ bookId: book.id, action: "reject" })} className="somi-control rounded-lg bg-[rgba(251,113,133,0.12)] px-3 py-2 text-[10px] font-semibold text-[var(--color-status-danger)]">
+                      Reject
+                    </button>
+                  )}
+                  <button type="button" onClick={() => setDialog({ bookId: book.id, action: "changes" })} className="somi-control flex items-center gap-1 rounded-lg bg-[var(--color-background)] px-3 py-2 text-[10px] font-semibold text-[var(--color-text-secondary)]">
+                    <ShieldAlert size={11} />
+                    Request changes
                   </button>
-                )}
+                  <button type="button" onClick={() => setDialog({ bookId: book.id, action: "unpublish" })} className="somi-control rounded-lg bg-[rgba(251,191,36,0.12)] px-3 py-2 text-[10px] font-semibold text-[var(--color-status-warning)]">
+                    Unpublish
+                  </button>
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })
+        )}
       </div>
+
+      <AdminActionDialog
+        open={Boolean(dialog)}
+        title={
+          dialog?.action === "approve"
+            ? "Approve content"
+            : dialog?.action === "reject"
+              ? "Reject content"
+              : dialog?.action === "changes"
+                ? "Request revisions"
+                : "Unpublish content"
+        }
+        description="This moderation decision will update the content record and log the event in the audit trail."
+        confirmLabel={
+          dialog?.action === "approve"
+            ? "Approve"
+            : dialog?.action === "reject"
+              ? "Reject"
+              : dialog?.action === "changes"
+                ? "Request changes"
+                : "Unpublish"
+        }
+        variant={dialog?.action === "reject" || dialog?.action === "unpublish" ? "danger" : "default"}
+        onConfirm={confirmBookAction}
+        onCancel={() => setDialog(null)}
+      />
     </div>
   );
 }

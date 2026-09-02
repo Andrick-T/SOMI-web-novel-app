@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="SOMI icon">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#1A1726"/>
+      <stop offset="100%" stop-color="#0D0B18"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0%" stop-color="#F7D89A"/>
+      <stop offset="100%" stop-color="#E8A84C"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+  <path d="M96 156C96 117.34 127.34 86 166 86H346C384.66 86 416 117.34 416 156V304C416 342.66 384.66 374 346 374H242L180 414L196 374H166C127.34 374 96 342.66 96 304V156Z" fill="url(#gold)" opacity="0.95"/>
+  <path d="M165 194H314.5C341.51 194 363.5 215.99 363.5 243V243C363.5 270.01 341.51 292 314.5 292H165V194Z" fill="#0D0B18" opacity="0.85"/>
+  <path d="M165 292H350" stroke="#0D0B18" stroke-width="20" stroke-linecap="round"/>
+  <text x="256" y="302" text-anchor="middle" font-size="90" font-family="Georgia, serif" font-weight="700" fill="#F0ECE4">S</text>
+</svg>

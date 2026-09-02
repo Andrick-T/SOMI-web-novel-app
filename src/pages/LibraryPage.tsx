@@ -1,43 +1,65 @@
-import { useState } from "react";
-import { BookOpen, Download, Heart, CheckCircle } from "lucide-react";
+import { useMemo, useState } from "react";
+import {
+  BookOpen,
+  CheckCircle,
+  Download,
+  Heart,
+  ArrowRight,
+} from "lucide-react";
 import BookCard from "../components/BookCard";
-import { books } from "../data/books";
+import {
+  EmptyState,
+  ErrorState,
+  LoadingState,
+} from "../components/DesignPrimitives";
+import { readingProgressRepository } from "../features/reader/services/readingProgressService";
+import { bookRepository } from "../services/repositories";
 import type { CommonProps } from "../types";
 
 type Tab = "reading" | "favorites" | "completed" | "downloads";
 
-const readingProgress: Record<string, number> = {
-  "midnight-throne": 68,
-  "sins-of-father": 32,
-  "baobab-kingdom": 15,
-};
-
-export default function LibraryPage({ navigate, isLoggedIn, libraryBooks }: CommonProps) {
+export default function LibraryPage({
+  navigate,
+  isLoggedIn,
+  libraryBooks,
+}: CommonProps) {
   const [tab, setTab] = useState<Tab>("reading");
+
+  const books = useMemo(() => bookRepository.getBooks(), []);
+  const readingProgress = useMemo(
+    () =>
+      Object.fromEntries(
+        readingProgressRepository
+          .getRecentReading()
+          .map((entry) => [entry.bookId, entry]),
+      ),
+    [],
+  );
 
   if (!isLoggedIn) {
     return (
-      <div className="flex flex-col min-h-full items-center justify-center px-8 text-center gap-5" style={{ background: "#0d0b18" }}>
-        <div className="w-20 h-20 rounded-full flex items-center justify-center" style={{ background: "#1a1726" }}>
-          <BookOpen size={36} color="#8b7ea8" />
+      <div className="flex min-h-full flex-col items-center justify-center gap-5 px-8 text-center bg-[var(--color-background)]">
+        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[var(--color-surface)]">
+          <BookOpen size={36} color="var(--color-text-muted)" />
         </div>
         <div>
-          <h2 className="font-display text-xl font-bold mb-2" style={{ color: "#f0ece4" }}>Your Library</h2>
-          <p className="text-sm leading-relaxed" style={{ color: "#8b7ea8" }}>
-            Sign in to save books, track your reading progress, and access your personal collection.
+          <h2 className="mb-2 font-display text-xl font-bold text-[var(--color-text-primary)]">
+            Your Library
+          </h2>
+          <p className="text-sm leading-relaxed text-[var(--color-text-muted)]">
+            Sign in to save books, track progress, and keep your personal shelf
+            close at hand.
           </p>
         </div>
         <button
           onClick={() => navigate("auth")}
-          className="w-full h-12 rounded-xl font-bold text-sm"
-          style={{ background: "#e8a84c", color: "#0d0b18" }}
+          className="somi-primary-button w-full justify-center"
         >
           Sign In to SOMI
         </button>
         <button
           onClick={() => navigate("discover")}
-          className="text-sm"
-          style={{ color: "#8b7ea8" }}
+          className="somi-text-link text-sm"
         >
           Browse without account
         </button>
@@ -45,163 +67,274 @@ export default function LibraryPage({ navigate, isLoggedIn, libraryBooks }: Comm
     );
   }
 
-  const savedBooks = libraryBooks.length > 0
-    ? books.filter(b => libraryBooks.includes(b.id))
-    : books.slice(0, 3);
+  const savedBooks =
+    libraryBooks.length > 0
+      ? books.filter((book) => libraryBooks.includes(book.id))
+      : books.slice(0, 3);
+  const readingBooks = books.filter(
+    (book) => readingProgress[book.id] !== undefined,
+  );
+  const completedBooks = books
+    .filter((book) => book.status === "COMPLETED")
+    .slice(0, 2);
+  const favoriteBooks = savedBooks.slice(0, 4);
 
-  const readingBooks = books.filter(b => readingProgress[b.id] !== undefined);
-  const completedBooks = books.filter(b => b.status === "COMPLETED").slice(0, 2);
-  const favBooks = savedBooks.slice(0, 4);
-
-  const tabs: { id: Tab; label: string; icon: React.ReactNode; count: number }[] = [
-    { id: "reading", label: "Reading", icon: <BookOpen size={14} />, count: readingBooks.length },
-    { id: "favorites", label: "Saved", icon: <Heart size={14} />, count: favBooks.length },
-    { id: "completed", label: "Done", icon: <CheckCircle size={14} />, count: completedBooks.length },
-    { id: "downloads", label: "Offline", icon: <Download size={14} />, count: 1 },
+  const tabs: {
+    id: Tab;
+    label: string;
+    icon: React.ReactNode;
+    count: number;
+  }[] = [
+    {
+      id: "reading",
+      label: "Reading",
+      icon: <BookOpen size={14} />,
+      count: readingBooks.length,
+    },
+    {
+      id: "favorites",
+      label: "Saved",
+      icon: <Heart size={14} />,
+      count: favoriteBooks.length,
+    },
+    {
+      id: "completed",
+      label: "Done",
+      icon: <CheckCircle size={14} />,
+      count: completedBooks.length,
+    },
+    {
+      id: "downloads",
+      label: "Offline",
+      icon: <Download size={14} />,
+      count: 0,
+    },
   ];
 
   return (
-    <div className="flex flex-col min-h-full" style={{ background: "#0d0b18" }}>
-      {/* Header */}
-      <div className="px-5 pt-12 pb-4">
-        <h1 className="font-display text-2xl font-bold" style={{ color: "#f0ece4" }}>My Library</h1>
-        <p className="text-sm mt-1" style={{ color: "#8b7ea8" }}>Your reading collection</p>
+    <div className="flex min-h-full flex-col bg-[var(--color-background)]">
+      <div className="px-5 pb-4 pt-12">
+        <p className="somi-eyebrow">Reader shelf</p>
+        <h1 className="font-display text-2xl font-bold text-[var(--color-text-primary)]">
+          My Library
+        </h1>
+        <p className="mt-1 text-sm text-[var(--color-text-muted)]">
+          Your personal bookshelf
+        </p>
       </div>
 
-      {/* Tabs */}
-      <div className="flex px-5 gap-2 mb-5">
-        {tabs.map(t => (
+      <div className="mb-5 flex gap-2 overflow-x-auto px-5 pb-1">
+        {tabs.map((item) => (
           <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all active:scale-95"
+            key={item.id}
+            onClick={() => setTab(item.id)}
+            className="flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold transition-all active:scale-95"
             style={{
-              background: tab === t.id ? "#e8a84c" : "#1a1726",
-              color: tab === t.id ? "#0d0b18" : "#8b7ea8",
-              border: tab === t.id ? "none" : "1px solid #2e2945",
+              background:
+                tab === item.id
+                  ? "var(--color-accent-primary)"
+                  : "var(--color-surface)",
+              color:
+                tab === item.id
+                  ? "var(--color-background)"
+                  : "var(--color-text-muted)",
+              border:
+                tab === item.id
+                  ? "1px solid transparent"
+                  : "1px solid var(--color-border-default)",
             }}
           >
-            {t.icon}
-            {t.label}
-            {t.count > 0 && (
+            {item.icon}
+            {item.label}
+            {item.count > 0 && (
               <span
-                className="px-1.5 py-0.5 rounded-full text-[9px] font-bold"
+                className="rounded-full px-1.5 py-0.5 text-[9px] font-bold"
                 style={{
-                  background: tab === t.id ? "rgba(13,11,24,0.2)" : "#231f35",
-                  color: tab === t.id ? "#0d0b18" : "#8b7ea8",
+                  background:
+                    tab === item.id
+                      ? "rgba(13,11,24,0.2)"
+                      : "var(--color-surface-muted)",
+                  color:
+                    tab === item.id
+                      ? "var(--color-background)"
+                      : "var(--color-text-muted)",
                 }}
               >
-                {t.count}
+                {item.count}
               </span>
             )}
           </button>
         ))}
       </div>
 
-      {/* Content */}
       <div className="flex-1 px-5 pb-8">
         {tab === "reading" && (
-          <div className="flex flex-col gap-3">
-            {readingBooks.map(book => (
-              <button
-                key={book.id}
-                onClick={() => navigate("book", book.id)}
-                className="flex items-center gap-3 p-3 rounded-xl active:scale-[0.98] transition-transform"
-                style={{ background: "#1a1726", border: "1px solid #2e2945" }}
-              >
-                <div className="rounded-lg overflow-hidden flex-shrink-0" style={{ width: 52, height: 78 }}>
-                  <img src={book.cover} alt={book.title} className="w-full h-full object-cover" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-sm truncate" style={{ color: "#f0ece4" }}>{book.title}</p>
-                  <p className="text-xs mb-2" style={{ color: "#8b7ea8" }}>{book.author}</p>
-                  <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: "#2e2945" }}>
-                    <div
-                      className="h-full rounded-full"
-                      style={{ width: `${readingProgress[book.id]}%`, background: "linear-gradient(90deg, #e8a84c, #c4882e)" }}
-                    />
+          <div className="space-y-3">
+            {readingBooks.length === 0 ? (
+              <EmptyState
+                title="Your library is waiting for your next story."
+                description="Pick a story and keep the next chapter close."
+                action={
+                  <button
+                    className="somi-quiet-button"
+                    onClick={() => navigate("discover")}
+                  >
+                    Browse stories
+                  </button>
+                }
+              />
+            ) : (
+              readingBooks.map((book) => {
+                const progressEntry = readingProgress[book.id];
+                const progress = progressEntry?.progressPercentage ?? 0;
+                const chapterLabel = progressEntry?.chapterId
+                  ? `Ch. ${progressEntry.chapterId.split("-").at(-1) ?? 1}`
+                  : "Ch. 1";
+                return (
+                  <div
+                    key={book.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => navigate("book", book.id)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        navigate("book", book.id);
+                      }
+                    }}
+                    className="flex w-full items-center gap-3 rounded-[1rem] border border-[var(--color-border-default)] bg-[var(--color-surface)] p-3 text-left transition-transform active:scale-[0.98]"
+                  >
+                    <div className="h-[82px] w-[56px] overflow-hidden rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-muted)]">
+                      <img
+                        src={book.cover}
+                        alt={book.title}
+                        className="h-full w-full object-cover"
+                      />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-[var(--color-text-primary)]">
+                        {book.title}
+                      </p>
+                      <p className="mt-1 text-xs text-[var(--color-text-muted)]">
+                        {book.author}
+                      </p>
+                      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[var(--color-border-default)]">
+                        <div
+                          className="h-full rounded-full"
+                          style={{
+                            width: `${progress}%`,
+                            background:
+                              "linear-gradient(90deg, var(--color-accent-primary), var(--color-accent-active))",
+                          }}
+                        />
+                      </div>
+                      <div className="mt-1 flex items-center justify-between text-[10px] text-[var(--color-text-muted)]">
+                        <span>{chapterLabel}</span>
+                        <span className="font-bold text-[var(--color-accent-primary)]">
+                          {progress}%
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        navigate("reader", book.id, book.chapters[0].id);
+                      }}
+                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--color-accent-primary)] text-[var(--color-background)]"
+                      aria-label={`Continue reading ${book.title}`}
+                    >
+                      <ArrowRight size={15} />
+                    </button>
                   </div>
-                  <div className="flex justify-between mt-1">
-                    <span className="text-[10px]" style={{ color: "#8b7ea8" }}>Ch. {Math.ceil(readingProgress[book.id] / 14)}</span>
-                    <span className="text-[10px] font-bold" style={{ color: "#e8a84c" }}>{readingProgress[book.id]}%</span>
-                  </div>
-                </div>
-                <button
-                  onClick={(e) => { e.stopPropagation(); navigate("reader", book.id, book.chapters[0].id); }}
-                  className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center"
-                  style={{ background: "#e8a84c" }}
-                >
-                  <BookOpen size={14} color="#0d0b18" />
-                </button>
-              </button>
-            ))}
+                );
+              })
+            )}
           </div>
         )}
 
-        {tab === "favorites" && (
-          favBooks.length === 0 ? (
-            <div className="flex flex-col items-center py-16 gap-3">
-              <Heart size={36} color="#2e2945" />
-              <p className="font-display text-base" style={{ color: "#8b7ea8" }}>No saved books yet</p>
-              <p className="text-sm" style={{ color: "#8b7ea8" }}>Tap the bookmark icon on any book</p>
-            </div>
+        {tab === "favorites" &&
+          (favoriteBooks.length === 0 ? (
+            <EmptyState
+              title="No saved books yet"
+              description="Save titles you want to revisit later."
+              action={
+                <button
+                  className="somi-quiet-button"
+                  onClick={() => navigate("discover")}
+                >
+                  Find stories
+                </button>
+              }
+            />
           ) : (
-            <div className="grid grid-cols-3 gap-4">
-              {favBooks.map(book => (
-                <BookCard key={book.id} book={book} navigate={navigate} size="sm" />
+            <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
+              {favoriteBooks.map((book) => (
+                <BookCard
+                  key={book.id}
+                  book={book}
+                  navigate={navigate}
+                  size="sm"
+                />
               ))}
             </div>
-          )
-        )}
+          ))}
 
         {tab === "completed" && (
-          <div className="flex flex-col gap-3">
-            {completedBooks.map(book => (
-              <button
-                key={book.id}
-                onClick={() => navigate("book", book.id)}
-                className="flex items-center gap-3 p-3 rounded-xl active:scale-[0.98]"
-                style={{ background: "#1a1726", border: "1px solid #2e2945" }}
-              >
-                <div className="rounded-lg overflow-hidden flex-shrink-0" style={{ width: 52, height: 78 }}>
-                  <img src={book.cover} alt={book.title} className="w-full h-full object-cover" />
-                </div>
-                <div className="flex-1">
-                  <p className="font-semibold text-sm" style={{ color: "#f0ece4" }}>{book.title}</p>
-                  <p className="text-xs" style={{ color: "#8b7ea8" }}>{book.author}</p>
-                  <div className="flex items-center gap-1 mt-2">
-                    <CheckCircle size={11} color="#3ecf8e" />
-                    <span className="text-[10px]" style={{ color: "#3ecf8e" }}>Completed · {book.totalChapters} chapters</span>
+          <div className="space-y-3">
+            {completedBooks.length === 0 ? (
+              <EmptyState
+                title="Finished stories will appear here."
+                description="Complete a chapter and your reading history will settle here."
+              />
+            ) : (
+              completedBooks.map((book) => (
+                <div
+                  key={book.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => navigate("book", book.id)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      navigate("book", book.id);
+                    }
+                  }}
+                  className="flex w-full items-center gap-3 rounded-[1rem] border border-[var(--color-border-default)] bg-[var(--color-surface)] p-3 text-left transition-transform active:scale-[0.98]"
+                >
+                  <div className="h-[82px] w-[56px] overflow-hidden rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-muted)]">
+                    <img
+                      src={book.cover}
+                      alt={book.title}
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-[var(--color-text-primary)]">
+                      {book.title}
+                    </p>
+                    <p className="mt-1 text-xs text-[var(--color-text-muted)]">
+                      {book.author}
+                    </p>
+                    <div className="mt-2 flex items-center gap-2 text-[10px] text-[var(--color-text-muted)]">
+                      <CheckCircle
+                        size={12}
+                        color="var(--color-status-success)"
+                      />
+                      <span>Finished</span>
+                    </div>
                   </div>
                 </div>
-              </button>
-            ))}
+              ))
+            )}
           </div>
         )}
 
         {tab === "downloads" && (
-          <div className="flex flex-col gap-3">
-            <button
-              onClick={() => navigate("book", books[0].id)}
-              className="flex items-center gap-3 p-3 rounded-xl active:scale-[0.98]"
-              style={{ background: "#1a1726", border: "1px solid #2e2945" }}
-            >
-              <div className="rounded-lg overflow-hidden flex-shrink-0" style={{ width: 52, height: 78 }}>
-                <img src={books[0].cover} alt={books[0].title} className="w-full h-full object-cover" />
-              </div>
-              <div className="flex-1">
-                <p className="font-semibold text-sm" style={{ color: "#f0ece4" }}>{books[0].title}</p>
-                <p className="text-xs" style={{ color: "#8b7ea8" }}>{books[0].author}</p>
-                <div className="flex items-center gap-1 mt-2">
-                  <Download size={11} color="#e8a84c" />
-                  <span className="text-[10px]" style={{ color: "#e8a84c" }}>3 chapters offline</span>
-                </div>
-              </div>
-            </button>
-            <div className="rounded-xl p-4 mt-3 text-center" style={{ background: "#1a1726", border: "1px dashed #2e2945" }}>
-              <p className="text-sm" style={{ color: "#8b7ea8" }}>Download chapters while online to read without internet.</p>
-            </div>
-          </div>
+          <EmptyState
+            title="Reading offline"
+            description="Downloaded chapters will appear here once the offline feature is enabled."
+          />
         )}
       </div>
     </div>
