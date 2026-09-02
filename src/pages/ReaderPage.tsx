@@ -124,6 +124,7 @@ export default function ReaderPage({
   const [currentTime, setCurrentTime] = useState("");
   const [battery, setBattery] = useState<number | null>(null);
   const touchStartX = useRef(0);
+  const touchStartY = useRef(0);
   const controlsTimer = useRef<number | null>(null);
   const readerShellRef = useRef<HTMLDivElement>(null);
   const tc = themes[theme];
@@ -289,8 +290,8 @@ export default function ReaderPage({
     }
   };
 
-  const handleSwipe = (dx: number) => {
-    if (Math.abs(dx) < 55) return;
+  const handleSwipe = (dx: number, dy: number) => {
+    if (Math.abs(dx) < 55 || Math.abs(dx) <= Math.abs(dy)) return;
     goToChapter(dx < 0 ? "next" : "prev");
   };
 
@@ -694,11 +695,14 @@ export default function ReaderPage({
         }}
         onTouchStart={(event) => {
           touchStartX.current = event.touches[0]?.clientX ?? 0;
+          touchStartY.current = event.touches[0]?.clientY ?? 0;
         }}
         onTouchEnd={(event) => {
-          const delta =
+          const deltaX =
             (event.changedTouches[0]?.clientX ?? 0) - touchStartX.current;
-          handleSwipe(delta);
+          const deltaY =
+            (event.changedTouches[0]?.clientY ?? 0) - touchStartY.current;
+          handleSwipe(deltaX, deltaY);
         }}
         role="region"
         aria-label={`Reader for ${chapter.title}`}
