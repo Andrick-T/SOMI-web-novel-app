@@ -300,6 +300,9 @@ export async function updateBook(writer, bookId, input) {
     if (!existing)
         throw new AppError(404, "BOOK_NOT_FOUND", "Book not found.");
     assertAuthorOrAdmin(writer, existing.authorId);
+    if (input.status === "PUBLISHED" && writer?.role.toUpperCase() !== "ADMIN") {
+        throw new AppError(409, "INVALID_STATE_TRANSITION", "Writers must submit a book for review before publication.");
+    }
     if (input.slug && input.slug !== existing.slug) {
         const duplicate = await prisma.book.findUnique({
             where: { slug: input.slug },
@@ -538,6 +541,9 @@ export async function updateChapter(writer, bookId, chapterId, input) {
     if (!chapter || chapter.bookId !== bookId)
         throw new AppError(404, "CHAPTER_NOT_FOUND", "Chapter not found.");
     assertAuthorOrAdmin(writer, chapter.book.authorId);
+    if (input.status === "PUBLISHED" && writer?.role.toUpperCase() !== "ADMIN") {
+        throw new AppError(409, "INVALID_STATE_TRANSITION", "Writers must submit a chapter for review before publication.");
+    }
     if (typeof input.number === "number" && input.number !== chapter.number) {
         const duplicate = await prisma.chapter.findUnique({
             where: { bookId_number: { bookId, number: input.number } },

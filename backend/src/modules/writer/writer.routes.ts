@@ -20,6 +20,7 @@ import {
   getWriterProfile,
   saveWriterProfile,
   getWriterSubmissions,
+  markBookLocalizationReady,
   markChapterLocalizationReady,
   requestTranslation,
   saveBookLocalization,
@@ -35,12 +36,15 @@ const asyncRoute =
     Promise.resolve(handler(req, res, next)).catch(next);
 
 export const writerRouter = Router();
+
 writerRouter.use(requireAuth, requireRole("WRITER", "ADMIN"));
 
 writerRouter.get(
   "/profile",
   asyncRoute(async (req: AuthRequest, res) => {
-    res.json({ profile: await getWriterProfile(req.user) });
+    res.json({
+      profile: await getWriterProfile(req.user),
+    });
   }),
 );
 
@@ -48,7 +52,9 @@ writerRouter.patch(
   "/profile",
   validate(writerProfileSchema),
   asyncRoute(async (req: AuthRequest, res) => {
-    res.json({ profile: await saveWriterProfile(req.user, req.body) });
+    res.json({
+      profile: await saveWriterProfile(req.user, req.body),
+    });
   }),
 );
 
@@ -68,18 +74,55 @@ writerRouter.patch(
   "/books/:bookId/localizations/:languageCode",
   validate(localizationSchema),
   asyncRoute(async (req: AuthRequest, res) => {
-    if (req.body.languageCode !== req.params.languageCode) {
+    const languageCode = String(req.params.languageCode);
+
+    if (req.body.languageCode !== languageCode) {
       throw new AppError(
         400,
         "VALIDATION_ERROR",
         "Language route and body must match.",
       );
     }
+
+    if (languageCode !== "en" && languageCode !== "fr") {
+      throw new AppError(400, "VALIDATION_ERROR", "Unsupported language.");
+    }
+
     res.json({
       localization: await saveBookLocalization(
         req.user,
         String(req.params.bookId),
         req.body,
+      ),
+    });
+  }),
+);
+
+/**
+ * Explicit book-localization lifecycle transition:
+ *
+ * PATCH editable content
+ *        ↓
+ * NEEDS_PROOFREADING
+ *        ↓
+ * POST /ready
+ *        ↓
+ * READY_FOR_SUBMISSION
+ */
+writerRouter.post(
+  "/books/:bookId/localizations/:languageCode/ready",
+  asyncRoute(async (req: AuthRequest, res) => {
+    const languageCode = String(req.params.languageCode);
+
+    if (languageCode !== "en" && languageCode !== "fr") {
+      throw new AppError(400, "VALIDATION_ERROR", "Unsupported language.");
+    }
+
+    res.json({
+      localization: await markBookLocalizationReady(
+        req.user,
+        String(req.params.bookId),
+        languageCode,
       ),
     });
   }),
@@ -119,8 +162,11 @@ writerRouter.post(
   "/books/:bookId/chapters/:chapterId/localizations/:languageCode/ready",
   asyncRoute(async (req: AuthRequest, res) => {
     const languageCode = String(req.params.languageCode);
-    if (languageCode !== "fr" && languageCode !== "en")
+
+    if (languageCode !== "fr" && languageCode !== "en") {
       throw new AppError(400, "VALIDATION_ERROR", "Unsupported language.");
+    }
+
     res.json({
       localization: await markChapterLocalizationReady(
         req.user,
@@ -144,7 +190,9 @@ writerRouter.post(
 writerRouter.get(
   "/submissions",
   asyncRoute(async (req: AuthRequest, res) => {
-    res.json({ submissions: await getWriterSubmissions(req.user) });
+    res.json({
+      submissions: await getWriterSubmissions(req.user),
+    });
   }),
 );
 
@@ -158,7 +206,9 @@ writerRouter.get(
 writerRouter.get(
   "/earnings/transactions",
   asyncRoute(async (req: AuthRequest, res) => {
-    res.json({ transactions: await getWriterEarningTransactions(req.user) });
+    res.json({
+      transactions: await getWriterEarningTransactions(req.user),
+    });
   }),
 );
 
@@ -167,24 +217,37 @@ writerRouter.post(
   validate(assetSchema),
   asyncRoute(async (req: AuthRequest, res) => {
     const bookId = String(req.params.bookId);
+
     const chapterId = String(req.params.chapterId);
+
     const chapter = await prisma.chapter.findUnique({
-      where: { id: chapterId },
-      include: { book: true },
+      where: {
+        id: chapterId,
+      },
+      include: {
+        book: true,
+      },
     });
-    if (!chapter || chapter.bookId !== bookId)
+
+    if (!chapter || chapter.bookId !== bookId) {
       throw new AppError(404, "CHAPTER_NOT_FOUND", "Chapter not found.");
+    }
+
     if (
       chapter.book.authorId !== req.user!.id &&
       req.user!.role.toUpperCase() !== "ADMIN"
-    )
+    ) {
       throw new AppError(403, "FORBIDDEN", "You do not own this chapter.");
-    if (req.body.chapterId && req.body.chapterId !== chapterId)
+    }
+
+    if (req.body.chapterId && req.body.chapterId !== chapterId) {
       throw new AppError(
         400,
         "VALIDATION_ERROR",
         "Chapter route and body must match.",
       );
+    }
+
     const asset = await prisma.writerAsset.create({
       data: {
         ...req.body,
@@ -194,7 +257,10 @@ writerRouter.post(
         chapterId,
       },
     });
-    res.status(201).json({ asset });
+
+    res.status(201).json({
+      asset,
+    });
   }),
 );
 
@@ -206,40 +272,58 @@ writerRouter.post(
   }),
   asyncRoute(async (req: AuthRequest, res) => {
     const bookId = String(req.params.bookId);
+
     const chapterId = String(req.params.chapterId);
+
     const chapter = await prisma.chapter.findUnique({
-      where: { id: chapterId },
-      include: { book: true },
+      where: {
+        id: chapterId,
+      },
+      include: {
+        book: true,
+      },
     });
-    if (!chapter || chapter.bookId !== bookId)
+
+    if (!chapter || chapter.bookId !== bookId) {
       throw new AppError(404, "CHAPTER_NOT_FOUND", "Chapter not found.");
+    }
+
     if (
       chapter.book.authorId !== req.user!.id &&
       req.user!.role.toUpperCase() !== "ADMIN"
-    )
+    ) {
       throw new AppError(403, "FORBIDDEN", "You do not own this chapter.");
+    }
 
     const metadata = assetMetadataSchema.safeParse({
       altText: req.headers["x-asset-alt-text"],
+
       caption: req.headers["x-asset-caption"] ?? null,
+
       width: req.headers["x-asset-width"]
         ? Number(req.headers["x-asset-width"])
         : undefined,
+
       height: req.headers["x-asset-height"]
         ? Number(req.headers["x-asset-height"])
         : undefined,
     });
-    if (!metadata.success)
+
+    if (!metadata.success) {
       throw new AppError(
         400,
         "VALIDATION_ERROR",
         "Valid image metadata is required.",
       );
+    }
+
     const mimeType = String(req.headers["content-type"] ?? "").split(";")[0];
+
     const stored = await storeWriterImage(
       mimeType,
       Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0),
     );
+
     const asset = await prisma.writerAsset.create({
       data: {
         ...metadata.data,
@@ -251,7 +335,11 @@ writerRouter.post(
         chapterId,
       },
     });
-    res.status(201).json({ asset, url: `/api/v1/writer/assets/${asset.id}` });
+
+    res.status(201).json({
+      asset,
+      url: `/api/v1/writer/assets/${asset.id}`,
+    });
   }),
 );
 
@@ -259,15 +347,24 @@ writerRouter.get(
   "/assets/:assetId",
   asyncRoute(async (req: AuthRequest, res) => {
     const asset = await prisma.writerAsset.findUnique({
-      where: { id: String(req.params.assetId) },
+      where: {
+        id: String(req.params.assetId),
+      },
     });
-    if (!asset) throw new AppError(404, "ASSET_NOT_FOUND", "Asset not found.");
+
+    if (!asset) {
+      throw new AppError(404, "ASSET_NOT_FOUND", "Asset not found.");
+    }
+
     if (
       asset.writerId !== req.user!.id &&
       req.user!.role.toUpperCase() !== "ADMIN"
-    )
+    ) {
       throw new AppError(403, "FORBIDDEN", "You do not own this asset.");
+    }
+
     const data = await readWriterImage(asset.storageKey);
+
     res.type(asset.mimeType).send(data);
   }),
 );

@@ -74,17 +74,25 @@ describe("Phase 7F Writer workflow", () => {
       .get(`/api/v1/writer/books/${book.id}/localizations`)
       .set("Authorization", `Bearer ${writerB.token}`);
     expect(forbidden.status).toBe(403);
-
-    for (const languageCode of ["en", "fr"]) {
+    for (const languageCode of ["en", "fr"] as const) {
       const localization = await request(app)
         .patch(`/api/v1/writer/books/${book.id}/localizations/${languageCode}`)
         .set("Authorization", `Bearer ${writerA.token}`)
         .send({
           languageCode,
-          title: languageCode === "en" ? "English title" : "Titre francais",
-          status: "READY_FOR_SUBMISSION",
+          title: `${languageCode} title`,
         });
+
       expect(localization.status).toBe(200);
+
+      const ready = await request(app)
+        .post(
+          `/api/v1/writer/books/${book.id}/localizations/${languageCode}/ready`,
+        )
+        .set("Authorization", `Bearer ${writerA.token}`);
+
+      expect(ready.status).toBe(200);
+      expect(ready.body.localization.status).toBe("READY_FOR_SUBMISSION");
     }
 
     const incomplete = await request(app)
@@ -219,7 +227,6 @@ describe("Phase 7F Writer workflow", () => {
       .set("Authorization", `Bearer ${writer.token}`)
       .send({ status: "PUBLISHED" });
     expect(directChapter.status).toBe(409);
-
     for (const languageCode of ["en", "fr"] as const) {
       const localization = await request(app)
         .patch(`/api/v1/writer/books/${book.id}/localizations/${languageCode}`)
@@ -227,9 +234,18 @@ describe("Phase 7F Writer workflow", () => {
         .send({
           languageCode,
           title: `${languageCode} title`,
-          status: "READY_FOR_SUBMISSION",
         });
+
       expect(localization.status).toBe(200);
+
+      const ready = await request(app)
+        .post(
+          `/api/v1/writer/books/${book.id}/localizations/${languageCode}/ready`,
+        )
+        .set("Authorization", `Bearer ${writer.token}`);
+
+      expect(ready.status).toBe(200);
+      expect(ready.body.localization.status).toBe("READY_FOR_SUBMISSION");
     }
     const translated = await request(app)
       .patch(`/api/v1/writer/books/${book.id}/chapters/${chapterId}/autosave`)

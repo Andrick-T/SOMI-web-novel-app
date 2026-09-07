@@ -4,14 +4,18 @@ import { prisma } from "../../config/database.js";
 import type { AuthPrincipal } from "../auth/auth.types.js";
 
 const languages = ["en", "fr"] as const;
+
 type LanguageCode = (typeof languages)[number];
 
 const assertWriter = (viewer: AuthPrincipal | undefined) => {
-  if (!viewer)
+  if (!viewer) {
     throw new AppError(401, "UNAUTHENTICATED", "Authentication required.");
+  }
+
   if (!["WRITER", "ADMIN"].includes(viewer.role.toUpperCase())) {
     throw new AppError(403, "FORBIDDEN", "Writer permission is required.");
   }
+
   return viewer;
 };
 
@@ -20,11 +24,19 @@ const serializeContent = (content: string | Record<string, unknown>) =>
 
 async function ownedBook(writer: AuthPrincipal | undefined, bookId: string) {
   const viewer = assertWriter(writer);
-  const book = await prisma.book.findUnique({ where: { id: bookId } });
-  if (!book) throw new AppError(404, "BOOK_NOT_FOUND", "Book not found.");
+
+  const book = await prisma.book.findUnique({
+    where: { id: bookId },
+  });
+
+  if (!book) {
+    throw new AppError(404, "BOOK_NOT_FOUND", "Book not found.");
+  }
+
   if (viewer.role.toUpperCase() !== "ADMIN" && book.authorId !== viewer.id) {
     throw new AppError(403, "FORBIDDEN", "You do not own this book.");
   }
+
   return book;
 }
 
@@ -34,11 +46,19 @@ async function ownedChapter(
   chapterId: string,
 ) {
   const book = await ownedBook(writer, bookId);
-  const chapter = await prisma.chapter.findUnique({ where: { id: chapterId } });
+
+  const chapter = await prisma.chapter.findUnique({
+    where: { id: chapterId },
+  });
+
   if (!chapter || chapter.bookId !== book.id) {
     throw new AppError(404, "CHAPTER_NOT_FOUND", "Chapter not found.");
   }
-  return { book, chapter };
+
+  return {
+    book,
+    chapter,
+  };
 }
 
 const mapLocalization = (localization: {
@@ -60,9 +80,13 @@ const mapLocalization = (localization: {
 
 export async function getWriterProfile(writer: AuthPrincipal | undefined) {
   const viewer = assertWriter(writer);
+
   const profile = await prisma.writerProfile.findUnique({
-    where: { userId: viewer.id },
+    where: {
+      userId: viewer.id,
+    },
   });
+
   return profile;
 }
 
@@ -77,9 +101,15 @@ export async function saveWriterProfile(
   },
 ) {
   const viewer = assertWriter(writer);
+
   return prisma.writerProfile.upsert({
-    where: { userId: viewer.id },
-    create: { userId: viewer.id, ...input },
+    where: {
+      userId: viewer.id,
+    },
+    create: {
+      userId: viewer.id,
+      ...input,
+    },
     update: input,
   });
 }
@@ -89,13 +119,26 @@ export async function getBookLocalizations(
   bookId: string,
 ) {
   await ownedBook(writer, bookId);
+
   const records = await prisma.bookLocalization.findMany({
     where: { bookId },
-    orderBy: { languageCode: "asc" },
+    orderBy: {
+      languageCode: "asc",
+    },
   });
+
   return records.map(mapLocalization);
 }
 
+/**
+ * Save editable book-localization data.
+ *
+ * IMPORTANT:
+ * This function intentionally does NOT accept or mutate status.
+ *
+ * Any existing READY_FOR_SUBMISSION state is invalidated when the
+ * localization is edited because the content has changed.
+ */
 export async function saveBookLocalization(
   writer: AuthPrincipal | undefined,
   bookId: string,
@@ -103,29 +146,97 @@ export async function saveBookLocalization(
     languageCode: LanguageCode;
     title: string;
     description?: string | null;
-    status?: string;
   },
 ) {
   await ownedBook(writer, bookId);
+
   const record = await prisma.bookLocalization.upsert({
     where: {
-      bookId_languageCode: { bookId, languageCode: input.languageCode },
+      bookId_languageCode: {
+        bookId,
+        languageCode: input.languageCode,
+      },
     },
+
     create: {
       bookId,
       languageCode: input.languageCode,
       title: input.title,
       description: input.description ?? null,
-      status: input.status ?? "NEEDS_PROOFREADING",
+      status: "NEEDS_PROOFREADING",
     },
+
     update: {
       title: input.title,
       description: input.description ?? null,
-      status: input.status ?? "NEEDS_PROOFREADING",
-      sourceVersion: { increment: input.languageCode === "en" ? 1 : 0 },
+
+      /*
+       * Any edit makes the localization require
+       * proofreading again.
+       */
+      status: "NEEDS_PROOFREADING",
+
+      sourceVersion: {
+        increment: input.languageCode === "en" ? 1 : 0,
+      },
     },
   });
+
   return mapLocalization(record);
+}
+
+/**
+ * Explicit lifecycle transition:
+ *
+ * NEEDS_PROOFREADING -> READY_FOR_SUBMISSION
+ *
+ * A client cannot manufacture this state through PATCH.
+ */
+export async function markBookLocalizationReady(
+  writer: AuthPrincipal | undefined,
+  bookId: string,
+  languageCode: LanguageCode,
+) {
+  await ownedBook(writer, bookId);
+
+  const localization = await prisma.bookLocalization.findUnique({
+    where: {
+      bookId_languageCode: {
+        bookId,
+        languageCode,
+      },
+    },
+  });
+
+  if (!localization) {
+    throw new AppError(
+      422,
+      "LOCALIZATION_INCOMPLETE",
+      "Book localization must be saved before review.",
+    );
+  }
+
+  if (!localization.title.trim()) {
+    throw new AppError(
+      422,
+      "LOCALIZATION_INCOMPLETE",
+      "Book localization title is required.",
+    );
+  }
+
+  const updated = await prisma.bookLocalization.update({
+    where: {
+      bookId_languageCode: {
+        bookId,
+        languageCode,
+      },
+    },
+    data: {
+      status: "READY_FOR_SUBMISSION",
+    },
+  });
+
+  return mapLocalization(updated);
 }
 
 export async function autosaveChapter(
@@ -141,6 +252,7 @@ export async function autosaveChapter(
   },
 ) {
   const { chapter } = await ownedChapter(writer, bookId, chapterId);
+
   const content = serializeContent(input.content);
 
   if (input.languageCode === "en") {
@@ -149,46 +261,77 @@ export async function autosaveChapter(
         409,
         "AUTOSAVE_CONFLICT",
         "This chapter changed elsewhere.",
-        [{ serverVersion: chapter.contentVersion }],
+        [
+          {
+            serverVersion: chapter.contentVersion,
+          },
+        ],
       );
     }
+
     const updated = await prisma.chapter.updateMany({
-      where: { id: chapterId, contentVersion: input.clientVersion },
+      where: {
+        id: chapterId,
+        contentVersion: input.clientVersion,
+      },
       data: {
         title: input.title,
         content,
-        contentVersion: { increment: 1 },
+        contentVersion: {
+          increment: 1,
+        },
         status: "DRAFT",
         wordCount: content.trim().split(/\s+/).filter(Boolean).length,
       },
     });
-    if (updated.count !== 1)
+
+    if (updated.count !== 1) {
       throw new AppError(
         409,
         "AUTOSAVE_CONFLICT",
         "This chapter changed elsewhere.",
       );
-    return prisma.chapter.findUniqueOrThrow({ where: { id: chapterId } });
+    }
+
+    return prisma.chapter.findUniqueOrThrow({
+      where: {
+        id: chapterId,
+      },
+    });
   }
 
   const localization = await prisma.chapterLocalization.findUnique({
     where: {
-      chapterId_languageCode: { chapterId, languageCode: input.languageCode },
+      chapterId_languageCode: {
+        chapterId,
+        languageCode: input.languageCode,
+      },
     },
   });
+
   const version = localization?.contentVersion ?? 0;
+
   if (version !== input.clientVersion) {
     throw new AppError(
       409,
       "AUTOSAVE_CONFLICT",
       "This translation changed elsewhere.",
-      [{ serverVersion: version }],
+      [
+        {
+          serverVersion: version,
+        },
+      ],
     );
   }
+
   return prisma.chapterLocalization.upsert({
     where: {
-      chapterId_languageCode: { chapterId, languageCode: input.languageCode },
+      chapterId_languageCode: {
+        chapterId,
+        languageCode: input.languageCode,
+      },
     },
+
     create: {
       chapterId,
       languageCode: input.languageCode,
@@ -199,12 +342,21 @@ export async function autosaveChapter(
       contentVersion: 1,
       sourceVersion: chapter.contentVersion,
     },
+
     update: {
       title: input.title,
       content,
       contentFormat: input.contentFormat,
+
+      /*
+       * Editing translated content invalidates
+       * its previous proofreading state.
+       */
       status: "NEEDS_PROOFREADING",
-      contentVersion: { increment: 1 },
+
+      contentVersion: {
+        increment: 1,
+      },
     },
   });
 }
@@ -220,6 +372,7 @@ export async function requestTranslation(
   },
 ) {
   await ownedBook(writer, bookId);
+
   throw new AppError(
     501,
     "TRANSLATION_NOT_CONFIGURED",
@@ -234,10 +387,17 @@ export async function markChapterLocalizationReady(
   languageCode: LanguageCode,
 ) {
   await ownedChapter(writer, bookId, chapterId);
+
   const localization = await prisma.chapterLocalization.updateMany({
-    where: { chapterId, languageCode },
-    data: { status: "READY_FOR_SUBMISSION" },
+    where: {
+      chapterId,
+      languageCode,
+    },
+    data: {
+      status: "READY_FOR_SUBMISSION",
+    },
   });
+
   if (localization.count !== 1) {
     throw new AppError(
       422,
@@ -245,8 +405,14 @@ export async function markChapterLocalizationReady(
       "Translated chapter content must be saved before review.",
     );
   }
+
   return prisma.chapterLocalization.findUniqueOrThrow({
-    where: { chapterId_languageCode: { chapterId, languageCode } },
+    where: {
+      chapterId_languageCode: {
+        chapterId,
+        languageCode,
+      },
+    },
   });
 }
 
@@ -255,15 +421,41 @@ export async function submitBook(
   bookId: string,
 ) {
   const book = await ownedBook(writer, bookId);
+
+  /*
+   * A Writer submission may only originate from DRAFT.
+   *
+   * Once submitBook() runs, the book becomes SUBMITTED.
+   * A published book cannot be submitted again through this route.
+   */
+  if (book.status !== "DRAFT") {
+    throw new AppError(
+      409,
+      "INVALID_STATE_TRANSITION",
+      `Book cannot be submitted from state ${book.status}.`,
+    );
+  }
+
   const [localizations, chapters] = await Promise.all([
-    prisma.bookLocalization.findMany({ where: { bookId } }),
-    prisma.chapter.findMany({ where: { bookId }, orderBy: { number: "asc" } }),
+    prisma.bookLocalization.findMany({
+      where: { bookId },
+    }),
+
+    prisma.chapter.findMany({
+      where: { bookId },
+      orderBy: {
+        number: "asc",
+      },
+    }),
   ]);
+
   const byLanguage = new Map(
     localizations.map((entry) => [entry.languageCode, entry]),
   );
+
   for (const languageCode of languages) {
     const localization = byLanguage.get(languageCode);
+
     if (!localization || localization.status !== "READY_FOR_SUBMISSION") {
       throw new AppError(
         422,
@@ -272,6 +464,7 @@ export async function submitBook(
       );
     }
   }
+
   if (
     chapters.length === 0 ||
     chapters.some((chapter) => !chapter.content.trim())
@@ -282,12 +475,16 @@ export async function submitBook(
       "Every book must contain non-empty chapters.",
     );
   }
+
   const translatedChapters = await prisma.chapterLocalization.findMany({
     where: {
-      chapterId: { in: chapters.map((chapter) => chapter.id) },
+      chapterId: {
+        in: chapters.map((chapter) => chapter.id),
+      },
       languageCode: "fr",
     },
   });
+
   if (
     translatedChapters.length !== chapters.length ||
     translatedChapters.some(
@@ -300,34 +497,54 @@ export async function submitBook(
       "Every chapter must have a reviewed French localization.",
     );
   }
+
   const active = await prisma.writerSubmission.findFirst({
     where: {
       bookId,
-      status: { in: ["SUBMITTED", "UNDER_REVIEW", "APPROVED"] },
+      status: {
+        in: ["SUBMITTED", "UNDER_REVIEW", "APPROVED"],
+      },
     },
   });
-  if (active)
+
+  if (active) {
     throw new AppError(
       409,
       "SUBMISSION_ALREADY_ACTIVE",
       "This book already has an active submission.",
     );
+  }
 
   const submission = await prisma.writerSubmission.create({
-    data: { writerId: book.authorId, bookId, status: "SUBMITTED" },
+    data: {
+      writerId: book.authorId,
+      bookId,
+      status: "SUBMITTED",
+    },
   });
+
   await prisma.book.update({
-    where: { id: bookId },
-    data: { status: "SUBMITTED" },
+    where: {
+      id: bookId,
+    },
+    data: {
+      status: "SUBMITTED",
+    },
   });
+
   return submission;
 }
 
 export async function getWriterSubmissions(writer: AuthPrincipal | undefined) {
   const viewer = assertWriter(writer);
+
   return prisma.writerSubmission.findMany({
-    where: { writerId: viewer.id },
-    orderBy: { submittedAt: "desc" },
+    where: {
+      writerId: viewer.id,
+    },
+    orderBy: {
+      submittedAt: "desc",
+    },
     select: {
       id: true,
       bookId: true,
@@ -343,19 +560,33 @@ export async function getWriterSubmissions(writer: AuthPrincipal | undefined) {
 
 export async function getWriterEarnings(writer: AuthPrincipal | undefined) {
   const viewer = assertWriter(writer);
+
   const [aggregate, pending] = await Promise.all([
     prisma.writerEarning.aggregate({
-      where: { writerId: viewer.id },
-      _sum: { coins: true },
+      where: {
+        writerId: viewer.id,
+      },
+      _sum: {
+        coins: true,
+      },
     }),
+
     prisma.writerEarning.aggregate({
-      where: { writerId: viewer.id, status: "PENDING" },
-      _sum: { coins: true },
+      where: {
+        writerId: viewer.id,
+        status: "PENDING",
+      },
+      _sum: {
+        coins: true,
+      },
     }),
   ]);
+
   return {
     totalCoins: aggregate._sum.coins ?? 0,
+
     pendingCoins: pending._sum.coins ?? 0,
+
     availableCoins: (aggregate._sum.coins ?? 0) - (pending._sum.coins ?? 0),
   };
 }
@@ -364,9 +595,14 @@ export async function getWriterEarningTransactions(
   writer: AuthPrincipal | undefined,
 ) {
   const viewer = assertWriter(writer);
+
   return prisma.writerEarning.findMany({
-    where: { writerId: viewer.id },
-    orderBy: { createdAt: "desc" },
+    where: {
+      writerId: viewer.id,
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
     select: {
       id: true,
       bookId: true,
@@ -383,26 +619,58 @@ export async function attributeWriterEarning(sourceTransactionId: string) {
   return prisma.$transaction(async (tx) => {
     const transaction = await tx.walletTransaction.findFirst({
       where: {
-        OR: [{ id: sourceTransactionId }, { reference: sourceTransactionId }],
+        OR: [
+          {
+            id: sourceTransactionId,
+          },
+          {
+            reference: sourceTransactionId,
+          },
+        ],
       },
     });
+
     if (
       !transaction ||
       transaction.type !== "CHAPTER_UNLOCK" ||
       transaction.status !== "COMPLETED"
-    )
+    ) {
       return null;
+    }
+
     const reference = transaction.reference?.match(/^chapter:([^:]+):([^:]+)$/);
+
     const bookId = reference?.[1] ?? null;
+
     const chapterId = reference?.[2] ?? null;
-    if (!bookId || !chapterId) return null;
+
+    if (!bookId || !chapterId) {
+      return null;
+    }
+
     const chapter = await tx.chapter.findUnique({
-      where: { id: chapterId },
-      select: { bookId: true, book: { select: { authorId: true } } },
+      where: {
+        id: chapterId,
+      },
+      select: {
+        bookId: true,
+        book: {
+          select: {
+            authorId: true,
+          },
+        },
+      },
     });
-    if (!chapter || chapter.bookId !== bookId) return null;
+
+    if (!chapter || chapter.bookId !== bookId) {
+      return null;
+    }
+
     return tx.writerEarning.upsert({
-      where: { sourceTransactionId },
+      where: {
+        sourceTransactionId,
+      },
+
       create: {
         sourceTransactionId,
         writerId: chapter.book.authorId,
@@ -411,6 +679,7 @@ export async function attributeWriterEarning(sourceTransactionId: string) {
         coins: Math.abs(transaction.coins),
         status: "PENDING",
       },
+
       update: {},
     });
   });

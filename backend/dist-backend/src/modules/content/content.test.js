@@ -108,9 +108,10 @@ describe("Phase 7C content lifecycle", () => {
         expect(createChapter.body.chapter.status).toBe("DRAFT");
         const publicChapter = await request(app).get(`/api/v1/books/${createBook.body.book.id}/chapters/${createChapter.body.chapter.id}`);
         expect(publicChapter.status).toBe(404);
+        const admin = await createUser("ADMIN");
         const publish = await request(app)
             .patch(`/api/v1/books/${createBook.body.book.id}/chapters/${createChapter.body.chapter.id}`)
-            .set("Authorization", `Bearer ${writer.accessToken}`)
+            .set("Authorization", `Bearer ${admin.accessToken}`)
             .send({ status: "PUBLISHED" });
         expect(publish.status).toBe(200);
         expect(publish.body.chapter.status).toBe("PUBLISHED");
@@ -147,9 +148,14 @@ describe("Phase 7C content lifecycle", () => {
         const allowedUpdate = await request(app)
             .patch(`/api/v1/books/${book.body.book.id}`)
             .set("Authorization", `Bearer ${writerA.accessToken}`)
-            .send({ title: "Updated Book Title", status: "UNPUBLISHED" });
+            .send({ title: "Updated Book Title" });
         expect(allowedUpdate.status).toBe(200);
         expect(allowedUpdate.body.book.title).toBe("Updated Book Title");
-        expect(allowedUpdate.body.book.status).toBe("UNPUBLISHED");
+        expect(allowedUpdate.body.book.status).toBe("DRAFT");
+        const lifecycleUpdate = await request(app)
+            .patch(`/api/v1/books/${book.body.book.id}`)
+            .set("Authorization", `Bearer ${writerA.accessToken}`)
+            .send({ status: "UNPUBLISHED" });
+        expect(lifecycleUpdate.status).toBe(409);
     });
 });

@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "format": "oxfmt",
     "backend:dev": "tsx watch backend/src/server.ts",
-    "backend:test": "vitest run backend/src/**/*.test.ts",
+    "backend:test": "vitest run",
     "backend:build": "tsc -p backend/tsconfig.json",
     "phase7e:fixture": "tsx backend/scripts/phase7e-acceptance-fixture.ts",
     "phase7f:fixture": "tsx backend/scripts/phase7f-acceptance-fixture.ts"

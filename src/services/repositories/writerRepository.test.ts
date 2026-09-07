@@ -72,7 +72,7 @@ describe("writer content repositories", () => {
     );
   });
 
-  it("maps the editor's local editing status to the API draft status", async () => {
+  it("saves the editor draft without allowing client lifecycle status changes", async () => {
     const authorizedRequest = vi
       .spyOn(apiAuthRepository, "authorizedRequest")
       .mockResolvedValue({
@@ -107,7 +107,7 @@ describe("writer content repositories", () => {
       "/api/v1/books/api-book-1/chapters/api-chapter-1",
       expect.objectContaining({
         method: "PATCH",
-        body: expect.stringContaining('"status":"DRAFT"'),
+        body: expect.not.stringContaining('"status"'),
       }),
     );
   });

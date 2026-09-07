@@ -16,6 +16,7 @@ type ApiBook = {
   genres?: string[];
   tags?: string[];
 };
+
 type ApiChapter = {
   id: string;
   bookId: string;
@@ -30,10 +31,12 @@ type ApiChapter = {
   publishedAt?: string | null;
   createdAt: string;
   updatedAt: string;
+  contentVersion?: number;
 };
 
 const status = (value?: string) =>
   (value?.toUpperCase() ?? "DRAFT") as WriterBook["status"];
+
 const chapterStatus = (value?: string) =>
   (value?.toUpperCase() ?? "DRAFT") as WriterChapter["status"];
 
@@ -92,26 +95,30 @@ class ApiWriterRepository {
   }
 
   async getWriterBooks() {
-    const result = await this.request<{ books: ApiBook[] }>(
-      "/api/v1/writer/books",
-    );
+    const result = await this.request<{
+      books: ApiBook[];
+    }>("/api/v1/writer/books");
+
     return (result.books ?? []).map(normalizeBook);
   }
 
   async getBook(bookId: string) {
-    const result = await this.request<{ book: ApiBook }>(
-      `/api/v1/books/${encodeURIComponent(bookId)}`,
-    );
+    const result = await this.request<{
+      book: ApiBook;
+    }>(`/api/v1/books/${encodeURIComponent(bookId)}`);
+
     return result.book ? normalizeBook(result.book) : undefined;
   }
 
   async getChapter(bookId: string, chapterId: string) {
-    const result = await this.request<{ chapters: ApiChapter[] }>(
-      `/api/v1/books/${encodeURIComponent(bookId)}/chapters/manage`,
-    );
+    const result = await this.request<{
+      chapters: ApiChapter[];
+    }>(`/api/v1/books/${encodeURIComponent(bookId)}/chapters/manage`);
+
     const chapter = (result.chapters ?? []).find(
       (entry) => entry.id === chapterId,
     );
+
     return chapter ? normalizeChapter(chapter) : undefined;
   }
 
@@ -120,7 +127,10 @@ class ApiWriterRepository {
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "");
-    const result = await this.request<{ book: ApiBook }>("/api/v1/books", {
+
+    const result = await this.request<{
+      book: ApiBook;
+    }>("/api/v1/books", {
       method: "POST",
       body: JSON.stringify({
         title: input.title,
@@ -128,53 +138,82 @@ class ApiWriterRepository {
         synopsis: input.synopsis,
         cover: input.cover,
         heroImage: input.heroImage,
-        status: input.status ?? "DRAFT",
+
+        /*
+         * Deliberately no status.
+         *
+         * Server creates the book as DRAFT.
+         */
+
         genres: [],
         tags: [],
       }),
     });
+
     return normalizeBook(result.book);
   }
 
   async createChapter(bookId: string, input: Partial<WriterChapter>) {
-    const result = await this.request<{ chapter: ApiChapter }>(
-      `/api/v1/books/${encodeURIComponent(bookId)}/chapters`,
-      {
-        method: "POST",
-        body: JSON.stringify({
-          title: input.title,
-          number: input.number ?? 1,
-          content: input.content,
-          status: input.status ?? "DRAFT",
-          accessType: input.accessType ?? "FREE",
-          price: input.price ?? 0,
-        }),
-      },
-    );
+    const result = await this.request<{
+      chapter: ApiChapter;
+    }>(`/api/v1/books/${encodeURIComponent(bookId)}/chapters`, {
+      method: "POST",
+      body: JSON.stringify({
+        title: input.title,
+        number: input.number ?? 1,
+        content: input.content ?? "Begin your chapter here.",
+
+        /*
+         * Deliberately no status.
+         *
+         * Server creates the chapter as DRAFT.
+         */
+
+        accessType: input.accessType ?? "FREE",
+        price: input.price ?? 0,
+      }),
+    });
+
     return normalizeChapter(result.chapter);
   }
 
   async saveChapterDraft(bookId: string, chapter: WriterChapter) {
-    const result = await this.request<{ chapter: ApiChapter }>(
-      `/api/v1/books/${encodeURIComponent(bookId)}/chapters/${encodeURIComponent(chapter.id)}`,
+    const result = await this.request<{
+      chapter: ApiChapter;
+    }>(
+      `/api/v1/books/${encodeURIComponent(
+        bookId,
+      )}/chapters/${encodeURIComponent(chapter.id)}`,
       {
         method: "PATCH",
         body: JSON.stringify({
           title: chapter.title,
           number: chapter.number,
           content: chapter.content,
-          status: chapter.status === "EDITING" ? "DRAFT" : chapter.status,
+
+          /*
+           * Writer generic saves never mutate lifecycle status.
+           *
+           * Autosave already resets the working chapter to DRAFT
+           * server-side.
+           */
+
           accessType: chapter.accessType,
           price: chapter.price,
         }),
       },
     );
+
     return normalizeChapter(result.chapter);
   }
 
   async autosaveChapter(bookId: string, chapter: WriterChapter) {
-    const result = await this.request<{ content: ApiChapter }>(
-      `/api/v1/writer/books/${encodeURIComponent(bookId)}/chapters/${encodeURIComponent(chapter.id)}/autosave`,
+    const result = await this.request<{
+      content: ApiChapter;
+    }>(
+      `/api/v1/writer/books/${encodeURIComponent(
+        bookId,
+      )}/chapters/${encodeURIComponent(chapter.id)}/autosave`,
       {
         method: "PATCH",
         body: JSON.stringify({
@@ -186,6 +225,7 @@ class ApiWriterRepository {
         }),
       },
     );
+
     return normalizeChapter(result.content);
   }
 
@@ -203,13 +243,50 @@ class ApiWriterRepository {
   async saveLocalization(
     bookId: string,
     languageCode: "en" | "fr",
-    input: { title: string; description?: string | null; status?: string },
+    input: {
+      title: string;
+      description?: string | null;
+    },
   ) {
     return this.request(
-      `/api/v1/writer/books/${encodeURIComponent(bookId)}/localizations/${languageCode}`,
+      `/api/v1/writer/books/${encodeURIComponent(
+        bookId,
+      )}/localizations/${languageCode}`,
       {
         method: "PATCH",
-        body: JSON.stringify({ languageCode, ...input }),
+        body: JSON.stringify({
+          languageCode,
+          title: input.title,
+          description: input.description ?? null,
+        }),
+      },
+    );
+  }
+
+  async markLocalizationReady(bookId: string, languageCode: "en" | "fr") {
+    return this.request(
+      `/api/v1/writer/books/${encodeURIComponent(
+        bookId,
+      )}/localizations/${languageCode}/ready`,
+      {
+        method: "POST",
+      },
+    );
+  }
+
+  async markChapterLocalizationReady(
+    bookId: string,
+    chapterId: string,
+    languageCode: "en" | "fr",
+  ) {
+    return this.request(
+      `/api/v1/writer/books/${encodeURIComponent(
+        bookId,
+      )}/chapters/${encodeURIComponent(
+        chapterId,
+      )}/localizations/${languageCode}/ready`,
+      {
+        method: "POST",
       },
     );
   }
@@ -236,7 +313,9 @@ class ApiWriterRepository {
   async submitBook(bookId: string) {
     return this.request(
       `/api/v1/writer/books/${encodeURIComponent(bookId)}/submit`,
-      { method: "POST" },
+      {
+        method: "POST",
+      },
     );
   }
 
@@ -280,19 +359,40 @@ class ApiWriterRepository {
       "Content-Type": file.type,
       "X-Asset-Alt-Text": metadata.altText,
     });
-    if (metadata.caption) headers.set("X-Asset-Caption", metadata.caption);
-    if (metadata.width) headers.set("X-Asset-Width", String(metadata.width));
-    if (metadata.height) headers.set("X-Asset-Height", String(metadata.height));
+
+    if (metadata.caption) {
+      headers.set("X-Asset-Caption", metadata.caption);
+    }
+
+    if (metadata.width) {
+      headers.set("X-Asset-Width", String(metadata.width));
+    }
+
+    if (metadata.height) {
+      headers.set("X-Asset-Height", String(metadata.height));
+    }
+
     return apiAuthRepository.authorizedBinaryRequest<{
-      asset: { id: string; altText: string; caption?: string | null };
+      asset: {
+        id: string;
+        altText: string;
+        caption?: string | null;
+      };
       url: string;
     }>(
-      `/api/v1/writer/books/${encodeURIComponent(bookId)}/chapters/${encodeURIComponent(chapterId)}/assets/upload`,
-      { method: "POST", headers, body: file },
+      `/api/v1/writer/books/${encodeURIComponent(
+        bookId,
+      )}/chapters/${encodeURIComponent(chapterId)}/assets/upload`,
+      {
+        method: "POST",
+        headers,
+        body: file,
+      },
     );
   }
 }
 
 export const apiWriterRepository = new ApiWriterRepository();
+
 export const useApiWriterContent =
   import.meta.env.VITE_USE_API_CONTENT === "true";

@@ -10,6 +10,7 @@ import { authRouter } from "./modules/auth/auth.routes.js";
 import { contentRouter } from "./modules/content/content.routes.js";
 import { libraryRouter } from "./modules/library/library.routes.js";
 import { economyRouter } from "./modules/economy/economy.routes.js";
+import { writerRouter } from "./modules/writer/writer.routes.js";
 export const createApp = () => {
     const app = express();
     app.use(helmet({
@@ -26,6 +27,7 @@ export const createApp = () => {
     app.use("/api/v1", contentRouter);
     app.use("/api/v1", libraryRouter);
     app.use("/api/v1", economyRouter);
+    app.use("/api/v1/writer", writerRouter);
     app.use(notFoundHandler);
     app.use(errorHandler);
     return app;

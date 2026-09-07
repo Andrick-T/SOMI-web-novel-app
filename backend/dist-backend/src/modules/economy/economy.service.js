@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { AppError } from "../../common/errors/http-error.js";
 import { prisma } from "../../config/database.js";
+import { attributeWriterEarning } from "../writer/writer.service.js";
 const PUBLISHED = "PUBLISHED";
 const PREMIUM = "PREMIUM";
 const COMPLETED = "COMPLETED";
@@ -9,7 +10,7 @@ export const coinPackages = {
     plus: { amountCfa: 425, coins: 8000 },
     premium: { amountCfa: 850, coins: 17000 },
 };
-// Persisted balances are whole coins.  6.8 is represented as 34/5 and rounded
+// Persisted balances are whole coins. 6.8 is represented as 34/5 and rounded
 // to the nearest whole coin, with halves rounded up, without floating point math.
 export function getCoinsForCustomPurchase(amountCfa) {
     if (!Number.isSafeInteger(amountCfa) || amountCfa < 100) {
@@ -40,12 +41,27 @@ export function getPurchaseRule(event) {
 }
 const isPrismaConflict = (error) => error instanceof Prisma.PrismaClientKnownRequestError &&
     (error.code === "P2002" || error.code === "P2034");
+/**
+ * Read-only wallet lookup.
+ *
+ * IMPORTANT:
+ * GET /wallet must never create persistent financial state.
+ *
+ * Wallets are created by trusted financial operations such as a verified
+ * payment. A user who has no wallet yet receives a zero-balance projection.
+ */
 export async function getWallet(userId) {
-    const wallet = await prisma.wallet.upsert({
+    const wallet = await prisma.wallet.findUnique({
         where: { userId },
-        create: { userId, balance: 0 },
-        update: {},
     });
+    if (!wallet) {
+        return {
+            wallet: {
+                balance: 0,
+                currency: "SOMI",
+            },
+        };
+    }
     return {
         wallet: {
             id: wallet.id,
@@ -85,10 +101,12 @@ export async function getChapterEntitlement(userId, bookId, chapterId) {
     if (!chapter ||
         chapter.bookId !== bookId ||
         chapter.status !== PUBLISHED ||
-        chapter.book.status !== PUBLISHED)
+        chapter.book.status !== PUBLISHED) {
         throw new AppError(404, "CHAPTER_NOT_FOUND", "Chapter not found.");
-    if (chapter.accessType !== PREMIUM)
+    }
+    if (chapter.accessType !== PREMIUM) {
         return { entitled: true, access: "FREE" };
+    }
     const entitlement = await prisma.chapterEntitlement.findUnique({
         where: { userId_chapterId: { userId, chapterId } },
     });
@@ -99,7 +117,7 @@ export async function getChapterEntitlement(userId, bookId, chapterId) {
 }
 export async function unlockChapter(userId, bookId, chapterId, attempt = 0) {
     try {
-        return await prisma.$transaction(async (tx) => {
+        const result = await prisma.$transaction(async (tx) => {
             const chapter = await tx.chapter.findUnique({
                 where: { id: chapterId },
                 select: {
@@ -113,34 +131,49 @@ export async function unlockChapter(userId, bookId, chapterId, attempt = 0) {
             if (!chapter ||
                 chapter.bookId !== bookId ||
                 chapter.status !== PUBLISHED ||
-                chapter.book.status !== PUBLISHED)
+                chapter.book.status !== PUBLISHED) {
                 throw new AppError(404, "CHAPTER_NOT_FOUND", "Chapter not found.");
-            if (chapter.accessType !== PREMIUM)
+            }
+            if (chapter.accessType !== PREMIUM) {
                 throw new AppError(409, "CHAPTER_NOT_PREMIUM", "This chapter is free.");
-            if (chapter.price <= 0)
+            }
+            if (chapter.price <= 0) {
                 throw new AppError(422, "INVALID_CHAPTER_PRICE", "This chapter has no valid price.");
+            }
             const existing = await tx.chapterEntitlement.findUnique({
                 where: { userId_chapterId: { userId, chapterId } },
             });
             if (existing) {
-                const wallet = await tx.wallet.findUnique({ where: { userId } });
+                const wallet = await tx.wallet.findUnique({
+                    where: { userId },
+                });
                 return {
                     entitled: true,
                     alreadyUnlocked: true,
                     balance: wallet?.balance ?? 0,
                 };
             }
-            const wallet = await tx.wallet.findUnique({ where: { userId } });
-            if (!wallet)
-                throw new AppError(404, "WALLET_NOT_FOUND", "Wallet not found.");
-            if (wallet.balance < chapter.price)
-                throw new AppError(409, "INSUFFICIENT_BALANCE", "Insufficient SOMI coin balance.");
-            const updated = await tx.wallet.updateMany({
-                where: { id: wallet.id, balance: { gte: chapter.price } },
-                data: { balance: { decrement: chapter.price } },
+            const wallet = await tx.wallet.findUnique({
+                where: { userId },
             });
-            if (updated.count !== 1)
+            if (!wallet) {
+                throw new AppError(404, "WALLET_NOT_FOUND", "Wallet not found.");
+            }
+            if (wallet.balance < chapter.price) {
                 throw new AppError(409, "INSUFFICIENT_BALANCE", "Insufficient SOMI coin balance.");
+            }
+            const updated = await tx.wallet.updateMany({
+                where: {
+                    id: wallet.id,
+                    balance: { gte: chapter.price },
+                },
+                data: {
+                    balance: { decrement: chapter.price },
+                },
+            });
+            if (updated.count !== 1) {
+                throw new AppError(409, "INSUFFICIENT_BALANCE", "Insufficient SOMI coin balance.");
+            }
             const balanceAfter = wallet.balance - chapter.price;
             const transaction = await tx.walletTransaction.create({
                 data: {
@@ -150,32 +183,49 @@ export async function unlockChapter(userId, bookId, chapterId, attempt = 0) {
                     coins: -chapter.price,
                     status: COMPLETED,
                     reference: `chapter:${bookId}:${chapterId}`,
-                    metadata: { balanceBefore: wallet.balance, balanceAfter },
+                    metadata: {
+                        balanceBefore: wallet.balance,
+                        balanceAfter,
+                    },
                 },
             });
             await tx.chapterEntitlement.create({
-                data: { userId, bookId, chapterId, transactionId: transaction.id },
+                data: {
+                    userId,
+                    bookId,
+                    chapterId,
+                    transactionId: transaction.id,
+                },
             });
             return {
                 entitled: true,
                 alreadyUnlocked: false,
                 balance: balanceAfter,
+                transactionId: transaction.id,
             };
-        }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+        }, {
+            isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        });
+        if (!result.alreadyUnlocked && result.transactionId) {
+            await attributeWriterEarning(`chapter:${bookId}:${chapterId}`);
+        }
+        return result;
     }
     catch (error) {
         if (isPrismaConflict(error)) {
             const entitlement = await prisma.chapterEntitlement.findUnique({
                 where: { userId_chapterId: { userId, chapterId } },
             });
-            if (entitlement)
+            if (entitlement) {
                 return {
                     entitled: true,
                     alreadyUnlocked: true,
                     balance: (await getWallet(userId)).wallet.balance,
                 };
-            if (attempt < 3)
+            }
+            if (attempt < 3) {
                 return unlockChapter(userId, bookId, chapterId, attempt + 1);
+            }
         }
         throw error;
     }
@@ -186,8 +236,9 @@ export async function creditWalletFromTrustedPayment(event) {
         const existing = await tx.walletTransaction.findFirst({
             where: { reference: event.providerReference },
         });
-        if (existing)
+        if (existing) {
             return existing;
+        }
         const wallet = await tx.wallet.upsert({
             where: { userId: event.userId },
             create: { userId: event.userId },
@@ -195,7 +246,9 @@ export async function creditWalletFromTrustedPayment(event) {
         });
         const updated = await tx.wallet.update({
             where: { id: wallet.id },
-            data: { balance: { increment: packageConfig.coins } },
+            data: {
+                balance: { increment: packageConfig.coins },
+            },
         });
         return tx.walletTransaction.create({
             data: {
@@ -205,7 +258,10 @@ export async function creditWalletFromTrustedPayment(event) {
                 coins: packageConfig.coins,
                 status: COMPLETED,
                 reference: event.providerReference,
-                metadata: { packageId: event.packageId, balanceAfter: updated.balance },
+                metadata: {
+                    packageId: event.packageId,
+                    balanceAfter: updated.balance,
+                },
             },
         });
     });
