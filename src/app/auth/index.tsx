@@ -2,10 +2,13 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
+  useRef,
   useState,
   type PropsWithChildren,
 } from "react";
+import { apiAuthRepository } from "../../services/repositories/authRepository";
 
 export type AppRole = "reader" | "writer" | "admin";
 
@@ -26,8 +29,14 @@ interface AuthContextValue {
   user: AppUser | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (payload?: Partial<AppUser> & { role?: AppRole }) => void;
-  logout: () => void;
+  login: (
+    payload?: Partial<AppUser> & {
+      role?: AppRole;
+      email?: string;
+      password?: string;
+    },
+  ) => Promise<void>;
+  logout: () => Promise<void>;
   hasRole: (role: AppRole) => boolean;
   error: string | null;
   setError: (message: string | null) => void;
@@ -46,14 +55,61 @@ const mockUserBase: AppUser = {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: PropsWithChildren) {
-  const [user, setUser] = useState<AppUser | null>(mockUserBase);
-  const [isLoading, setIsLoading] = useState(false);
+  const useApi = import.meta.env.VITE_USE_API_AUTH === "true";
+  const [user, setUser] = useState<AppUser | null>(
+    useApi ? null : mockUserBase,
+  );
+  const [isLoading, setIsLoading] = useState(useApi);
   const [error, setError] = useState<string | null>(null);
+  const authGeneration = useRef(0);
+
+  useEffect(() => {
+    if (!useApi) return;
+    const generation = authGeneration.current;
+    apiAuthRepository
+      .me()
+      .then((nextUser) => {
+        if (authGeneration.current === generation) setUser(nextUser);
+      })
+      .catch(() => {
+        if (authGeneration.current === generation) setUser(null);
+      })
+      .finally(() => setIsLoading(false));
+  }, [useApi]);
 
   const login = useCallback(
-    (payload?: Partial<AppUser> & { role?: AppRole }) => {
+    async (
+      payload?: Partial<AppUser> & {
+        role?: AppRole;
+        email?: string;
+        password?: string;
+      },
+    ) => {
       setIsLoading(true);
       setError(null);
+      authGeneration.current += 1;
+
+      if (useApi && payload?.email && payload.password) {
+        try {
+          setUser(
+            await (payload.name
+              ? apiAuthRepository.register(
+                  payload.email,
+                  payload.password,
+                  payload.name,
+                )
+              : apiAuthRepository.login(payload.email, payload.password)),
+          );
+        } catch (caught) {
+          setError(
+            caught instanceof Error ? caught.message : "Unable to sign in.",
+          );
+          throw caught;
+        } finally {
+          setIsLoading(false);
+        }
+        return;
+      }
 
       window.setTimeout(() => {
         const nextRole = payload?.role ?? payload?.roles?.[0] ?? "reader";
@@ -70,13 +126,15 @@ export function AuthProvider({ children }: PropsWithChildren) {
         setIsLoading(false);
       }, 250);
     },
-    [],
+    [useApi],
   );
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    authGeneration.current += 1;
+    if (useApi) await apiAuthRepository.logout().catch(() => undefined);
     setUser(null);
     setError(null);
-  }, []);
+  }, [useApi]);
 
   const hasRole = useCallback(
     (role: AppRole) => Boolean(user && user.roles.includes(role)),

@@ -3,3 +3,6 @@ export * from "./chapterRepository";
 export * from "./libraryRepository";
 export * from "./readingProgressRepository";
 export * from "./walletRepository";
+export * from "./authRepository";
+export * from "./libraryApiRepository";
+export * from "./readingProgressApiRepository";

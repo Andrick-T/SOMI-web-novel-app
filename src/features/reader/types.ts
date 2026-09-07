@@ -29,6 +29,7 @@ export interface ReadingProgress {
   page: number;
   totalPages: number;
   progressPercentage: number;
+  position?: number;
   lastReadAt: string;
 }
 

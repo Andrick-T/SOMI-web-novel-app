@@ -27,7 +27,10 @@ import {
   getChapterProgress,
   resolveChapterNavigation,
 } from "../features/reader/engine/chapterNavigation";
-import { persistReadingProgress } from "../features/reader/services/readingProgressService";
+import {
+  hydrateReadingProgress,
+  persistReadingProgress,
+} from "../features/reader/services/readingProgressService";
 import {
   readerPreferencesStorage,
   type ReaderFontFamily,
@@ -107,6 +110,23 @@ export default function ReaderPage({
   coins,
   unlockChapter,
 }: Props) {
+  if (!book || !book.chapters.length) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#100d0b] px-6 text-center">
+        <div className="somi-state max-w-md">
+          <h2>No chapter available</h2>
+          <p>The selected story does not have published chapters yet.</p>
+          <button
+            className="somi-quiet-button"
+            onClick={() => navigate("discover")}
+          >
+            Explore more stories
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const chapterIndex = book.chapters.findIndex(
     (chapter) => chapter.id === chapterId,
   );
@@ -127,6 +147,7 @@ export default function ReaderPage({
   const touchStartY = useRef(0);
   const controlsTimer = useRef<number | null>(null);
   const readerShellRef = useRef<HTMLDivElement>(null);
+  const progressTimer = useRef<number | null>(null);
   const tc = themes[theme];
 
   useEffect(() => {
@@ -188,8 +209,20 @@ export default function ReaderPage({
   }, []);
 
   useEffect(() => {
+    if (!isLoggedIn) return;
+    void hydrateReadingProgress(book.id)
+      .then((entry) => {
+        if (entry?.position !== undefined && readerShellRef.current) {
+          readerShellRef.current.scrollTop = entry.position;
+        }
+      })
+      .catch(() => undefined);
+  }, [book.id, isLoggedIn]);
+
+  useEffect(() => {
+    if (!isLoggedIn) return;
     persistReadingProgress({
-      userId: "guest-user",
+      userId: "authenticated-user",
       bookId: book.id,
       chapterId: chapter.id,
       page: chapter.number,
@@ -203,7 +236,39 @@ export default function ReaderPage({
     chapter.id,
     chapter.number,
     chapterProgress,
+    isLoggedIn,
   ]);
+
+  const scheduleProgressSave = () => {
+    if (!isLoggedIn) return;
+    if (progressTimer.current) window.clearTimeout(progressTimer.current);
+    progressTimer.current = window.setTimeout(() => {
+      persistReadingProgress({
+        userId: "authenticated-user",
+        bookId: book.id,
+        chapterId: chapter.id,
+        page: chapter.number,
+        totalPages: book.chapters.length,
+        progressPercentage: Math.min(
+          100,
+          Math.max(
+            0,
+            Math.round(
+              ((readerShellRef.current?.scrollTop ?? 0) /
+                Math.max(
+                  1,
+                  (readerShellRef.current?.scrollHeight ?? 1) -
+                    (readerShellRef.current?.clientHeight ?? 0),
+                )) *
+                100,
+            ),
+          ),
+        ),
+        position: readerShellRef.current?.scrollTop ?? 0,
+        lastReadAt: new Date().toISOString(),
+      });
+    }, 800);
+  };
 
   const resetControlsTimer = useCallback(() => {
     if (controlsTimer.current) {
@@ -261,9 +326,9 @@ export default function ReaderPage({
     navigate("reader", book.id, targetChapter.id);
   };
 
-  const handleUnlock = () => {
+  const handleUnlock = async () => {
     if (coins >= chapter.price) {
-      unlockChapter(chapter.id, chapter.price);
+      await unlockChapter(chapter.id, chapter.price);
       setScreenState("reading");
       return;
     }
@@ -697,6 +762,7 @@ export default function ReaderPage({
           touchStartX.current = event.touches[0]?.clientX ?? 0;
           touchStartY.current = event.touches[0]?.clientY ?? 0;
         }}
+        onScroll={scheduleProgressSave}
         onTouchEnd={(event) => {
           const deltaX =
             (event.changedTouches[0]?.clientX ?? 0) - touchStartX.current;

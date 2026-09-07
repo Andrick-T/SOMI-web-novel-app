@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   BookOpen,
   CheckCircle,
@@ -13,6 +13,7 @@ import {
   LoadingState,
 } from "../components/DesignPrimitives";
 import { readingProgressRepository } from "../features/reader/services/readingProgressService";
+import { apiReadingProgressRepository } from "../services/repositories/readingProgressApiRepository";
 import { bookRepository } from "../services/repositories";
 import type { CommonProps } from "../types";
 
@@ -24,17 +25,27 @@ export default function LibraryPage({
   libraryBooks,
 }: CommonProps) {
   const [tab, setTab] = useState<Tab>("reading");
+  const [apiProgress, setApiProgress] =
+    useState<ReturnType<typeof readingProgressRepository.getRecentReading>>();
 
   const books = useMemo(() => bookRepository.getBooks(), []);
   const readingProgress = useMemo(
     () =>
       Object.fromEntries(
-        readingProgressRepository
-          .getRecentReading()
-          .map((entry) => [entry.bookId, entry]),
+        (apiProgress ?? readingProgressRepository.getRecentReading()).map(
+          (entry) => [entry.bookId, entry],
+        ),
       ),
-    [],
+    [apiProgress],
   );
+
+  useEffect(() => {
+    if (import.meta.env.VITE_USE_API_AUTH !== "true" || !isLoggedIn) return;
+    void apiReadingProgressRepository
+      .getRecent()
+      .then(setApiProgress)
+      .catch(() => setApiProgress([]));
+  }, [isLoggedIn]);
 
   if (!isLoggedIn) {
     return (
@@ -67,10 +78,7 @@ export default function LibraryPage({
     );
   }
 
-  const savedBooks =
-    libraryBooks.length > 0
-      ? books.filter((book) => libraryBooks.includes(book.id))
-      : books.slice(0, 3);
+  const savedBooks = books.filter((book) => libraryBooks.includes(book.id));
   const readingBooks = books.filter(
     (book) => readingProgress[book.id] !== undefined,
   );
@@ -206,7 +214,7 @@ export default function LibraryPage({
                   >
                     <div className="h-[82px] w-[56px] overflow-hidden rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-muted)]">
                       <img
-                        src={book.cover}
+                        src={book.cover || undefined}
                         alt={book.title}
                         className="h-full w-full object-cover"
                       />

@@ -68,7 +68,7 @@ function AppRoutes() {
     addToLibrary: () => undefined,
     unlockChapter: () => undefined,
     addCoins: () => undefined,
-    onLogin: () => login({ role: "reader" }),
+    onLogin: login,
     onLogout: logout,
     environment: "reader",
     setEnvironment: () => undefined,
@@ -82,16 +82,26 @@ function AppRoutes() {
       <Route path="/discover" element={<DiscoverPage {...commonProps} />} />
       <Route
         path="/books/:bookId"
-        element={<BookDetailPage {...commonProps} book={selectedBook} />}
+        element={
+          selectedBook ? (
+            <BookDetailPage {...commonProps} book={selectedBook} />
+          ) : (
+            <Navigate to="/discover" replace />
+          )
+        }
       />
       <Route
         path="/books/:bookId/read/:chapterId"
         element={
-          <ReaderPage
-            {...commonProps}
-            book={selectedBook}
-            chapterId={selectedBook.chapters[0]?.id ?? ""}
-          />
+          selectedBook ? (
+            <ReaderPage
+              {...commonProps}
+              book={selectedBook}
+              chapterId={selectedBook.chapters[0]?.id ?? ""}
+            />
+          ) : (
+            <Navigate to="/discover" replace />
+          )
         }
       />
       <Route path="/library" element={<LibraryPage {...commonProps} />} />

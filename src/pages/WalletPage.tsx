@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Coins, CheckCircle, TrendingUp, Zap, ShieldCheck } from "lucide-react";
 import {
   coinPackageCatalog,
@@ -12,6 +12,10 @@ import {
   TransactionRow,
 } from "../components/DesignPrimitives";
 import type { CommonProps } from "../types";
+import {
+  useApiEconomy,
+  walletRepository,
+} from "../services/repositories/walletRepository";
 
 const bundles = coinPackageCatalog.map((bundle) => ({
   ...bundle,
@@ -20,7 +24,7 @@ const bundles = coinPackageCatalog.map((bundle) => ({
   best: bundle.bestValue,
 }));
 
-const transactions = [
+const mockTransactions = [
   {
     id: 1,
     type: "purchase",
@@ -74,11 +78,25 @@ export default function WalletPage({
   const [processing, setProcessing] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [transactionHistory, setTransactionHistory] = useState<
+    Array<{ id: string; type: string; coins: number; createdAt: string }>
+  >([]);
 
   const bundleData = useMemo(
     () => bundles.find((bundle) => bundle.id === selectedBundle) ?? null,
     [selectedBundle],
   );
+
+  useEffect(() => {
+    if (!useApiEconomy) {
+      setTransactionHistory(mockTransactions);
+      return;
+    }
+    void walletRepository
+      .getTransactions()
+      .then((items) => setTransactionHistory(items))
+      .catch((requestError: Error) => setError(requestError.message));
+  }, []);
 
   if (!isLoggedIn) {
     return (
@@ -117,6 +135,12 @@ export default function WalletPage({
 
     setProcessing(true);
     setError(null);
+
+    if (useApiEconomy) {
+      setProcessing(false);
+      setError("Coin purchases are unavailable until payment is confirmed.");
+      return;
+    }
 
     window.setTimeout(() => {
       const result = purchaseCoins({
@@ -263,18 +287,18 @@ export default function WalletPage({
           Recent Transactions
         </h3>
         <div className="flex flex-col gap-2">
-          {transactions.length === 0 ? (
+          {transactionHistory.length === 0 ? (
             <EmptyState
               title="No transactions yet"
               description="Your purchase and chapter unlock history will appear here."
             />
           ) : (
-            transactions.map((tx) => (
+            transactionHistory.map((tx) => (
               <TransactionRow
                 key={tx.id}
-                icon={<span>{tx.icon}</span>}
-                label={tx.label}
-                date={tx.date}
+                icon={<span>{tx.type === "CHAPTER_UNLOCK" ? "📖" : "💰"}</span>}
+                label={tx.type}
+                date={tx.createdAt}
                 amount={tx.coins}
                 tone={tx.coins > 0 ? "credit" : "debit"}
               />

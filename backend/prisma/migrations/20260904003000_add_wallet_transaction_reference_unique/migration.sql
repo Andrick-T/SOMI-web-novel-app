@@ -1,0 +1,1 @@
+ALTER TABLE `WalletTransaction` ADD UNIQUE INDEX `WalletTransaction_reference_key`(`reference`);

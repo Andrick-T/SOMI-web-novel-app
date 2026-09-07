@@ -4,11 +4,36 @@ import { writerRepository } from "../../features/writer";
 import MiniBarChart from "../../components/MiniBarChart";
 import { statusToneFor } from "../../config/designSystem";
 import { StatusBadge } from "../../components/DesignPrimitives";
+import { useApiWriterContent } from "../../services/repositories/writerRepository";
 
 const weekData = [42, 60, 38, 85, 72, 55, 90];
 const dayLabels = ["M", "T", "W", "T", "F", "S", "S"];
 
 export default function WriterAnalytics({}: CommonProps) {
+  if (useApiWriterContent) {
+    return (
+      <div
+        className="flex min-h-full flex-col px-5 pt-12"
+        style={{ background: "var(--color-background)" }}
+      >
+        <p
+          className="text-xs uppercase tracking-widest font-bold mb-0.5"
+          style={{ color: "var(--color-accent-primary)" }}
+        >
+          Writer Studio
+        </p>
+        <h1
+          className="font-display text-2xl font-bold"
+          style={{ color: "var(--color-text-primary)" }}
+        >
+          Analytics
+        </h1>
+        <p className="mt-6 text-sm" style={{ color: "#6a8060" }}>
+          Analytics data is not available from the Writer API yet.
+        </p>
+      </div>
+    );
+  }
   const analytics = writerRepository.getAnalytics();
   const earnings = writerRepository.getEarnings();
   const chapterStats = analytics.map((item) => ({

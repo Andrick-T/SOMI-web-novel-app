@@ -18,7 +18,7 @@ import type { Book } from "../services/repositories";
 import type { CommonProps } from "../types";
 
 interface Props extends CommonProps {
-  book: Book;
+  book?: Book;
 }
 
 const statusLabels: Record<string, string> = {
@@ -64,6 +64,27 @@ export default function BookDetailPage({
   unlockChapter,
   coins,
 }: Props) {
+  if (!book) {
+    return (
+      <div className="somi-home min-h-full">
+        <div className="somi-home-inner flex min-h-[70vh] items-center justify-center py-16">
+          <div className="w-full max-w-xl">
+            <div className="somi-state">
+              <h2>Book unavailable</h2>
+              <p>This story is not available in the current catalog.</p>
+              <button
+                className="somi-quiet-button"
+                onClick={() => navigate("discover")}
+              >
+                Explore the library
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const [showAllChapters, setShowAllChapters] = useState(false);
   const [unlockingChapterId, setUnlockingChapterId] = useState<string | null>(
     null,
@@ -118,14 +139,14 @@ export default function BookDetailPage({
     setUnlockingChapterId(chapter.id);
   };
 
-  const confirmUnlock = () => {
+  const confirmUnlock = async () => {
     if (!unlockCandidate) return;
     if (coins < unlockCandidate.price) {
       setUnlockingChapterId(null);
       navigate("wallet");
       return;
     }
-    unlockChapter(unlockCandidate.id, unlockCandidate.price);
+    await unlockChapter(unlockCandidate.id, unlockCandidate.price);
     setUnlockingChapterId(null);
     navigate("reader", book.id, unlockCandidate.id);
   };
@@ -135,21 +156,25 @@ export default function BookDetailPage({
       <div className="somi-home-inner pb-10">
         <section className="relative border-b border-[#3b2a20] py-6 md:py-10">
           <div className="absolute inset-0 -mx-10 overflow-hidden opacity-25 md:-mx-20">
-            <img
-              src={book.heroImage}
-              alt=""
-              className="h-full w-full object-cover blur-2xl"
-            />
+            {book.heroImage && (
+              <img
+                src={book.heroImage}
+                alt=""
+                className="h-full w-full object-cover blur-2xl"
+              />
+            )}
             <div className="absolute inset-0 bg-[#100d0b]/80" />
           </div>
           <div className="relative grid gap-8 md:grid-cols-[220px_minmax(0,1fr)] md:items-center lg:grid-cols-[270px_minmax(0,1fr)] lg:gap-14">
             <div className="mx-auto w-[190px] md:w-full">
               <div className="relative aspect-[2/3] overflow-hidden shadow-[16px_20px_35px_rgba(0,0,0,0.35)]">
-                <img
-                  src={book.cover}
-                  alt={`${book.title} cover`}
-                  className="h-full w-full object-cover"
-                />
+                {book.cover && (
+                  <img
+                    src={book.cover}
+                    alt={`${book.title} cover`}
+                    className="h-full w-full object-cover"
+                  />
+                )}
                 <div className="absolute inset-0 bg-gradient-to-tr from-[#160c07]/35 to-transparent" />
               </div>
             </div>

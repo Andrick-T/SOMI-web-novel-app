@@ -37,10 +37,14 @@ export interface CommonProps {
   libraryBooks: string[];
   unlockedChapters: string[];
   addToLibrary: (id: string) => void;
-  unlockChapter: (chapterId: string, cost: number) => void;
+  unlockChapter: (chapterId: string, cost: number) => Promise<void>;
   addCoins: (amount: number) => void;
-  onLogin: () => void;
-  onLogout: () => void;
+  onLogin: (credentials?: {
+    email: string;
+    password: string;
+    name?: string;
+  }) => Promise<void>;
+  onLogout: () => Promise<void>;
   environment: AppEnvironment;
   setEnvironment: (env: AppEnvironment) => void;
 }

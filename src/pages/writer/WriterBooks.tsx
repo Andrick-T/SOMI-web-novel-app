@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   BookOpen,
   PenLine,
@@ -14,6 +14,10 @@ import type { CommonProps } from "../../types";
 import { writerRepository } from "../../features/writer";
 import { statusToneFor } from "../../config/designSystem";
 import { EmptyState, StatusBadge } from "../../components/DesignPrimitives";
+import {
+  apiWriterRepository,
+  useApiWriterContent,
+} from "../../services/repositories/writerRepository";
 
 type StatusFilter =
   | "all"
@@ -28,10 +32,25 @@ type StatusFilter =
   | "ARCHIVED";
 
 export default function WriterBooks({ navigate }: CommonProps) {
-  const books = writerRepository.getWriterBooks();
+  const [books, setBooks] = useState(() =>
+    useApiWriterContent ? [] : writerRepository.getWriterBooks(),
+  );
+  const [loadError, setLoadError] = useState("");
   const [filter, setFilter] = useState<StatusFilter>("all");
   const [query, setQuery] = useState("");
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!useApiWriterContent) return;
+    apiWriterRepository
+      .getWriterBooks()
+      .then(setBooks)
+      .catch((caught) => {
+        setLoadError(
+          caught instanceof Error ? caught.message : "Unable to load books.",
+        );
+      });
+  }, []);
 
   const filtered = useMemo(
     () =>
@@ -146,7 +165,9 @@ export default function WriterBooks({ navigate }: CommonProps) {
       </div>
 
       <div className="px-5 flex flex-col gap-4 pb-8">
-        {filtered.length === 0 ? (
+        {loadError ? (
+          <EmptyState title={loadError} />
+        ) : filtered.length === 0 ? (
           <EmptyState
             title={
               books.length === 0
@@ -292,12 +313,23 @@ export default function WriterBooks({ navigate }: CommonProps) {
                         label: "Add chapter",
                         icon: <PenLine size={13} />,
                         action: () => {
-                          const newChapter = writerRepository.createChapter(
-                            book.id,
-                            { title: `Chapter ${book.chapters.length + 1}` },
-                          );
-                          navigate("writer-editor", book.id, newChapter.id);
-                          setMenuOpen(null);
+                          const createChapter = async () => {
+                            const newChapter = useApiWriterContent
+                              ? await apiWriterRepository.createChapter(
+                                  book.id,
+                                  {
+                                    title: `Chapter ${book.chapters.length + 1}`,
+                                    number: book.chapters.length + 1,
+                                    content: "Begin your chapter here.",
+                                  },
+                                )
+                              : writerRepository.createChapter(book.id, {
+                                  title: `Chapter ${book.chapters.length + 1}`,
+                                });
+                            navigate("writer-editor", book.id, newChapter.id);
+                            setMenuOpen(null);
+                          };
+                          void createChapter();
                         },
                       },
                       {

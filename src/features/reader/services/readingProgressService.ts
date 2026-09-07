@@ -1,5 +1,6 @@
 import type { ReadingProgress } from "../types";
 import { readingProgressStorage } from "./persistence";
+import { apiReadingProgressRepository } from "../../../services/repositories/readingProgressApiRepository";
 
 export interface ReadingProgressRepository {
   getProgress(bookId: string, chapterId: string): ReadingProgress | undefined;
@@ -64,5 +65,36 @@ export function getReaderProgressForChapter(
 export function persistReadingProgress(
   progress: ReadingProgress,
 ): ReadingProgress {
-  return readingProgressRepository.saveProgress(progress);
+  const saved = readingProgressRepository.saveProgress(progress);
+  if (
+    import.meta.env.VITE_USE_API_AUTH === "true" &&
+    progress.userId !== "guest-user"
+  ) {
+    void apiReadingProgressRepository.save(progress).catch(() => undefined);
+  }
+  return saved;
+}
+
+export async function hydrateReadingProgress(bookId: string) {
+  if (import.meta.env.VITE_USE_API_AUTH !== "true") {
+    return readingProgressRepository.getBookProgress(bookId);
+  }
+  const current = readingProgressStorage.get();
+  Object.keys(current)
+    .filter((key) => current[key]?.bookId === bookId)
+    .forEach((key) => delete current[key]);
+  readingProgressStorage.save(current);
+  const entries = await apiReadingProgressRepository.getBookProgress(bookId);
+  entries.forEach((entry) => readingProgressRepository.saveProgress(entry));
+  return entries[0];
+}
+
+export async function hydrateRecentReadingProgress() {
+  if (import.meta.env.VITE_USE_API_AUTH !== "true") {
+    return readingProgressRepository.getRecentReading();
+  }
+  readingProgressStorage.save({});
+  const entries = await apiReadingProgressRepository.getRecent();
+  entries.forEach((entry) => readingProgressRepository.saveProgress(entry));
+  return entries;
 }

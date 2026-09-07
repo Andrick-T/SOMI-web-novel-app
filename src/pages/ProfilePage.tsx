@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   LogOut,
   ChevronRight,
@@ -30,8 +30,11 @@ export default function ProfilePage({
   const [darkMode, setDarkMode] = useState(true);
   const [notifications, setNotifications] = useState(true);
 
+  useEffect(() => {
+    if (!isLoggedIn) navigate("auth");
+  }, [isLoggedIn, navigate]);
+
   if (!isLoggedIn) {
-    navigate("auth");
     return null;
   }
 
@@ -220,9 +223,8 @@ export default function ProfilePage({
             </h3>
             <div className="space-y-2">
               {section.items.map((item) => (
-                <button
+                <div
                   key={item.label}
-                  type="button"
                   onClick={item.action}
                   className="flex w-full items-center gap-3 rounded-[1rem] border border-[var(--color-border-default)] bg-[var(--color-surface)] p-3 text-left"
                 >
@@ -246,7 +248,7 @@ export default function ProfilePage({
                   ) : item.chevron ? (
                     <ChevronRight size={16} color="var(--color-text-muted)" />
                   ) : null}
-                </button>
+                </div>
               ))}
             </div>
           </div>

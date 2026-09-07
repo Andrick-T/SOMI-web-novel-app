@@ -8,6 +8,7 @@ import {
   Star,
 } from "lucide-react";
 import BookCard from "../components/BookCard";
+import { EmptyState } from "../components/DesignPrimitives";
 import { bookRepository } from "../services/repositories";
 import type { Book } from "../data/books";
 import type { CommonProps } from "../types";
@@ -78,7 +79,9 @@ function RatedCard({
       className="somi-rated-card"
       onClick={() => navigate("book", book.id)}
     >
-      <img src={book.cover} alt={`${book.title} cover`} loading="lazy" />
+      {book.cover && (
+        <img src={book.cover} alt={`${book.title} cover`} loading="lazy" />
+      )}
       <div className="min-w-0 text-left">
         <p className="truncate font-display text-lg font-semibold text-[#f4eee3]">
           {book.title}
@@ -109,7 +112,9 @@ function UpdateItem({
       className="somi-update-item"
       onClick={() => navigate("book", book.id)}
     >
-      <img src={book.cover} alt={`${book.title} cover`} loading="lazy" />
+      {book.cover && (
+        <img src={book.cover} alt={`${book.title} cover`} loading="lazy" />
+      )}
       <span className="min-w-0 flex-1 text-left">
         <span className="block truncate font-display text-base font-semibold text-[#f4eee3]">
           {book.title}
@@ -139,6 +144,29 @@ export default function HomePage({
   const genres = bookRepository.getGenres().filter((genre) => genre !== "All");
   const newBooks = books.slice(-4).reverse();
   const shortStories = books.filter((book) => book.totalChapters <= 24);
+
+  if (!featured) {
+    return (
+      <div className="somi-home">
+        <div className="somi-home-inner">
+          <div className="py-16">
+            <EmptyState
+              title="The catalog is empty"
+              description="New stories will appear here once the API returns published books."
+              action={
+                <button
+                  className="somi-quiet-button"
+                  onClick={() => navigate("discover")}
+                >
+                  Browse discovery
+                </button>
+              }
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="somi-home">
@@ -198,7 +226,9 @@ export default function HomePage({
             aria-label={`Read ${featured.title}`}
           >
             <div className="somi-featured-art">
-              <img src={featured.heroImage} alt={`${featured.title} cover`} />
+              {featured.heroImage && (
+                <img src={featured.heroImage} alt={`${featured.title} cover`} />
+              )}
               <span className="somi-featured-stamp">
                 Editor's
                 <br />

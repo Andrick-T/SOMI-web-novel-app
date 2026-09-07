@@ -3,6 +3,7 @@ export type AppConfig = {
   appUrl: string;
   frontendUrl: string;
   apiBaseUrl: string;
+  useApiEconomy: boolean;
   enablePwa: boolean;
   enableOfflineReading: boolean;
   isDevelopment: boolean;
@@ -20,6 +21,7 @@ const normalizeBoolean = (value: string | undefined, fallback: boolean) => {
 const defaultFrontendUrl = "https://somi-z5dq.onrender.com";
 const configuredFrontendUrl = readEnv("VITE_FRONTEND_URL", defaultFrontendUrl);
 const configuredAppUrl = readEnv("VITE_APP_URL", configuredFrontendUrl);
+const defaultApiBaseUrl = import.meta.env.DEV ? "http://localhost:4000" : "/";
 
 export const resolveFrontendUrl = (override?: string): string => {
   if (override) return override;
@@ -37,7 +39,11 @@ export const appConfig: AppConfig = {
   appName: readEnv("VITE_APP_NAME", "SOMI"),
   appUrl: resolveFrontendUrl(),
   frontendUrl: configuredFrontendUrl,
-  apiBaseUrl: readEnv("VITE_API_BASE_URL", "/"),
+  apiBaseUrl: readEnv("VITE_API_BASE_URL", defaultApiBaseUrl),
+  useApiEconomy: normalizeBoolean(
+    readEnv("VITE_USE_API_ECONOMY", "false"),
+    false,
+  ),
   enablePwa: normalizeBoolean(readEnv("VITE_ENABLE_PWA", "true"), true),
   enableOfflineReading: normalizeBoolean(
     readEnv("VITE_ENABLE_OFFLINE_READING", "true"),

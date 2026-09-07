@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import {
   BookOpen,
   Users,
@@ -5,41 +6,73 @@ import {
   Coins,
   Clock,
   PenLine,
-  Bell,
   ChevronRight,
   Zap,
 } from "lucide-react";
 import type { CommonProps } from "../../types";
 import { writerRepository } from "../../features/writer";
+import {
+  apiWriterRepository,
+  useApiWriterContent,
+} from "../../services/repositories/writerRepository";
 import { statusToneFor } from "../../config/designSystem";
 import { StatusBadge } from "../../components/DesignPrimitives";
 
-const recentActivity = [
-  {
-    text: "The Baobab Kingdom draft is ready for review.",
-    time: "2m ago",
-    icon: <Coins size={12} color="#e8a84c" />,
-  },
-  {
-    text: "Echoes of Kongo has a new scheduled release slot.",
-    time: "14m ago",
-    icon: <Users size={12} color="#4ade80" />,
-  },
-  {
-    text: "Your chapter revision history was refreshed.",
-    time: "1h ago",
-    icon: <Bell size={12} color="#60a5fa" />,
-  },
-  {
-    text: "Reader momentum increased this week.",
-    time: "2h ago",
-    icon: <TrendingUp size={12} color="#4ade80" />,
-  },
-];
-
 export default function WriterDashboard({ navigate }: CommonProps) {
-  const summary = writerRepository.getDashboardSummary();
-  const books = writerRepository.getWriterBooks();
+  const [books, setBooks] = useState(() =>
+    useApiWriterContent ? [] : writerRepository.getWriterBooks(),
+  );
+  const [earnings, setEarnings] = useState(0);
+  const [loading, setLoading] = useState(useApiWriterContent);
+  const [loadError, setLoadError] = useState("");
+
+  useEffect(() => {
+    if (!useApiWriterContent) return;
+    let cancelled = false;
+    Promise.all([
+      apiWriterRepository.getWriterBooks(),
+      apiWriterRepository.getEarnings(),
+    ])
+      .then(([nextBooks, nextEarnings]) => {
+        if (cancelled) return;
+        setBooks(nextBooks);
+        setEarnings(
+          typeof nextEarnings.availableCoins === "number"
+            ? nextEarnings.availableCoins
+            : 0,
+        );
+      })
+      .catch((caught) => {
+        if (!cancelled) {
+          setLoadError(
+            caught instanceof Error
+              ? caught.message
+              : "Unable to load Writer data.",
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const summary = useApiWriterContent
+    ? {
+        draftCount: books.filter((book) => book.status === "DRAFT").length,
+        inReviewCount: books.filter((book) =>
+          ["READY_FOR_REVIEW", "SUBMITTED"].includes(book.status),
+        ).length,
+        scheduledCount: books.filter((book) => book.status === "SCHEDULED")
+          .length,
+        publishedCount: books.filter((book) => book.status === "PUBLISHED")
+          .length,
+        totalReaders: 0,
+        totalEarnings: earnings,
+      }
+    : writerRepository.getDashboardSummary();
   const drafts = books
     .flatMap((book) =>
       book.chapters
@@ -75,13 +108,13 @@ export default function WriterDashboard({ navigate }: CommonProps) {
     {
       label: "Readers",
       value: `${(summary.totalReaders / 1000).toFixed(1)}k`,
-      sub: "+18% this week",
+      sub: useApiWriterContent ? "Live data unavailable" : "+18% this week",
       icon: <Users size={18} color="#4ade80" />,
     },
     {
       label: "Earnings",
-      value: `$${summary.totalEarnings.toLocaleString()}`,
-      sub: "available now",
+      value: `${summary.totalEarnings.toLocaleString()} coins`,
+      sub: useApiWriterContent ? "available now" : "available now",
       icon: <Coins size={18} color="#e8a84c" />,
     },
   ];
@@ -120,6 +153,16 @@ export default function WriterDashboard({ navigate }: CommonProps) {
           </button>
         </div>
       </div>
+
+      {loading ? (
+        <div className="px-5 py-8 text-sm" style={{ color: "#6a8060" }}>
+          Loading Writer data...
+        </div>
+      ) : loadError ? (
+        <div className="px-5 py-8 text-sm" style={{ color: "#fb7185" }}>
+          {loadError}
+        </div>
+      ) : null}
 
       <div className="px-5 mb-6">
         <div className="grid grid-cols-2 gap-3">
@@ -172,6 +215,11 @@ export default function WriterDashboard({ navigate }: CommonProps) {
           </button>
         </div>
         <div className="flex flex-col gap-3">
+          {drafts.length === 0 && !loading && !loadError && (
+            <p className="text-sm" style={{ color: "#6a8060" }}>
+              No drafts yet.
+            </p>
+          )}
           {drafts.map((d) => (
             <button
               key={d.id}
@@ -329,34 +377,9 @@ export default function WriterDashboard({ navigate }: CommonProps) {
         >
           Recent activity
         </h3>
-        <div className="flex flex-col gap-2">
-          {recentActivity.map((item, i) => (
-            <div
-              key={i}
-              className="flex items-center gap-3 p-3 rounded-xl"
-              style={{ background: "#1e2118" }}
-            >
-              <div
-                className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-                style={{ background: "#2a3525" }}
-              >
-                {item.icon}
-              </div>
-              <p
-                className="text-xs flex-1 leading-snug"
-                style={{ color: "#a8c0a0" }}
-              >
-                {item.text}
-              </p>
-              <span
-                className="text-[9px] flex-shrink-0"
-                style={{ color: "#4a6540" }}
-              >
-                {item.time}
-              </span>
-            </div>
-          ))}
-        </div>
+        <p className="text-sm" style={{ color: "#6a8060" }}>
+          Activity updates will appear here when available.
+        </p>
       </div>
 
       <div className="mx-5 mb-8">

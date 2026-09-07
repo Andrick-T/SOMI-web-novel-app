@@ -1,6 +1,6 @@
 ﻿import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, Bold, Clock, Eye, Italic } from "lucide-react";
-import { useParams } from "react-router-dom";
+import { ArrowLeft, Bold, Clock, Eye, Italic, ImagePlus } from "lucide-react";
+import { useLocation } from "react-router-dom";
 import type { CommonProps } from "../../types";
 import {
   countWords,
@@ -12,16 +12,31 @@ import {
 } from "../../features/writer";
 import { ErrorState, StatusBadge } from "../../components/DesignPrimitives";
 import { statusToneFor } from "../../config/designSystem";
+import {
+  apiWriterRepository,
+  useApiWriterContent,
+} from "../../services/repositories/writerRepository";
+import { useAuth } from "../../app/auth";
 
 export default function ChapterEditor({ navigate }: CommonProps) {
-  const { bookId, chapterId } = useParams();
+  const { pathname } = useLocation();
+  const routeMatch = pathname.match(
+    /^\/writer\/books\/([^/]+)\/chapters\/([^/]+)\/edit$/,
+  );
+  const bookId = routeMatch?.[1];
+  const chapterId = routeMatch?.[2];
+  const { isLoading: isAuthLoading } = useAuth();
   const textRef = useRef<HTMLTextAreaElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const saveTimer = useRef<number | null>(null);
 
-  const currentBook = bookId ? writerRepository.getBook(bookId) : undefined;
+  const [currentBook, setCurrentBook] = useState<
+    | Awaited<ReturnType<typeof apiWriterRepository.getBook>>
+    | ReturnType<typeof writerRepository.getBook>
+  >();
   const startingChapter =
-    bookId && chapterId
-      ? writerRepository.getChapter(bookId, chapterId)
+    currentBook && chapterId
+      ? currentBook.chapters.find((entry) => entry.id === chapterId)
       : currentBook?.chapters[0];
 
   const [chapter, setChapter] = useState(startingChapter ?? null);
@@ -31,19 +46,70 @@ export default function ChapterEditor({ navigate }: CommonProps) {
   const [previewMode, setPreviewMode] = useState(false);
   const [saveState, setSaveState] = useState(createAutosaveState());
   const [errors, setErrors] = useState<string[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [assetError, setAssetError] = useState<string | null>(null);
+  const recoveryKey =
+    bookId && chapterId ? `somi-writer-draft:${bookId}:${chapterId}` : "";
 
   useEffect(() => {
-    const nextChapter =
-      bookId && chapterId
-        ? writerRepository.getChapter(bookId, chapterId)
-        : (currentBook?.chapters[0] ?? null);
+    if (useApiWriterContent && isAuthLoading) return;
 
-    setChapter(nextChapter);
-    setTitle(nextChapter?.title ?? "");
-    setContent(nextChapter?.content ?? "");
-    setSaveState(createAutosaveState());
-    setErrors([]);
-  }, [bookId, chapterId, currentBook]);
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const loadedBook = bookId
+          ? useApiWriterContent
+            ? await apiWriterRepository.getBook(bookId)
+            : writerRepository.getBook(bookId)
+          : undefined;
+        if (cancelled) return;
+        setCurrentBook(loadedBook);
+        const nextChapter =
+          loadedBook && bookId && chapterId
+            ? useApiWriterContent
+              ? await apiWriterRepository.getChapter(bookId, chapterId)
+              : writerRepository.getChapter(bookId, chapterId)
+            : loadedBook?.chapters[0];
+        if (cancelled) return;
+        setChapter(nextChapter ?? null);
+        const recovered = recoveryKey
+          ? (JSON.parse(window.localStorage.getItem(recoveryKey) ?? "null") as {
+              title?: string;
+              content?: string;
+              updatedAt?: string;
+            } | null)
+          : null;
+        const useRecovery = Boolean(
+          recovered?.updatedAt &&
+          nextChapter?.updatedAt &&
+          recovered.updatedAt > nextChapter.updatedAt,
+        );
+        setTitle(
+          useRecovery ? (recovered?.title ?? "") : (nextChapter?.title ?? ""),
+        );
+        setContent(
+          useRecovery
+            ? (recovered?.content ?? "")
+            : (nextChapter?.content ?? ""),
+        );
+        setSaveState(createAutosaveState());
+        setErrors([]);
+        setLoadError(null);
+      } catch (caught) {
+        if (!cancelled) {
+          setLoadError(
+            caught instanceof Error
+              ? caught.message
+              : "Unable to load chapter.",
+          );
+        }
+      }
+    };
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [bookId, chapterId, isAuthLoading, pathname]);
 
   const wordCount = countWords(content);
   const readTime = estimateReadingTime(wordCount);
@@ -51,9 +117,11 @@ export default function ChapterEditor({ navigate }: CommonProps) {
   const persistChapter = () => {
     if (!bookId || !chapter) return;
 
+    const currentContent = textRef.current?.value ?? content;
+
     const validation = validateChapter({
       title,
-      content,
+      content: currentContent,
       number: chapter.number,
       price: chapter.price,
       accessType: chapter.accessType,
@@ -68,12 +136,32 @@ export default function ChapterEditor({ navigate }: CommonProps) {
     const nextChapter = {
       ...chapter,
       title: title.trim() || "Untitled chapter",
-      content,
-      wordCount,
-      readingTime: estimateReadingTime(wordCount),
+      content: currentContent,
+      wordCount: countWords(currentContent),
+      readingTime: estimateReadingTime(countWords(currentContent)),
       updatedAt: new Date().toISOString(),
       status: "EDITING" as const,
     };
+
+    if (useApiWriterContent) {
+      void apiWriterRepository
+        .autosaveChapter(bookId, nextChapter)
+        .then((savedChapter) => {
+          if (recoveryKey) window.localStorage.removeItem(recoveryKey);
+          setChapter(savedChapter);
+          setErrors([]);
+          setSaveState((current) => updateAutosaveState(current, "SAVED"));
+        })
+        .catch((caught) => {
+          setErrors([
+            caught instanceof Error
+              ? caught.message
+              : "Unable to save chapter.",
+          ]);
+          setSaveState((current) => updateAutosaveState(current, "ERROR"));
+        });
+      return;
+    }
 
     writerRepository.saveChapterDraft(bookId, nextChapter);
 
@@ -111,6 +199,12 @@ export default function ChapterEditor({ navigate }: CommonProps) {
 
   const scheduleAutosave = () => {
     setSaveState((current) => updateAutosaveState(current, "DIRTY"));
+    if (recoveryKey) {
+      window.localStorage.setItem(
+        recoveryKey,
+        JSON.stringify({ title, content, updatedAt: new Date().toISOString() }),
+      );
+    }
     if (saveTimer.current) {
       window.clearTimeout(saveTimer.current);
     }
@@ -132,8 +226,32 @@ export default function ChapterEditor({ navigate }: CommonProps) {
     scheduleAutosave();
   };
 
+  const uploadIllustration = async (file: File) => {
+    if (!bookId || !chapter || !useApiWriterContent) return;
+    setAssetError(null);
+    try {
+      const uploaded = await apiWriterRepository.uploadAsset(
+        bookId,
+        chapter.id,
+        file,
+        {
+          altText: file.name.replace(/\.[^.]+$/, "") || "Chapter illustration",
+        },
+      );
+      const marker = `![${uploaded.asset.altText}](asset:${uploaded.asset.id})`;
+      setContent((current) => `${current}${current ? "\n\n" : ""}${marker}`);
+      scheduleAutosave();
+    } catch (caught) {
+      setAssetError(
+        caught instanceof Error
+          ? caught.message
+          : "Unable to upload illustration.",
+      );
+    }
+  };
+
   if (!chapter) {
-    return <ErrorState title="Chapter not found" />;
+    return <ErrorState title={loadError ?? "Chapter not found"} />;
   }
 
   return (
@@ -241,6 +359,30 @@ export default function ChapterEditor({ navigate }: CommonProps) {
                 {item.icon}
               </button>
             ))}
+            {useApiWriterContent && (
+              <>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) void uploadIllustration(file);
+                    event.target.value = "";
+                  }}
+                />
+                <button
+                  type="button"
+                  aria-label="Insert illustration"
+                  className="w-9 h-9 flex items-center justify-center rounded-lg active:scale-90 transition-transform"
+                  style={{ color: "#4ade80", background: "#1e2118" }}
+                  onClick={() => fileRef.current?.click()}
+                >
+                  <ImagePlus size={14} />
+                </button>
+              </>
+            )}
             <div className="flex-1" />
             <button
               type="button"
@@ -296,6 +438,11 @@ export default function ChapterEditor({ navigate }: CommonProps) {
               {errors.map((error) => (
                 <p key={error}>{error}</p>
               ))}
+            </div>
+          )}
+          {assetError && (
+            <div className="mx-5 mb-5 rounded-xl border border-red-500/50 bg-red-500/10 p-3 text-sm text-red-200">
+              {assetError}
             </div>
           )}
         </>

@@ -79,7 +79,7 @@ export function getCoinsFromCfa(amountCfa: number): number {
   ]);
   if (exactPackages.has(amountCfa)) return exactPackages.get(amountCfa)!;
 
-  return Math.max(0, Math.round(amountCfa * 18));
+  return Math.max(0, Math.round(amountCfa * 6.8));
 }
 
 export function createWallet({

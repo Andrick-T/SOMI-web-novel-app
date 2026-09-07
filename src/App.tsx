@@ -14,9 +14,22 @@ import {
   unlockChapterEntitlement,
   type ChapterEntitlement,
 } from "./features/economy/service";
+import {
+  apiWalletRepository,
+  useApiEconomy,
+} from "./services/repositories/walletRepository";
 import { appConfig } from "./config/env";
 import { useNetworkStatus } from "./features/network/networkStatus";
-import { bookRepository } from "./services/repositories";
+import {
+  apiBookRepository,
+  apiChapterRepository,
+  bookRepository,
+} from "./services/repositories";
+import {
+  apiLibraryRepository,
+  useApiLibrary,
+} from "./services/repositories/libraryApiRepository";
+import { hydrateRecentReadingProgress } from "./features/reader/services/readingProgressService";
 import BottomNav from "./components/BottomNav";
 import WriterNav from "./components/WriterNav";
 import AdminNav from "./components/AdminNav";
@@ -109,7 +122,10 @@ function AppShell() {
   const isWriter = hasRole("writer");
   const isAdmin = hasRole("admin");
   const [wallet, setWallet] = useState(() =>
-    createWallet({ userId: user?.id ?? "guest-user", balance: 250 }),
+    createWallet({
+      userId: user?.id ?? "guest-user",
+      balance: useApiEconomy ? 0 : 250,
+    }),
   );
   const [libraryBooks, setLibraryBooks] = useState<string[]>([]);
   const [entitlements, setEntitlements] = useState<ChapterEntitlement[]>([
@@ -171,6 +187,35 @@ function AppShell() {
   const [environment, setEnvironment] = useState<AppEnvironment>(
     environmentFromPath(pathname),
   );
+  const [apiBooks, setApiBooks] = useState<
+    (typeof bookRepository extends { getBooks: () => infer T } ? T : never)[]
+  >([]);
+  const [apiError, setApiError] = useState<Error | null>(null);
+  const [apiLoading, setApiLoading] = useState(
+    import.meta.env.VITE_USE_API_CONTENT === "true",
+  );
+
+  useEffect(() => {
+    if (!useApiEconomy || !isAuthenticated || !user) {
+      if (!isAuthenticated) {
+        setWallet(createWallet({ userId: "guest-user", balance: 0 }));
+        setEntitlements([]);
+      }
+      return;
+    }
+    const authenticatedUserId = user.id;
+    setWallet(createWallet({ userId: authenticatedUserId, balance: 0 }));
+    void apiWalletRepository.getWallet().then((remoteWallet) => {
+      if (user?.id === authenticatedUserId && isAuthenticated) {
+        setWallet(
+          createWallet({
+            userId: authenticatedUserId,
+            balance: remoteWallet.balance,
+          }),
+        );
+      }
+    });
+  }, [isAuthenticated, user]);
 
   useEffect(() => {
     setEnvironment(environmentFromPath(pathname));
@@ -185,16 +230,75 @@ function AppShell() {
     [navigate],
   );
 
-  const addToLibrary = (id: string) =>
-    setLibraryBooks((p) =>
-      p.includes(id) ? p.filter((x) => x !== id) : [...p, id],
+  useEffect(() => {
+    if (!useApiLibrary || !isAuthenticated) {
+      if (!isAuthenticated) setLibraryBooks([]);
+      return;
+    }
+    const authenticatedUserId = user?.id;
+    void apiLibraryRepository.list().then((items) => {
+      if (authenticatedUserId === user?.id && isAuthenticated) {
+        setLibraryBooks(items.map((item) => item.book.id));
+      }
+    });
+  }, [isAuthenticated, user?.id]);
+
+  useEffect(() => {
+    if (isAuthenticated)
+      void hydrateRecentReadingProgress().catch(() => undefined);
+  }, [isAuthenticated]);
+
+  const addToLibrary = (id: string) => {
+    if (useApiLibrary) {
+      const isSaved = libraryBooks.includes(id);
+      setLibraryBooks((current) =>
+        isSaved ? current.filter((bookId) => bookId !== id) : [...current, id],
+      );
+      void (
+        isSaved ? apiLibraryRepository.remove(id) : apiLibraryRepository.add(id)
+      ).catch(() => {
+        setLibraryBooks((current) =>
+          isSaved
+            ? [...current, id]
+            : current.filter((bookId) => bookId !== id),
+        );
+      });
+      return;
+    }
+    setLibraryBooks((current) =>
+      current.includes(id)
+        ? current.filter((bookId) => bookId !== id)
+        : [...current, id],
     );
+  };
 
   const unlockedChapters = entitlements
     .filter((entitlement) => entitlement.status === "UNLOCKED")
     .map((entitlement) => entitlement.chapterId);
 
-  const unlockChapter = (id: string, cost: number) => {
+  const unlockChapter = async (id: string, cost: number) => {
+    if (!selectedBook) return;
+
+    if (useApiEconomy) {
+      const result = await apiWalletRepository.unlock(selectedBook.id, id);
+      setWallet((current) =>
+        createWallet({ userId: current.userId, balance: result.balance }),
+      );
+      setEntitlements((current) => [
+        ...current,
+        {
+          userId: user?.id ?? "",
+          bookId: selectedBook.id,
+          chapterId: id,
+          status: "UNLOCKED",
+          pricePaid: cost,
+          coinsSpent: cost,
+          unlockedAt: new Date().toISOString(),
+        },
+      ]);
+      return;
+    }
+
     const result = unlockChapterEntitlement({
       userId: user?.id ?? "guest-user",
       bookId: selectedBook.id,
@@ -219,11 +323,105 @@ function AppShell() {
 
   const coins = wallet.balance;
 
-  const selectedBook = bookIdFromPath
-    ? bookRepository.getBookById(bookIdFromPath)
-    : bookRepository.getBooks()[0];
+  useEffect(() => {
+    if (import.meta.env.VITE_USE_API_CONTENT === "true") {
+      void apiBookRepository.loadBooks().then((loadedBooks) => {
+        setApiBooks(loadedBooks);
+        setApiError(apiBookRepository.error);
+        setApiLoading(false);
+      });
+    }
+  }, []);
+
+  const books =
+    import.meta.env.VITE_USE_API_CONTENT === "true"
+      ? apiBooks
+      : bookRepository.getBooks();
+  const [detailBook, setDetailBook] = useState<
+    (typeof books)[number] | undefined
+  >();
+  const [chapterBook, setChapterBook] = useState<
+    (typeof books)[number] | undefined
+  >();
+
+  useEffect(() => {
+    if (import.meta.env.VITE_USE_API_CONTENT !== "true" || !bookIdFromPath) {
+      setDetailBook(undefined);
+      return;
+    }
+    if (apiBooks.some((book) => book.id === bookIdFromPath)) return;
+    void apiBookRepository.getBookDetail(bookIdFromPath).then((book) => {
+      setDetailBook(book);
+      setApiError(apiBookRepository.error);
+    });
+  }, [apiBooks, bookIdFromPath]);
+
+  useEffect(() => {
+    if (import.meta.env.VITE_USE_API_CONTENT !== "true" || !chapterIdFromPath) {
+      setChapterBook(undefined);
+      return;
+    }
+    void apiChapterRepository
+      .getChapterById(bookIdFromPath ?? "", chapterIdFromPath)
+      .then(async (chapter) => {
+        if (!chapter) {
+          setChapterBook(undefined);
+          return;
+        }
+        const book =
+          apiBooks.find((entry) => entry.id === bookIdFromPath) ?? detailBook;
+        if (book) {
+          setChapterBook({
+            ...book,
+            chapters: book.chapters.map((entry) =>
+              entry.id === chapter.id ? chapter : entry,
+            ),
+          });
+        }
+      });
+  }, [apiBooks, bookIdFromPath, chapterIdFromPath, detailBook]);
+
+  const selectedBook =
+    chapterBook ??
+    detailBook ??
+    (bookIdFromPath
+      ? books.find((book) => book.id === bookIdFromPath)
+      : (books[0] ?? undefined));
   const selectedChapterId =
-    chapterIdFromPath ?? selectedBook.chapters[0]?.id ?? "";
+    chapterIdFromPath ?? selectedBook?.chapters?.[0]?.id ?? "";
+
+  useEffect(() => {
+    if (!useApiEconomy || !isAuthenticated || !user || !selectedBook) return;
+    const authenticatedUserId = user.id;
+    void Promise.all(
+      selectedBook.chapters
+        .filter((chapter) => chapter.accessType === "PREMIUM")
+        .map(async (chapter) => ({
+          chapter,
+          entitlement: await apiWalletRepository.getEntitlement(
+            selectedBook.id,
+            chapter.id,
+          ),
+        })),
+    )
+      .then((entries) => {
+        if (user?.id !== authenticatedUserId || !isAuthenticated) return;
+        setEntitlements(
+          entries
+            .filter((entry) => entry.entitlement.entitled)
+            .map(({ chapter }) => ({
+              userId: authenticatedUserId,
+              bookId: selectedBook.id,
+              chapterId: chapter.id,
+              status: "UNLOCKED",
+              pricePaid: chapter.price,
+              coinsSpent: chapter.price,
+              unlockedAt: new Date().toISOString(),
+            })),
+        );
+      })
+      .catch(() => undefined);
+  }, [isAuthenticated, selectedBook, user]);
 
   const metaTitle =
     pathname === "/"
@@ -231,9 +429,9 @@ function AppShell() {
       : pathname === "/discover"
         ? "Discover stories — SOMI"
         : pathname.startsWith("/books/") && !pathname.includes("/read/")
-          ? `${selectedBook.title} — Read on SOMI`
+          ? `${selectedBook?.title ?? "Story"} — Read on SOMI`
           : pathname.includes("/read/")
-            ? `${selectedBook.title} — Chapter ${selectedChapterId} | SOMI`
+            ? `${selectedBook?.title ?? "Story"} — Chapter ${selectedChapterId || "1"} | SOMI`
             : currentPage === "library"
               ? "Your library — SOMI"
               : currentPage === "wallet"
@@ -244,7 +442,8 @@ function AppShell() {
 
   const metaDescription =
     pathname.startsWith("/books/") && !pathname.includes("/read/")
-      ? selectedBook.synopsis
+      ? (selectedBook?.synopsis ??
+        "Discover stories, follow your favorite writers and immerse yourself in books on SOMI.")
       : "Discover stories, follow your favorite writers and immerse yourself in books on SOMI.";
 
   const isFullscreen = isFullscreenRoute(pathname);
@@ -254,7 +453,7 @@ function AppShell() {
   const bgColor = isAdminEnv ? "#0e1422" : isWriterEnv ? "#131510" : "#0d0b18";
 
   useEffect(() => {
-    if (currentPage !== "reader") return;
+    if (currentPage !== "reader" || !selectedBook) return;
     const handler = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         const bookId = bookIdFromPath ?? selectedBook.id;
@@ -263,7 +462,7 @@ function AppShell() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [bookIdFromPath, currentPage, navigateTo, selectedBook.id]);
+  }, [bookIdFromPath, currentPage, navigateTo, selectedBook]);
 
   const commonProps: CommonProps = {
     navigate: navigateTo,
@@ -276,12 +475,14 @@ function AppShell() {
     addToLibrary,
     unlockChapter,
     addCoins,
-    onLogin: () => {
-      login({ role: "reader" });
+    onLogin: async (credentials) => {
+      await login(
+        credentials ? { ...credentials, role: "reader" } : { role: "reader" },
+      );
       setEnvironment("reader");
     },
-    onLogout: () => {
-      logout();
+    onLogout: async () => {
+      await logout();
       setEnvironment("reader");
       navigateTo("home");
     },
@@ -297,7 +498,7 @@ function AppShell() {
           description={metaDescription}
           pathname={pathname}
           url={`${appConfig.appUrl}${pathname}`}
-          image={selectedBook.heroImage}
+          image={selectedBook?.heroImage ?? ""}
         />
         <div
           style={{
@@ -365,7 +566,7 @@ function AppShell() {
         description={metaDescription}
         pathname={pathname}
         url={`${appConfig.appUrl}${pathname}`}
-        image={selectedBook.heroImage}
+        image={selectedBook?.heroImage ?? ""}
       />
       <div
         className="flex flex-col"
@@ -410,121 +611,146 @@ function AppShell() {
 
           <div className="flex flex-col flex-1 overflow-hidden">
             <main className="flex-1 overflow-y-auto overflow-x-hidden">
-              <Suspense fallback={<RouteLoading />}>
-                <Routes>
-                  <Route path="/" element={<HomePage {...commonProps} />} />
-                  <Route
-                    path="/discover"
-                    element={<DiscoverPage {...commonProps} />}
-                  />
-                  <Route
-                    path="/books/:bookId"
-                    element={
-                      <BookDetailPage {...commonProps} book={selectedBook} />
-                    }
-                  />
-                  <Route
-                    path="/books/:bookId/read/:chapterId"
-                    element={
-                      <ReaderPage
-                        {...commonProps}
-                        book={selectedBook}
-                        chapterId={selectedChapterId}
+              {apiLoading ? (
+                <RouteLoading />
+              ) : apiError ? (
+                <div className="somi-home min-h-full">
+                  <div className="somi-home-inner flex min-h-[70vh] items-center justify-center px-6 py-16">
+                    <div className="somi-state max-w-xl" role="alert">
+                      <h2>Catalog unavailable</h2>
+                      <p>{apiError.message}</p>
+                      <button
+                        className="somi-quiet-button"
+                        onClick={() => window.location.reload()}
+                      >
+                        Try again
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <Suspense fallback={<RouteLoading />}>
+                  <Routes>
+                    <Route path="/" element={<HomePage {...commonProps} />} />
+                    <Route
+                      path="/discover"
+                      element={<DiscoverPage {...commonProps} />}
+                    />
+                    <Route
+                      path="/books/:bookId"
+                      element={
+                        <BookDetailPage {...commonProps} book={selectedBook} />
+                      }
+                    />
+                    <Route
+                      path="/books/:bookId/read/:chapterId"
+                      element={
+                        <ReaderPage
+                          {...commonProps}
+                          book={selectedBook}
+                          chapterId={selectedChapterId}
+                        />
+                      }
+                    />
+                    <Route
+                      path="/library"
+                      element={<LibraryPage {...commonProps} />}
+                    />
+                    <Route
+                      path="/wallet"
+                      element={<WalletPage {...commonProps} />}
+                    />
+                    <Route
+                      path="/profile"
+                      element={<ProfilePage {...commonProps} />}
+                    />
+                    <Route
+                      path="/auth"
+                      element={<AuthPage {...commonProps} />}
+                    />
+                    <Route
+                      path="/unauthorized"
+                      element={<UnauthorizedPage />}
+                    />
+
+                    <Route element={<RequireAuth allowedRoles={["writer"]} />}>
+                      <Route
+                        path="/writer"
+                        element={<WriterDashboard {...commonProps} />}
                       />
-                    }
-                  />
-                  <Route
-                    path="/library"
-                    element={<LibraryPage {...commonProps} />}
-                  />
-                  <Route
-                    path="/wallet"
-                    element={<WalletPage {...commonProps} />}
-                  />
-                  <Route
-                    path="/profile"
-                    element={<ProfilePage {...commonProps} />}
-                  />
-                  <Route path="/auth" element={<AuthPage {...commonProps} />} />
-                  <Route path="/unauthorized" element={<UnauthorizedPage />} />
+                      <Route
+                        path="/writer/books"
+                        element={<WriterBooks {...commonProps} />}
+                      />
+                      <Route
+                        path="/writer/books/new"
+                        element={<WriterCreate {...commonProps} />}
+                      />
+                      <Route
+                        path="/writer/books/:bookId/chapters/:chapterId/edit"
+                        element={<ChapterEditor {...commonProps} />}
+                      />
+                      <Route
+                        path="/writer/analytics"
+                        element={<WriterAnalytics {...commonProps} />}
+                      />
+                      <Route
+                        path="/writer/earnings"
+                        element={<WriterEarnings {...commonProps} />}
+                      />
+                    </Route>
 
-                  <Route element={<RequireAuth allowedRoles={["writer"]} />}>
-                    <Route
-                      path="/writer"
-                      element={<WriterDashboard {...commonProps} />}
-                    />
-                    <Route
-                      path="/writer/books"
-                      element={<WriterBooks {...commonProps} />}
-                    />
-                    <Route
-                      path="/writer/books/new"
-                      element={<WriterCreate {...commonProps} />}
-                    />
-                    <Route
-                      path="/writer/books/:bookId/chapters/:chapterId/edit"
-                      element={<ChapterEditor {...commonProps} />}
-                    />
-                    <Route
-                      path="/writer/analytics"
-                      element={<WriterAnalytics {...commonProps} />}
-                    />
-                    <Route
-                      path="/writer/earnings"
-                      element={<WriterEarnings {...commonProps} />}
-                    />
-                  </Route>
+                    <Route element={<RequireAuth allowedRoles={["admin"]} />}>
+                      <Route
+                        path="/admin"
+                        element={<AdminDashboard {...commonProps} />}
+                      />
+                      <Route
+                        path="/admin/users"
+                        element={<AdminUsers {...commonProps} />}
+                      />
+                      <Route
+                        path="/admin/users/:userId"
+                        element={<AdminUserDetail {...commonProps} />}
+                      />
+                      <Route
+                        path="/admin/writers"
+                        element={<AdminWriters {...commonProps} />}
+                      />
+                      <Route
+                        path="/admin/content"
+                        element={<AdminContent {...commonProps} />}
+                      />
+                      <Route
+                        path="/admin/content/:bookId"
+                        element={<AdminContentDetail {...commonProps} />}
+                      />
+                      <Route
+                        path="/admin/reports"
+                        element={<AdminReports {...commonProps} />}
+                      />
+                      <Route
+                        path="/admin/economy"
+                        element={<AdminEconomy {...commonProps} />}
+                      />
+                      <Route
+                        path="/admin/economy/transactions"
+                        element={<AdminTransactions {...commonProps} />}
+                      />
+                      <Route
+                        path="/admin/audit"
+                        element={<AdminAudit {...commonProps} />}
+                      />
+                      <Route
+                        path="/admin/settings"
+                        element={<AdminSettings {...commonProps} />}
+                      />
+                    </Route>
 
-                  <Route element={<RequireAuth allowedRoles={["admin"]} />}>
-                    <Route
-                      path="/admin"
-                      element={<AdminDashboard {...commonProps} />}
-                    />
-                    <Route
-                      path="/admin/users"
-                      element={<AdminUsers {...commonProps} />}
-                    />
-                    <Route
-                      path="/admin/users/:userId"
-                      element={<AdminUserDetail {...commonProps} />}
-                    />
-                    <Route
-                      path="/admin/writers"
-                      element={<AdminWriters {...commonProps} />}
-                    />
-                    <Route
-                      path="/admin/content"
-                      element={<AdminContent {...commonProps} />}
-                    />
-                    <Route
-                      path="/admin/content/:bookId"
-                      element={<AdminContentDetail {...commonProps} />}
-                    />
-                    <Route
-                      path="/admin/reports"
-                      element={<AdminReports {...commonProps} />}
-                    />
-                    <Route
-                      path="/admin/economy"
-                      element={<AdminEconomy {...commonProps} />}
-                    />
-                    <Route
-                      path="/admin/economy/transactions"
-                      element={<AdminTransactions {...commonProps} />}
-                    />
-                    <Route
-                      path="/admin/audit"
-                      element={<AdminAudit {...commonProps} />}
-                    />
-                    <Route
-                      path="/admin/settings"
-                      element={<AdminSettings {...commonProps} />}
-                    />
-                  </Route>
-
-                  <Route path="*" element={<NotFoundPage />} />
-                </Routes>
-              </Suspense>
+                    <Route path="*" element={<NotFoundPage />} />
+                  </Routes>
+                </Suspense>
+              )}
             </main>
 
             {!isWriterEnv && !isAdminEnv && (

@@ -10,6 +10,7 @@ vite.config.*.timestamp-*
 *-debug.log*
 logs/
 *.log
+backend/.writer-storage/
 .claude-replay.*
 .tmp-*
 

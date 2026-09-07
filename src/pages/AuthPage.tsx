@@ -42,13 +42,25 @@ export default function AuthPage({ navigate, onLogin }: CommonProps) {
     }
 
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
+    setTimeout(async () => {
       if (mode === "forgot") {
         setForgotSent(true);
+        setLoading(false);
       } else {
-        onLogin();
-        navigate("home");
+        try {
+          await onLogin({
+            email,
+            password,
+            name: mode === "register" ? name : undefined,
+          });
+          navigate("home");
+        } catch (caught) {
+          setError(
+            caught instanceof Error ? caught.message : "Unable to sign in.",
+          );
+        } finally {
+          setLoading(false);
+        }
       }
     }, 1200);
   };

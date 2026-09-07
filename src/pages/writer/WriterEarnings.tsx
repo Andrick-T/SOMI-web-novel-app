@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import {
   ArrowUpRight,
   CircleDollarSign,
@@ -7,15 +8,54 @@ import {
 } from "lucide-react";
 import type { CommonProps } from "../../types";
 import { writerRepository } from "../../features/writer";
+import {
+  apiWriterRepository,
+  useApiWriterContent,
+} from "../../services/repositories/writerRepository";
 import MiniBarChart from "../../components/MiniBarChart";
 
 export default function WriterEarnings({}: CommonProps) {
-  const earnings = writerRepository.getEarnings();
-  const transactions = [
+  const mockEarnings = writerRepository.getEarnings();
+  const [earnings, setEarnings] = useState({
+    grossEarnings: mockEarnings.grossEarnings,
+    pending: mockEarnings.pending,
+    available: mockEarnings.available,
+    netEarnings: mockEarnings.netEarnings,
+  });
+  const [transactions, setTransactions] = useState(() => [
     { label: "The Baobab Kingdom", amount: 620, type: "Chapter unlocks" },
     { label: "Echoes of Kongo", amount: 470, type: "Series release" },
     { label: "Grandmother's Fire", amount: 310, type: "Reader milestone" },
-  ];
+  ]);
+  const [loadError, setLoadError] = useState("");
+
+  useEffect(() => {
+    if (!useApiWriterContent) return;
+    Promise.all([
+      apiWriterRepository.getEarnings(),
+      apiWriterRepository.getEarningTransactions(),
+    ])
+      .then(([summary, result]) => {
+        setEarnings({
+          grossEarnings: summary.totalCoins,
+          pending: summary.pendingCoins,
+          available: summary.availableCoins,
+          netEarnings: summary.availableCoins,
+        });
+        setTransactions(
+          result.transactions.map((transaction) => ({
+            label: transaction.chapterId,
+            amount: transaction.coins,
+            type: transaction.status,
+          })),
+        );
+      })
+      .catch((caught) =>
+        setLoadError(
+          caught instanceof Error ? caught.message : "Unable to load earnings.",
+        ),
+      );
+  }, []);
 
   return (
     <div
@@ -37,26 +77,31 @@ export default function WriterEarnings({}: CommonProps) {
         </h1>
       </div>
 
+      {loadError && (
+        <p className="px-5 pb-4 text-sm" style={{ color: "#fb7185" }}>
+          {loadError}
+        </p>
+      )}
       <div className="px-5 mb-5 grid grid-cols-2 gap-3">
         {[
           {
             label: "Gross",
-            value: `$${earnings.grossEarnings.toLocaleString()}`,
+            value: `${earnings.grossEarnings.toLocaleString()} coins`,
             icon: <CircleDollarSign size={16} color="#4ade80" />,
           },
           {
             label: "Pending",
-            value: `$${earnings.pending.toLocaleString()}`,
+            value: `${earnings.pending.toLocaleString()} coins`,
             icon: <ReceiptText size={16} color="#e8a84c" />,
           },
           {
             label: "Available",
-            value: `$${earnings.available.toLocaleString()}`,
+            value: `${earnings.available.toLocaleString()} coins`,
             icon: <Wallet size={16} color="#60a5fa" />,
           },
           {
             label: "Net",
-            value: `$${earnings.netEarnings.toLocaleString()}`,
+            value: `${earnings.netEarnings.toLocaleString()} coins`,
             icon: <TrendingUp size={16} color="#fb7185" />,
           },
         ].map((item) => (
@@ -113,6 +158,11 @@ export default function WriterEarnings({}: CommonProps) {
           Recent payouts
         </h3>
         <div className="flex flex-col gap-3">
+          {transactions.length === 0 && (
+            <p className="text-sm" style={{ color: "#6a8060" }}>
+              No earnings transactions yet.
+            </p>
+          )}
           {transactions.map((item) => (
             <div
               key={item.label}

@@ -2,6 +2,10 @@ import { useState } from "react";
 import { ArrowLeft, ChevronDown, ImagePlus } from "lucide-react";
 import type { CommonProps } from "../../types";
 import { validateBook, writerRepository } from "../../features/writer";
+import {
+  apiWriterRepository,
+  useApiWriterContent,
+} from "../../services/repositories/writerRepository";
 
 const genres = [
   "Fantasy",
@@ -22,7 +26,7 @@ export default function WriterCreate({ navigate }: CommonProps) {
   const [errors, setErrors] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     if (submitting) return;
     setSubmitting(true);
     const validation = validateBook({
@@ -40,40 +44,70 @@ export default function WriterCreate({ navigate }: CommonProps) {
       return;
     }
 
-    const createdBook = writerRepository.createBook({
-      writerId: "writer-1",
-      title,
-      subtitle: "",
-      penName: "Kemi N. Osei",
-      synopsis,
-      genres: [genre],
-      tags: tags
-        .split(",")
-        .map((tag) => tag.trim())
-        .filter(Boolean),
-      status: "DRAFT",
-      cover:
-        "https://images.unsplash.com/photo-1516979187457-637abb4f9353?auto=format&fit=crop&w=600&q=80",
-      heroImage:
-        "https://images.unsplash.com/photo-1516979187457-637abb4f9353?auto=format&fit=crop&w=1200&q=80",
-      freeChapters: 1,
-      chapterPricing: 80,
-      isStandalone: true,
-      audience: "general",
-      contentWarnings: [],
-      publishingStrategy: "serial",
-      chapters: [],
-    });
+    try {
+      const createdBook = useApiWriterContent
+        ? await apiWriterRepository.createBook({
+            title,
+            synopsis,
+            genres: [genre],
+            tags: tags
+              .split(",")
+              .map((tag) => tag.trim())
+              .filter(Boolean),
+            status: "DRAFT",
+            cover:
+              "https://images.unsplash.com/photo-1516979187457-637abb4f9353?auto=format&fit=crop&w=600&q=80",
+            heroImage:
+              "https://images.unsplash.com/photo-1516979187457-637abb4f9353?auto=format&fit=crop&w=1200&q=80",
+          })
+        : writerRepository.createBook({
+            writerId: "writer-1",
+            title,
+            subtitle: "",
+            penName: "Kemi N. Osei",
+            synopsis,
+            genres: [genre],
+            tags: tags
+              .split(",")
+              .map((tag) => tag.trim())
+              .filter(Boolean),
+            status: "DRAFT",
+            cover:
+              "https://images.unsplash.com/photo-1516979187457-637abb4f9353?auto=format&fit=crop&w=600&q=80",
+            heroImage:
+              "https://images.unsplash.com/photo-1516979187457-637abb4f9353?auto=format&fit=crop&w=1200&q=80",
+            freeChapters: 1,
+            chapterPricing: 80,
+            isStandalone: true,
+            audience: "general",
+            contentWarnings: [],
+            publishingStrategy: "serial",
+            chapters: [],
+          });
 
-    const newChapter = writerRepository.createChapter(createdBook.id, {
-      title: `Chapter 1`,
-      content: "",
-      status: "DRAFT",
-      accessType: "FREE",
-    });
+      const newChapter = useApiWriterContent
+        ? await apiWriterRepository.createChapter(createdBook.id, {
+            title: "Chapter 1",
+            content: "Begin your chapter here.",
+            number: 1,
+            status: "DRAFT",
+            accessType: "FREE",
+          })
+        : writerRepository.createChapter(createdBook.id, {
+            title: "Chapter 1",
+            content: "",
+            status: "DRAFT",
+            accessType: "FREE",
+          });
 
-    setErrors([]);
-    navigate("writer-editor", createdBook.id, newChapter.id);
+      setErrors([]);
+      navigate("writer-editor", createdBook.id, newChapter.id);
+    } catch (caught) {
+      setErrors([
+        caught instanceof Error ? caught.message : "Unable to create book.",
+      ]);
+      setSubmitting(false);
+    }
   };
 
   return (

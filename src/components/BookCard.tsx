@@ -40,12 +40,14 @@ export default function BookCard({
         className="relative rounded-xl overflow-hidden book-shadow"
         style={{ width: dims.w, height: dims.h, background: "#1a1726" }}
       >
-        <img
-          src={book.cover}
-          alt={book.title}
-          className="absolute inset-0 w-full h-full object-cover"
-          loading="lazy"
-        />
+        {book.cover && (
+          <img
+            src={book.cover}
+            alt={book.title}
+            className="absolute inset-0 w-full h-full object-cover"
+            loading="lazy"
+          />
+        )}
         <div
           className="absolute inset-0"
           style={{

@@ -1,0 +1,1803 @@
+# SOMI — PHASE 7 MASTER COPILOT PROMPT
+
+## Backend Foundation, API Contracts & Frontend Integration
+
+You are working on the existing **SOMI** reading platform.
+
+This is **Phase 7: Backend & API Foundation**.
+
+Your job is to progressively transform the existing SOMI prototype/frontend into a real backend-backed application **without destroying, redesigning, or unnecessarily refactoring the existing frontend architecture**.
+
+---
+
+# 0. ABSOLUTE RULES
+
+These rules have priority over everything else.
+
+### DO NOT:
+
+* Do not redesign the existing SOMI UI.
+* Do not replace the current Reader UX.
+* Do not reintroduce page-turn/page-flip functionality.
+* Do not replace the current horizontal/continuous reading model.
+* Do not rewrite the existing frontend architecture simply because you prefer another pattern.
+* Do not delete working frontend features.
+* Do not replace React/Vite/Tailwind unless absolutely required.
+* Do not replace the existing routing system.
+* Do not remove the repository/service/domain boundaries already established.
+* Do not replace working mock repositories blindly.
+* Do not connect UI components directly to database code.
+* Do not put database queries inside React components.
+* Do not create a giant `server.js` containing the entire backend.
+* Do not hardcode production secrets.
+* Do not silently change business rules.
+* Do not invent API contracts that contradict the existing frontend domain models.
+* Do not implement fake "production-ready" integrations using hardcoded success responses.
+* Do not claim a feature is production-ready when only a mock implementation exists.
+
+### DO:
+
+* Inspect first.
+* Understand second.
+* Design contracts third.
+* Implement incrementally.
+* Test every layer.
+* Preserve existing frontend behavior.
+* Keep frontend → service → repository boundaries intact.
+* Replace mock repositories with API implementations behind the existing repository interfaces.
+* Make backend contracts explicit and typed.
+* Make business rules server-authoritative.
+* Keep the system extensible for real payment, storage, email and background-job integrations later.
+* Verify `npm run dev`, `npm run build`, and tests throughout the migration.
+
+---
+
+# 1. CURRENT STATE — IMPORTANT CONTEXT
+
+The SOMI frontend has already gone through several architectural phases.
+
+The frontend currently contains:
+
+* Route-based navigation
+* Authentication/role guard foundation
+* Reader feature architecture
+* Reading progress abstraction
+* Economy service/repository boundary
+* Writer domain/service/repository architecture
+* Admin domain/service/repository architecture
+* PWA infrastructure
+* Offline/read-later foundation
+* Metadata/SEO foundation
+* Error boundary
+* Loading architecture
+* Route-level code splitting
+* Mock repositories
+* Domain types and service-level tests
+
+The Reader has intentionally been changed from page-turn/page-flip to:
+
+**continuous reading + vertical reading + horizontal interaction where applicable + Continue Reading at chapter end**
+
+At the end of a chapter:
+
+**Continue Reading → loads the next chapter inside the same Reader experience.**
+
+Do NOT modify this Reader interaction during Phase 7.
+
+Page-turn/page-flip is a future feature and is explicitly OUT OF SCOPE.
+
+---
+
+# 2. FIRST TASK — AUDIT BEFORE CODING
+
+Before modifying anything, perform a complete architecture audit.
+
+Do NOT immediately create backend files.
+
+Inspect the repository and document:
+
+### Frontend
+
+* package.json
+* Vite configuration
+* TypeScript configuration
+* src/
+* routing
+* auth
+* guards
+* domain types
+* repositories
+* services
+* feature modules
+* Reader
+* Writer
+* Admin
+* Wallet
+* Library
+* Book details
+* Discovery
+* PWA
+* offline services
+* metadata
+* error handling
+* loading states
+* environment configuration
+
+### Existing domain boundaries
+
+Find and understand:
+
+* Book
+* Chapter
+* User
+* LibraryItem
+* Wallet
+* Transaction
+* ReadingProgress
+* Entitlement
+* Writer
+* WriterBook
+* WriterChapter
+* WriterEarnings
+* AdminUser
+* AdminBook
+* AdminReport
+* AdminTransaction
+* AuditEvent
+* PlatformSettings
+
+Also identify any additional domain types already present.
+
+### Existing repositories
+
+Inspect all repository interfaces and mock implementations.
+
+Especially:
+
+* book repository
+* chapter repository
+* library repository
+* wallet repository
+* reading progress service/repository
+* writer repository
+* admin repository
+* authentication/session logic
+
+Determine:
+
+1. What data each repository expects.
+2. What methods already exist.
+3. What methods are missing.
+4. What the frontend already assumes.
+5. Which mock behaviors must eventually become API calls.
+
+### Existing business rules
+
+Identify and document existing rules for:
+
+* coin pricing
+* chapter pricing
+* chapter unlocking
+* free chapters
+* purchased chapters
+* wallet balance
+* transactions
+* writer earnings
+* publishing states
+* moderation
+* user roles
+* permissions
+* reading progress
+* library membership
+* favorites
+
+Do not invent replacement rules unless necessary.
+
+---
+
+# 3. PRODUCE AN ARCHITECTURE GAP REPORT FIRST
+
+Before implementation, produce a concise internal report containing:
+
+## A. Existing architecture
+
+Example:
+
+Frontend
+↓
+Feature services
+↓
+Repositories
+↓
+Mock data
+
+## B. Target architecture
+
+Frontend
+↓
+Feature services
+↓
+Repository interfaces
+↓
+API repositories
+↓
+HTTP API
+↓
+Controllers
+↓
+Application services
+↓
+Repositories
+↓
+Database
+
+## C. Missing backend components
+
+List exactly what must be created.
+
+## D. Frontend contract mismatches
+
+Identify where the existing frontend domain contracts need DTO mapping rather than changing the UI.
+
+## E. Risks
+
+Identify:
+
+* authentication risks
+* payment/economy risks
+* authorization risks
+* concurrency risks
+* data consistency risks
+* content access risks
+* file-storage risks
+* offline-sync risks
+
+Only after this audit should implementation begin.
+
+---
+
+# 4. BACKEND TECHNOLOGY
+
+Use the existing project's ecosystem where practical.
+
+Preferred backend stack:
+
+* Node.js
+* TypeScript
+* Express.js
+* PostgreSQL
+* Prisma ORM
+* Zod
+* JWT or secure session-based authentication
+* bcrypt/argon2 for password hashing
+* Redis for caching/rate limiting/background coordination where appropriate
+* Vitest for unit/integration testing
+
+If the repository already contains a backend technology decision that conflicts with this, DO NOT blindly replace it.
+
+First determine whether migration is justified.
+
+If an existing backend is present, preserve it and adapt it rather than rebuilding unnecessarily.
+
+---
+
+# 5. TARGET BACKEND STRUCTURE
+
+Create a clean backend architecture similar to:
+
+backend/
+src/
+app/
+app.ts
+routes.ts
+
+```
+config/
+  env.ts
+  database.ts
+  redis.ts
+
+common/
+  errors/
+  middleware/
+  validation/
+  logging/
+  types/
+
+modules/
+  auth/
+    auth.controller.ts
+    auth.service.ts
+    auth.repository.ts
+    auth.routes.ts
+    auth.schema.ts
+    auth.types.ts
+
+  users/
+    user.controller.ts
+    user.service.ts
+    user.repository.ts
+    user.routes.ts
+    user.schema.ts
+    user.types.ts
+
+  books/
+  chapters/
+  library/
+  reading/
+  wallet/
+  economy/
+  entitlements/
+  writers/
+  publishing/
+  moderation/
+  reports/
+  admin/
+  audit/
+  notifications/
+
+infrastructure/
+  database/
+  cache/
+  storage/
+  email/
+  payments/
+
+tests/
+```
+
+Do not create empty folders merely for appearance.
+
+Every module should have a clear responsibility.
+
+---
+
+# 6. DATABASE DESIGN
+
+Design the relational database around the actual SOMI domain.
+
+At minimum consider:
+
+### Users
+
+* id
+* email
+* username
+* passwordHash
+* role
+* status
+* createdAt
+* updatedAt
+* lastLoginAt
+
+### User profiles
+
+* userId
+* displayName
+* avatar
+* bio
+* preferences
+
+### Books
+
+* id
+* authorId
+* title
+* slug
+* synopsis
+* cover
+* heroImage
+* status
+* rating
+* views
+* favorites
+* totalChapters
+* createdAt
+* updatedAt
+* publishedAt
+
+### Chapters
+
+* id
+* bookId
+* number
+* title
+* content
+* wordCount
+* readingTime
+* accessType
+* price
+* status
+* publishedAt
+* createdAt
+* updatedAt
+
+### Genres
+
+### Tags
+
+### BookGenres
+
+### BookTags
+
+### Libraries
+
+* userId
+* bookId
+* status
+* progress
+* lastReadAt
+* createdAt
+* updatedAt
+
+### ReadingProgress
+
+* userId
+* bookId
+* chapterId
+* progressPercentage
+* lastReadAt
+
+### Wallets
+
+* userId
+* balance
+* currency
+* updatedAt
+
+### WalletTransactions
+
+* id
+* userId
+* type
+* amount
+* coins
+* status
+* reference
+* metadata
+* createdAt
+
+### ChapterEntitlements
+
+* id
+* userId
+* bookId
+* chapterId
+* transactionId
+* grantedAt
+
+### Writer profiles
+
+### Writer books
+
+Use the canonical Book entity where appropriate rather than duplicating books unnecessarily.
+
+### Drafts
+
+### Publishing submissions
+
+### Writer earnings
+
+### Reports
+
+### Audit events
+
+### Platform settings
+
+Use proper foreign keys, indexes, uniqueness constraints and timestamps.
+
+Do not normalize blindly.
+
+Do not duplicate the same business entity merely because it appears in different frontend screens.
+
+---
+
+# 7. DATABASE REQUIREMENTS
+
+Implement:
+
+* migrations
+* seed data
+* development seed users
+* development seed books
+* development chapters
+* development wallet
+* development transactions
+* development writer data
+* development admin data
+
+Seed enough data for the existing frontend screens to render meaningfully.
+
+Do not use random meaningless lorem ipsum data.
+
+Create realistic SOMI development content.
+
+---
+
+# 8. API CONTRACT FIRST
+
+The backend must expose explicit REST API contracts.
+
+Base:
+
+`/api/v1`
+
+Example:
+
+### Authentication
+
+POST `/api/v1/auth/register`
+
+POST `/api/v1/auth/login`
+
+POST `/api/v1/auth/logout`
+
+POST `/api/v1/auth/refresh`
+
+GET `/api/v1/auth/me`
+
+POST `/api/v1/auth/forgot-password`
+
+POST `/api/v1/auth/reset-password`
+
+---
+
+# 9. BOOK API
+
+Implement endpoints such as:
+
+GET `/api/v1/books`
+
+GET `/api/v1/books/:bookId`
+
+GET `/api/v1/books/slug/:slug`
+
+GET `/api/v1/books/:bookId/chapters`
+
+GET `/api/v1/books/:bookId/chapters/:chapterId`
+
+GET `/api/v1/discover`
+
+Support:
+
+* pagination
+* sorting
+* genre filtering
+* search
+* status filtering where appropriate
+
+Never return unrestricted unpublished content.
+
+---
+
+# 10. READER API
+
+The Reader is now continuous-reading based.
+
+Backend responsibilities:
+
+### Fetch chapter
+
+GET `/api/v1/reading/books/:bookId/chapters/:chapterId`
+
+Before returning protected content, check:
+
+* user authentication
+* chapter publication status
+* chapter access type
+* entitlement
+* wallet/economy rules where necessary
+
+### Reading progress
+
+GET `/api/v1/reading/progress/:bookId`
+
+PUT `/api/v1/reading/progress`
+
+Request should support:
+
+* bookId
+* chapterId
+* progressPercentage
+
+### Continue reading
+
+GET `/api/v1/reading/continue`
+
+Return:
+
+* book
+* chapter
+* progress
+* lastReadAt
+
+The frontend should be able to directly replace the mock reading-progress implementation with this API repository.
+
+---
+
+# 11. LIBRARY API
+
+Implement:
+
+GET `/api/v1/library`
+
+POST `/api/v1/library/:bookId`
+
+DELETE `/api/v1/library/:bookId`
+
+PATCH `/api/v1/library/:bookId`
+
+Support:
+
+* reading status
+* progress
+* last-read timestamp
+* favorites if represented by the current frontend domain
+
+---
+
+# 12. ECONOMY API
+
+This is a HIGH-RISK domain.
+
+The server must be authoritative.
+
+Never trust the client for:
+
+* wallet balance
+* coin balance
+* chapter price
+* entitlement ownership
+* transaction status
+* writer earnings
+
+Implement:
+
+GET `/api/v1/wallet`
+
+GET `/api/v1/wallet/transactions`
+
+GET `/api/v1/economy/packages`
+
+POST `/api/v1/economy/purchases`
+
+GET `/api/v1/economy/entitlements`
+
+POST `/api/v1/chapters/:chapterId/unlock`
+
+The unlock operation must be transactional:
+
+1. Authenticate user.
+2. Load chapter.
+3. Determine authoritative price.
+4. Check whether chapter is already free/unlocked.
+5. Check wallet balance.
+6. Deduct coins atomically.
+7. Create transaction.
+8. Create entitlement.
+9. Commit transaction.
+10. Return entitlement state.
+
+If any step fails, rollback.
+
+Prevent double spending and duplicate unlocks.
+
+Use idempotency where appropriate.
+
+---
+
+# 13. PAYMENT ARCHITECTURE
+
+Do NOT implement fake payment success.
+
+Create a payment abstraction:
+
+PaymentProvider
+
+* createPayment
+* verifyPayment
+* handleWebhook
+* refundPayment
+
+Initially provide a development/mock provider only where necessary.
+
+Keep the architecture ready for real providers later.
+
+Never mark a wallet purchase successful merely because the frontend says payment succeeded.
+
+---
+
+# 14. WRITER API
+
+Implement backend support for:
+
+### Writer dashboard
+
+GET `/api/v1/writer/dashboard`
+
+### Books
+
+GET `/api/v1/writer/books`
+
+POST `/api/v1/writer/books`
+
+GET `/api/v1/writer/books/:bookId`
+
+PATCH `/api/v1/writer/books/:bookId`
+
+### Chapters
+
+POST `/api/v1/writer/books/:bookId/chapters`
+
+GET `/api/v1/writer/books/:bookId/chapters`
+
+GET `/api/v1/writer/books/:bookId/chapters/:chapterId`
+
+PATCH `/api/v1/writer/books/:bookId/chapters/:chapterId`
+
+### Drafts/autosave
+
+PATCH `/api/v1/writer/books/:bookId/chapters/:chapterId/draft`
+
+### Publishing
+
+POST `/api/v1/writer/books/:bookId/submit`
+
+POST `/api/v1/writer/books/:bookId/chapters/:chapterId/submit`
+
+GET `/api/v1/writer/submissions`
+
+### Earnings
+
+GET `/api/v1/writer/earnings`
+
+Enforce writer ownership server-side.
+
+A writer must never be able to edit another writer's book by changing an ID in the URL.
+
+---
+
+# 15. ADMIN API
+
+Implement backend authorization for the existing Admin architecture.
+
+Examples:
+
+GET `/api/v1/admin/dashboard`
+
+GET `/api/v1/admin/users`
+
+GET `/api/v1/admin/users/:userId`
+
+PATCH `/api/v1/admin/users/:userId`
+
+POST `/api/v1/admin/users/:userId/suspend`
+
+POST `/api/v1/admin/users/:userId/reactivate`
+
+GET `/api/v1/admin/writers`
+
+GET `/api/v1/admin/content`
+
+POST `/api/v1/admin/content/:contentId/approve`
+
+POST `/api/v1/admin/content/:contentId/reject`
+
+POST `/api/v1/admin/content/:contentId/unpublish`
+
+GET `/api/v1/admin/reports`
+
+POST `/api/v1/admin/reports/:reportId/resolve`
+
+GET `/api/v1/admin/economy`
+
+GET `/api/v1/admin/economy/transactions`
+
+GET `/api/v1/admin/audit`
+
+GET `/api/v1/admin/settings`
+
+PATCH `/api/v1/admin/settings`
+
+Every operation must enforce server-side permissions.
+
+Frontend permission checks are UX only.
+
+They are NOT security.
+
+---
+
+# 16. AUTHENTICATION
+
+Implement a secure authentication architecture.
+
+Requirements:
+
+* password hashing
+* access token/session
+* refresh mechanism
+* logout
+* expiration
+* role
+* permissions
+* account status
+* protected routes
+* ownership checks
+* server-side authorization
+
+Do not store sensitive secrets in source code.
+
+Use environment variables.
+
+Do not log passwords or tokens.
+
+Do not expose password hashes through API responses.
+
+---
+
+# 17. AUTHORIZATION
+
+Centralize authorization.
+
+Use middleware/service functions such as:
+
+requireAuth()
+
+requireRole()
+
+requirePermission()
+
+requireOwnership()
+
+Example:
+
+requirePermission("CONTENT_APPROVE")
+
+Do not duplicate authorization logic inside every controller.
+
+The backend permission model must correspond to the existing frontend permissions where possible.
+
+---
+
+# 18. VALIDATION
+
+Use Zod or equivalent schema validation.
+
+Every mutation endpoint must validate:
+
+* body
+* params
+* query parameters
+
+Reject malformed requests with consistent errors.
+
+Never trust frontend TypeScript types as runtime validation.
+
+---
+
+# 19. ERROR ARCHITECTURE
+
+Implement standardized API errors.
+
+Example response:
+
+{
+"success": false,
+"error": {
+"code": "CHAPTER_NOT_UNLOCKED",
+"message": "This chapter requires an unlock."
+}
+}
+
+Use appropriate HTTP status codes.
+
+Do not expose stack traces in production.
+
+---
+
+# 20. API RESPONSE FORMAT
+
+Establish a consistent response structure.
+
+For example:
+
+Success:
+
+{
+"success": true,
+"data": {}
+}
+
+Paginated:
+
+{
+"success": true,
+"data": [],
+"pagination": {
+"page": 1,
+"limit": 20,
+"total": 100,
+"totalPages": 5
+}
+}
+
+Errors:
+
+{
+"success": false,
+"error": {
+"code": "VALIDATION_ERROR",
+"message": "...",
+"details": []
+}
+}
+
+Keep this consistent throughout the API.
+
+---
+
+# 21. FRONTEND INTEGRATION STRATEGY
+
+Do NOT rewrite pages to call `fetch()` directly.
+
+Maintain:
+
+UI
+↓
+Feature service
+↓
+Repository interface
+↓
+API repository
+↓
+HTTP client
+
+For example:
+
+ReaderPage
+↓
+readingProgressService
+↓
+readingProgressRepository
+↓
+API
+
+Writer UI
+↓
+writerService
+↓
+writerRepository
+↓
+API
+
+Admin UI
+↓
+adminService
+↓
+adminRepository
+↓
+API
+
+This is extremely important.
+
+The frontend should not become coupled to Express.
+
+---
+
+# 22. HTTP CLIENT
+
+Create one centralized frontend HTTP client.
+
+It should handle:
+
+* base URL
+* authentication
+* JSON
+* timeout
+* errors
+* token/session handling
+* 401 behavior
+* retries only where safe
+
+Do not scatter fetch/axios configuration throughout the app.
+
+Use environment configuration such as:
+
+VITE_API_BASE_URL
+
+The existing mock repository should remain available for development if useful.
+
+---
+
+# 23. MOCK/API IMPLEMENTATION STRATEGY
+
+Do not delete the mock repositories immediately.
+
+Implement:
+
+MockBookRepository
+
+ApiBookRepository
+
+MockChapterRepository
+
+ApiChapterRepository
+
+MockLibraryRepository
+
+ApiLibraryRepository
+
+etc.
+
+Use a configuration switch to select implementation.
+
+This allows:
+
+Development:
+
+UI → service → mock repository
+
+Integration:
+
+UI → service → API repository
+
+Production:
+
+UI → service → API repository
+
+The UI should not care which implementation is active.
+
+---
+
+# 24. OFFLINE/READ-LATER COMPATIBILITY
+
+Do not redesign the existing offline architecture.
+
+The backend should provide the APIs required by the existing offline/read-later foundation.
+
+Support eventual synchronization of:
+
+* reading progress
+* library membership
+* last-read state
+
+Offline data must never overwrite newer server state blindly.
+
+Prepare for conflict resolution using timestamps/version numbers where appropriate.
+
+---
+
+# 25. SECURITY HARDENING
+
+Implement at minimum:
+
+* Helmet/security headers
+* CORS configuration
+* rate limiting
+* request body limits
+* input validation
+* password hashing
+* secure cookies/tokens where applicable
+* authorization middleware
+* ownership checks
+* SQL injection protection through ORM
+* audit logging for sensitive operations
+
+Never trust:
+
+* user IDs from the frontend
+* role values from the frontend
+* wallet balances from the frontend
+* prices from the frontend
+* permissions from the frontend
+
+---
+
+# 26. LOGGING
+
+Create structured backend logging.
+
+Log:
+
+* request metadata
+* errors
+* authentication events where appropriate
+* administrative operations
+* economy operations
+* moderation operations
+
+Do NOT log:
+
+* passwords
+* access tokens
+* refresh tokens
+* sensitive payment information
+
+---
+
+# 27. TESTING STRATEGY
+
+Implement tests progressively.
+
+### Unit tests
+
+Test:
+
+* auth logic
+* permission logic
+* book validation
+* chapter validation
+* wallet rules
+* unlock rules
+* transaction rules
+* writer ownership
+* publishing rules
+* moderation rules
+
+### Integration tests
+
+Test:
+
+* registration
+* login
+* protected routes
+* book retrieval
+* chapter access
+* wallet
+* chapter unlock
+* reading progress
+* writer workflows
+* admin workflows
+
+### Economy tests must explicitly cover:
+
+* insufficient balance
+* duplicate unlock
+* already unlocked chapter
+* concurrent unlock attempts
+* failed transaction
+* rollback
+* invalid chapter
+* unpublished chapter
+
+---
+
+# 28. API DOCUMENTATION
+
+Create API documentation.
+
+Prefer OpenAPI/Swagger.
+
+Document:
+
+* endpoint
+* method
+* authentication
+* parameters
+* request body
+* response
+* errors
+* permissions
+
+The API contract must be understandable by another engineer without reading the implementation.
+
+---
+
+# 29. ENVIRONMENT MANAGEMENT
+
+Create:
+
+`.env.example`
+
+Include only variable names/placeholders.
+
+For example:
+
+NODE_ENV=
+PORT=
+DATABASE_URL=
+REDIS_URL=
+JWT_SECRET=
+JWT_REFRESH_SECRET=
+CORS_ORIGIN=
+STORAGE_PROVIDER=
+EMAIL_PROVIDER=
+PAYMENT_PROVIDER=
+
+Never commit actual secrets.
+
+Create separate development/production configuration behavior.
+
+Validate required environment variables during startup.
+
+Fail fast when required production configuration is missing.
+
+---
+
+# 30. DEV EXPERIENCE
+
+This is a mandatory acceptance requirement.
+
+The frontend MUST continue to render correctly with:
+
+`npm run dev`
+
+The backend should have a clear development command.
+
+Ideally:
+
+`npm run dev`
+
+for the full development environment, or clearly documented frontend/backend commands if the repository structure requires separate processes.
+
+Do not consider the phase complete if:
+
+* the frontend compiles but renders a blank screen
+* routes fail under dev server
+* API requests point to incorrect ports
+* CORS prevents normal development
+* environment configuration breaks Vite
+* PWA assets break the dev runtime
+* browser console contains avoidable runtime errors
+
+---
+
+# 31. FRONTEND DEV VERIFICATION
+
+After backend integration, actually verify the application in a browser.
+
+At minimum test:
+
+### Public
+
+* Home
+* Discover
+* Book detail
+
+### Reader
+
+* open book
+* open chapter
+* read chapter
+* Continue Reading
+* next chapter
+* progress persistence
+* locked chapter
+* unlocked chapter
+
+### User
+
+* Library
+* Wallet
+* Transactions
+
+### Writer
+
+* Dashboard
+* Books
+* Create book
+* Chapter editor
+* Autosave
+* Publish/submit
+* Earnings
+
+### Admin
+
+* Dashboard
+* Users
+* Writers
+* Content
+* Reports
+* Economy
+* Transactions
+* Audit
+* Settings
+
+Do not redesign these screens.
+
+Only fix integration/runtime problems discovered during backend connection.
+
+---
+
+# 32. MIGRATION STRATEGY
+
+Do NOT attempt to convert every mock repository at once.
+
+Use this order:
+
+### Phase 7A
+
+Backend foundation
+
+* project structure
+* database
+* Prisma
+* environment
+* errors
+* validation
+* logging
+* health endpoint
+
+### Phase 7B
+
+Authentication
+
+* users
+* registration
+* login
+* session
+* authorization
+
+### Phase 7C
+
+Content
+
+* books
+* chapters
+* genres
+* tags
+* discovery
+
+### Phase 7D
+
+Reader
+
+* chapter access
+* reading progress
+* continue reading
+* library
+
+### Phase 7E
+
+Economy
+
+* wallet
+* transactions
+* coin packages
+* entitlements
+* chapter unlocking
+
+### Phase 7F
+
+Writer
+
+* books
+* chapters
+* drafts
+* autosave
+* submissions
+* earnings
+
+### Phase 7G
+
+Admin
+
+* users
+* writers
+* moderation
+* reports
+* economy
+* audit
+* settings
+
+### Phase 7H
+
+Infrastructure hardening
+
+* Redis
+* rate limiting
+* caching
+* background jobs where needed
+* email abstraction
+* storage abstraction
+* payment abstraction
+* observability
+
+Do not jump ahead unless the previous layer is stable.
+
+---
+
+# 33. HEALTH ENDPOINT
+
+Create:
+
+GET `/api/v1/health`
+
+Return something like:
+
+{
+"success": true,
+"data": {
+"status": "ok",
+"database": "connected"
+}
+}
+
+The health endpoint must actually verify the database connection.
+
+Do not return `"connected"` if the database is unavailable.
+
+---
+
+# 34. DATABASE TRANSACTIONS
+
+Use real database transactions for operations where multiple records must remain consistent.
+
+Especially:
+
+* wallet purchases
+* chapter unlocking
+* writer earnings
+* refunds
+* moderation operations requiring multiple writes
+
+Ensure idempotency where duplicate requests could cause financial/data corruption.
+
+---
+
+# 35. CONTENT SECURITY
+
+Chapter content is user-generated content.
+
+Do not blindly render arbitrary HTML.
+
+Prefer storing canonical content in a safe format.
+
+If HTML/Markdown is supported, sanitize it server-side and/or use a controlled renderer.
+
+Do not introduce XSS vulnerabilities.
+
+---
+
+# 36. PERFORMANCE
+
+Prepare the backend for scale.
+
+Implement appropriate:
+
+* indexes
+* pagination
+* selective queries
+* relation loading
+* caching where justified
+* database connection management
+
+Do not prematurely add complex microservices.
+
+SOMI should remain a modular monolith for now.
+
+---
+
+# 37. ARCHITECTURAL DECISION
+
+SOMI should initially be implemented as a:
+
+**Modular Monolith**
+
+Not:
+
+* microservices
+* distributed event architecture
+* dozens of independent servers
+
+Keep domain boundaries strong inside one deployable backend.
+
+This gives SOMI:
+
+* simpler deployment
+* easier development
+* clear module boundaries
+* future extraction potential
+
+---
+
+# 38. FRONTEND CONTRACT PRESERVATION
+
+When backend DTOs differ from frontend models, use mapper functions.
+
+Example:
+
+API DTO
+↓
+Book DTO mapper
+↓
+Frontend Book domain model
+
+Do NOT modify the frontend everywhere simply because database field names differ.
+
+Prefer:
+
+`mapBookDtoToDomain()`
+
+over changing dozens of components.
+
+---
+
+# 39. ACCEPTANCE CRITERIA
+
+Phase 7 is NOT complete merely because the backend builds.
+
+It is complete only when:
+
+### Architecture
+
+* backend has clear module boundaries
+* services contain business logic
+* repositories contain persistence logic
+* controllers remain thin
+* frontend repository boundary remains intact
+
+### Database
+
+* migrations work
+* seed works
+* relationships are correct
+* indexes exist where needed
+
+### Auth
+
+* registration works
+* login works
+* logout works
+* protected routes work
+* roles work
+* permissions work
+* ownership checks work
+
+### Content
+
+* books load from API
+* chapters load from API
+* unpublished content is protected
+
+### Reader
+
+* chapter loading works
+* Continue Reading works
+* progress persists
+* library persists
+
+### Economy
+
+* wallet loads from backend
+* transactions persist
+* chapter unlocking is atomic
+* entitlements persist
+* duplicate purchases are prevented
+
+### Writer
+
+* writer can create/edit own content
+* autosave persists
+* publishing workflow persists
+* writer cannot modify another writer's content
+* earnings are backend-derived
+
+### Admin
+
+* permissions enforced server-side
+* moderation persists
+* user lifecycle actions persist
+* transactions are queryable
+* audit events persist
+
+### Infrastructure
+
+* environment validation works
+* errors are standardized
+* validation exists
+* rate limiting exists
+* CORS works
+* logging works
+* API documentation exists
+
+### Frontend
+
+* `npm run dev` works
+* browser renders correctly
+* production build works
+* existing routes remain functional
+* existing visual design remains intact
+* Reader remains continuous-reading based
+* no page-turn implementation is reintroduced
+
+### Testing
+
+All tests pass.
+
+---
+
+# 40. REQUIRED VERIFICATION AFTER EVERY SUB-PHASE
+
+After each sub-phase run the relevant tests.
+
+At minimum:
+
+`npx vitest run`
+
+and:
+
+`npm run build`
+
+When backend commands exist, also run:
+
+* backend tests
+* database migration validation
+* type checking
+* API integration tests
+
+For runtime work, actually start the development environment and verify it in the browser.
+
+---
+
+# 41. GIT/CHANGE SAFETY
+
+Before major changes:
+
+* inspect git status
+* inspect existing diffs
+* do not overwrite unrelated work
+* keep changes focused
+* do not delete files unless obsolete and verified
+
+After each sub-phase report:
+
+### Changed
+
+exact files/modules changed.
+
+### Added
+
+new files/modules.
+
+### Removed
+
+anything removed and why.
+
+### Tests
+
+exact command + result.
+
+### Build
+
+exact command + result.
+
+### Runtime
+
+actual dev/browser verification.
+
+### Remaining
+
+what is intentionally not implemented yet.
+
+---
+
+# 42. MOST IMPORTANT IMPLEMENTATION PRINCIPLE
+
+Treat the existing SOMI frontend as a **consumer of stable domain contracts**.
+
+The backend should adapt to those contracts.
+
+Do not make the frontend conform to arbitrary backend implementation details.
+
+The target is:
+
+Frontend
+↓
+Domain services
+↓
+Repository interfaces
+↓
+API repositories
+↓
+REST API
+↓
+Application services
+↓
+Domain rules
+↓
+Persistence repositories
+↓
+PostgreSQL
+
+Business rules belong on the backend.
+
+UI behavior belongs on the frontend.
+
+Persistence belongs in repositories.
+
+HTTP transport belongs in API clients/controllers.
+
+Authorization belongs on the server.
+
+---
+
+# 43. START NOW
+
+Begin with:
+
+## STEP 1
+
+Audit the entire existing SOMI repository.
+
+## STEP 2
+
+Map the existing frontend domain contracts.
+
+## STEP 3
+
+Map every existing mock repository.
+
+## STEP 4
+
+Identify exactly what the backend must provide.
+
+## STEP 5
+
+Produce the architecture/gap report.
+
+## STEP 6
+
+Implement Phase 7A only:
+
+* backend project structure
+* Express application
+* environment validation
+* PostgreSQL connection
+* Prisma
+* initial schema
+* migration system
+* seed system
+* health endpoint
+* standardized errors
+* validation foundation
+* logging foundation
+* CORS
+* security middleware
+* backend tests
+
+## STEP 7
+
+Run all relevant tests.
+
+## STEP 8
+
+Run frontend build.
+
+## STEP 9
+
+Run the frontend dev server.
+
+## STEP 10
+
+Verify the existing SOMI UI still renders correctly in the browser.
+
+ONLY AFTER PHASE 7A IS VERIFIED should you proceed to Phase 7B.
+
+Do not implement all of Phase 7 in one uncontrolled operation.
+
+Work incrementally.
+
+At the end of each sub-phase, report the exact implementation status and wait for the next phase instruction.
+
+---
+
+# FINAL INSTRUCTION
+
+You are not being asked to make SOMI merely "look like a full-stack application."
+
+You are building the actual backend foundation that the existing SOMI frontend can eventually depend on.
+
+Prioritize:
+
+**correctness > security > architecture > data integrity > testability > performance > convenience.**
+
+Preserve the existing product.
+
+Do not redesign it.
+
+Do not reintroduce page-turning.
+
+Do not destroy working infrastructure.
+
+Build the backend underneath the product that already exists.

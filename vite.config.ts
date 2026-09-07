@@ -20,6 +20,13 @@ export default defineConfig({
     host: "0.0.0.0",
     port: parseInt(process.env.PORT || "5173", 10),
     strictPort: false,
+    proxy: {
+      "/api": {
+        target: "http://localhost:4000",
+        changeOrigin: true,
+        secure: false,
+      },
+    },
     hmr: {
       host: "localhost",
     },
