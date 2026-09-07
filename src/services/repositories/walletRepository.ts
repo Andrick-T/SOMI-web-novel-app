@@ -1,81 +1,415 @@
-import { appConfig } from "../../config/env";
+import type { WriterBook, WriterChapter } from "../../features/writer/types";
 import { apiAuthRepository } from "./authRepository";
 
-export type WalletState = { id?: string; balance: number; currency: string };
-
-export type WalletTransaction = {
+type ApiBook = {
   id: string;
-  type: string;
-  amount: number;
-  coins: number;
-  status: string;
-  reference?: string | null;
+  authorId: string;
+  title: string;
+  synopsis?: string | null;
+  cover?: string | null;
+  heroImage?: string | null;
+  status?: string;
   createdAt: string;
+  updatedAt: string;
+  contentVersion?: number;
+  chapters?: ApiChapter[];
+  genres?: string[];
+  tags?: string[];
 };
 
-const mockWalletRepository = {
-  getWallet: () => ({ balance: 250, currency: "Somi Coins" }),
-  getTransactions: () => [
-    {
-      id: "txn-001",
-      type: "credit",
-      amount: 100,
-      coins: 100,
-      status: "completed",
-      createdAt: "Today",
-    },
-    {
-      id: "txn-002",
-      type: "unlock",
-      amount: -80,
-      coins: 80,
-      status: "completed",
-      createdAt: "Yesterday",
-    },
-    {
-      id: "txn-003",
-      type: "credit",
-      amount: 50,
-      coins: 50,
-      status: "pending",
-      createdAt: "2 days ago",
-    },
-  ],
+type ApiChapter = {
+  id: string;
+  bookId: string;
+  number: number;
+  title: string;
+  content?: string;
+  status?: string;
+  accessType?: string;
+  price?: number;
+  wordCount?: number;
+  readingTime?: number;
+  publishedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  contentVersion?: number;
 };
 
-const apiWalletRepository = {
-  async getWallet(): Promise<WalletState> {
-    const response = await apiAuthRepository.authorizedRequest<{
-      wallet: WalletState;
-    }>("/api/v1/wallet");
-    return response.wallet;
-  },
-  async getTransactions(): Promise<WalletTransaction[]> {
-    const response = await apiAuthRepository.authorizedRequest<{
-      transactions: WalletTransaction[];
-    }>("/api/v1/wallet/transactions");
-    return response.transactions;
-  },
-  async getEntitlement(bookId: string, chapterId: string) {
-    return apiAuthRepository.authorizedRequest<{
-      entitled: boolean;
-      access: string;
-    }>(`/api/v1/books/${bookId}/chapters/${chapterId}/entitlement`);
-  },
-  async unlock(bookId: string, chapterId: string) {
-    return apiAuthRepository.authorizedRequest<{
-      entitled: boolean;
-      alreadyUnlocked: boolean;
-      balance: number;
-    }>(`/api/v1/books/${bookId}/chapters/${chapterId}/unlock`, {
-      method: "POST",
-      body: JSON.stringify({}),
+type BookAnalytics = {
+  bookId: string;
+  views: number;
+  readers: number;
+  unlocks: number;
+};
+
+const status = (value?: string) =>
+  (value?.toUpperCase() ?? "DRAFT") as WriterBook["status"];
+
+const chapterStatus = (value?: string) =>
+  (value?.toUpperCase() ?? "DRAFT") as WriterChapter["status"];
+
+const normalizeChapter = (chapter: ApiChapter): WriterChapter => ({
+  id: chapter.id,
+  bookId: chapter.bookId,
+  number: chapter.number,
+  title: chapter.title,
+  content: chapter.content ?? "",
+  status: chapterStatus(chapter.status),
+  accessType:
+    (chapter.accessType?.toUpperCase() as WriterChapter["accessType"]) ??
+    "FREE",
+  price: chapter.price ?? 0,
+  wordCount: chapter.wordCount ?? 0,
+  readingTime: chapter.readingTime ?? 0,
+  publishedAt: chapter.publishedAt ?? undefined,
+  createdAt: chapter.createdAt,
+  updatedAt: chapter.updatedAt,
+  contentVersion: chapter.contentVersion ?? 0,
+});
+
+const normalizeBook = (book: ApiBook): WriterBook => ({
+  id: book.id,
+  writerId: book.authorId,
+  title: book.title,
+  subtitle: "",
+  penName: "",
+  synopsis: book.synopsis ?? "",
+  genres: book.genres ?? [],
+  tags: book.tags ?? [],
+  status: status(book.status),
+  audience: "general",
+  contentWarnings: [],
+  publishingStrategy: "serial",
+  cover: book.cover ?? "",
+  heroImage: book.heroImage ?? book.cover ?? "",
+  freeChapters: 0,
+  chapterPricing: 0,
+  isStandalone: true,
+  createdAt: book.createdAt,
+  updatedAt: book.updatedAt,
+  chapters: (book.chapters ?? []).map(normalizeChapter),
+});
+
+class ApiWriterRepository {
+  private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
+    return apiAuthRepository.authorizedRequest<T>(path, {
+      ...init,
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        ...init.headers,
+      },
     });
-  },
-};
+  }
 
-export const useApiEconomy = appConfig.useApiEconomy;
-export const walletRepository = useApiEconomy
-  ? apiWalletRepository
-  : mockWalletRepository;
-export { apiWalletRepository, mockWalletRepository };
+  async getWriterBooks() {
+    const result = await this.request<{ books: ApiBook[] }>(
+      "/api/v1/writer/books",
+    );
+
+    return (result.books ?? []).map(normalizeBook);
+  }
+
+  async getBookAnalytics() {
+    return this.request<{ analytics: BookAnalytics[] }>(
+      "/api/v1/writer/books/analytics",
+    );
+  }
+
+  async getBook(bookId: string) {
+    const result = await this.request<{ book: ApiBook }>(
+      `/api/v1/books/${encodeURIComponent(bookId)}`,
+    );
+
+    return result.book ? normalizeBook(result.book) : undefined;
+  }
+
+  async getChapter(bookId: string, chapterId: string) {
+    const result = await this.request<{ chapters: ApiChapter[] }>(
+      `/api/v1/books/${encodeURIComponent(bookId)}/chapters/manage`,
+    );
+
+    const chapter = (result.chapters ?? []).find(
+      (entry) => entry.id === chapterId,
+    );
+
+    return chapter ? normalizeChapter(chapter) : undefined;
+  }
+
+  async createBook(input: Partial<WriterBook>) {
+    const slug = `${input.title ?? "untitled-book"}-${Date.now()}`
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
+
+    const result = await this.request<{ book: ApiBook }>("/api/v1/books", {
+      method: "POST",
+      body: JSON.stringify({
+        title: input.title,
+        slug,
+        synopsis: input.synopsis,
+        genres: input.genres ?? [],
+        tags: input.tags ?? [],
+      }),
+    });
+
+    return normalizeBook(result.book);
+  }
+
+  async createChapter(bookId: string, input: Partial<WriterChapter>) {
+    const result = await this.request<{ chapter: ApiChapter }>(
+      `/api/v1/books/${encodeURIComponent(bookId)}/chapters`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          title: input.title,
+          number: input.number ?? 1,
+          content: input.content,
+          accessType: input.accessType ?? "FREE",
+          price: input.price ?? 0,
+        }),
+      },
+    );
+
+    return normalizeChapter(result.chapter);
+  }
+
+  async saveChapterDraft(bookId: string, chapter: WriterChapter) {
+    const result = await this.request<{ chapter: ApiChapter }>(
+      `/api/v1/books/${encodeURIComponent(bookId)}/chapters/${encodeURIComponent(chapter.id)}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          title: chapter.title,
+          number: chapter.number,
+          content: chapter.content,
+          accessType: chapter.accessType,
+          price: chapter.price,
+        }),
+      },
+    );
+
+    return normalizeChapter(result.chapter);
+  }
+
+  async autosaveChapter(bookId: string, chapter: WriterChapter) {
+    const result = await this.request<{ content: ApiChapter }>(
+      `/api/v1/writer/books/${encodeURIComponent(bookId)}/chapters/${encodeURIComponent(chapter.id)}/autosave`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          languageCode: "en",
+          title: chapter.title,
+          content: chapter.content,
+          contentFormat: "plain-text",
+          clientVersion: chapter.contentVersion ?? 0,
+        }),
+      },
+    );
+
+    return normalizeChapter(result.content);
+  }
+
+  async getLocalizations(bookId: string) {
+    return this.request<{
+      localizations: Array<{
+        languageCode: "en" | "fr";
+        title: string;
+        description?: string | null;
+        status: string;
+      }>;
+    }>(`/api/v1/writer/books/${encodeURIComponent(bookId)}/localizations`);
+  }
+
+  async saveLocalization(
+    bookId: string,
+    languageCode: "en" | "fr",
+    input: {
+      title: string;
+      description?: string | null;
+    },
+  ) {
+    return this.request(
+      `/api/v1/writer/books/${encodeURIComponent(bookId)}/localizations/${languageCode}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          languageCode,
+          title: input.title,
+          description: input.description ?? null,
+        }),
+      },
+    );
+  }
+
+  async markLocalizationReady(bookId: string, languageCode: "en" | "fr") {
+    return this.request(
+      `/api/v1/writer/books/${encodeURIComponent(bookId)}/localizations/${languageCode}/ready`,
+      {
+        method: "POST",
+      },
+    );
+  }
+
+  async markChapterLocalizationReady(
+    bookId: string,
+    chapterId: string,
+    languageCode: "en" | "fr",
+  ) {
+    return this.request(
+      `/api/v1/writer/books/${encodeURIComponent(bookId)}/chapters/${encodeURIComponent(chapterId)}/localizations/${languageCode}/ready`,
+      {
+        method: "POST",
+      },
+    );
+  }
+
+  async requestTranslation(
+    bookId: string,
+    sourceLanguage: "en" | "fr",
+    targetLanguage: "en" | "fr",
+  ) {
+    return this.request(
+      `/api/v1/writer/books/${encodeURIComponent(bookId)}/translate`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          sourceLanguage,
+          targetLanguage,
+          includeMetadata: true,
+          includeChapters: true,
+        }),
+      },
+    );
+  }
+
+  async submitBook(bookId: string) {
+    return this.request(
+      `/api/v1/writer/books/${encodeURIComponent(bookId)}/submit`,
+      {
+        method: "POST",
+      },
+    );
+  }
+
+  async getSubmissions() {
+    return this.request("/api/v1/writer/submissions");
+  }
+
+  async getEarnings() {
+    return this.request<{
+      totalCoins: number;
+      pendingCoins: number;
+      availableCoins: number;
+    }>("/api/v1/writer/earnings");
+  }
+
+  async getEarningTransactions() {
+    return this.request<{
+      transactions: Array<{
+        id: string;
+        bookId: string;
+        chapterId: string;
+        bookTitle?: string | null;
+        chapterTitle?: string | null;
+        coins: number;
+        status: string;
+        createdAt: string;
+      }>;
+    }>("/api/v1/writer/earnings/transactions");
+  }
+
+  async uploadBookCover(
+    bookId: string,
+    file: Blob,
+    metadata: {
+      altText: string;
+      caption?: string;
+      width?: number;
+      height?: number;
+    },
+  ) {
+    const headers = new Headers({
+      "Content-Type": file.type,
+      "X-Asset-Alt-Text": metadata.altText,
+    });
+
+    if (metadata.caption) {
+      headers.set("X-Asset-Caption", metadata.caption);
+    }
+
+    if (metadata.width) {
+      headers.set("X-Asset-Width", String(metadata.width));
+    }
+
+    if (metadata.height) {
+      headers.set("X-Asset-Height", String(metadata.height));
+    }
+
+    return apiAuthRepository.authorizedBinaryRequest<{
+      asset: {
+        id: string;
+        altText: string;
+        caption?: string | null;
+      };
+      url: string;
+      book: {
+        id: string;
+        cover: string | null;
+      };
+    }>(`/api/v1/writer/books/${encodeURIComponent(bookId)}/cover/upload`, {
+      method: "POST",
+      headers,
+      body: file,
+    });
+  }
+
+  async uploadAsset(
+    bookId: string,
+    chapterId: string,
+    file: Blob,
+    metadata: {
+      altText: string;
+      caption?: string;
+      width?: number;
+      height?: number;
+    },
+  ) {
+    const headers = new Headers({
+      "Content-Type": file.type,
+      "X-Asset-Alt-Text": metadata.altText,
+    });
+
+    if (metadata.caption) {
+      headers.set("X-Asset-Caption", metadata.caption);
+    }
+
+    if (metadata.width) {
+      headers.set("X-Asset-Width", String(metadata.width));
+    }
+
+    if (metadata.height) {
+      headers.set("X-Asset-Height", String(metadata.height));
+    }
+
+    return apiAuthRepository.authorizedBinaryRequest<{
+      asset: {
+        id: string;
+        altText: string;
+        caption?: string | null;
+      };
+      url: string;
+    }>(
+      `/api/v1/writer/books/${encodeURIComponent(bookId)}/chapters/${encodeURIComponent(chapterId)}/assets/upload`,
+      {
+        method: "POST",
+        headers,
+        body: file,
+      },
+    );
+  }
+}
+
+export const apiWriterRepository = new ApiWriterRepository();
+
+export const useApiWriterContent =
+  import.meta.env.VITE_USE_API_CONTENT === "true";

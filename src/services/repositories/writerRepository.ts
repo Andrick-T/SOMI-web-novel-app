@@ -390,6 +390,32 @@ class ApiWriterRepository {
       },
     );
   }
+
+  async uploadBookCover(
+    bookId: string,
+    file: Blob,
+    metadata: {
+      altText: string;
+    },
+  ) {
+    const headers = new Headers({
+      "Content-Type": file.type,
+      "X-Asset-Alt-Text": metadata.altText,
+    });
+
+    return apiAuthRepository.authorizedBinaryRequest<{
+      asset: {
+        id: string;
+        altText: string;
+        caption?: string | null;
+      };
+      url: string;
+    }>(`/api/v1/writer/books/${encodeURIComponent(bookId)}/cover/upload`, {
+      method: "POST",
+      headers,
+      body: file,
+    });
+  }
 }
 
 export const apiWriterRepository = new ApiWriterRepository();
