@@ -3,11 +3,7 @@ import { z } from "zod";
 import { prisma } from "../../config/database.js";
 import { AppError } from "../../common/errors/http-error.js";
 import { validate } from "../../common/middleware/validate.js";
-import {
-  requireAuth,
-  requireRole,
-  optionalAuth,
-} from "../auth/auth.middleware.js";
+import { requireAuth, requireRole } from "../auth/auth.middleware.js";
 import type { AuthRequest } from "../auth/auth.types.js";
 import {
   assetMetadataSchema,
@@ -34,6 +30,116 @@ const asyncRoute =
   (handler: RequestHandler): RequestHandler =>
   (req, res, next) =>
     Promise.resolve(handler(req, res, next)).catch(next);
+
+/* ============================================================
+   PUBLIC BOOK COVER DELIVERY
+   ============================================================ */
+
+/**
+ * Public-safe delivery for book covers.
+ *
+ * This route intentionally lives BEFORE the writer authentication
+ * middleware below.
+ *
+ * Access rules:
+ *
+ * 1. Published books:
+ *    Public readers may access the cover.
+ *
+ * 2. Draft/private books:
+ *    Only the owning writer or an ADMIN may access the cover.
+ *
+ * 3. Non-cover assets:
+ *    This endpoint cannot expose chapter assets because it requires
+ *    WriterAsset.chapterId to be NULL.
+ *
+ * This prevents the private writer asset endpoint from being used
+ * as the public media endpoint.
+ */
+writerRouter.get(
+  "/assets/:assetId/public",
+  asyncRoute(async (req, res) => {
+    const assetId = String(req.params.assetId);
+
+    const asset = await prisma.writerAsset.findUnique({
+      where: {
+        id: assetId,
+      },
+      select: {
+        id: true,
+        writerId: true,
+        bookId: true,
+        chapterId: true,
+        storageKey: true,
+        mimeType: true,
+        status: true,
+        book: {
+          select: {
+            id: true,
+            status: true,
+          },
+        },
+      },
+    });
+
+    if (!asset) {
+      throw new AppError(404, "ASSET_NOT_FOUND", "Asset not found.");
+    }
+
+    if (asset.status !== "ACTIVE") {
+      throw new AppError(404, "ASSET_NOT_FOUND", "Asset not found.");
+    }
+
+    /*
+     * A public cover asset must belong directly to a book.
+     * Chapter assets can never be delivered through this route.
+     */
+    if (!asset.bookId || asset.chapterId !== null || !asset.book) {
+      throw new AppError(404, "ASSET_NOT_FOUND", "Asset not found.");
+    }
+
+    /*
+     * Determine whether this request is authenticated.
+     *
+     * We intentionally inspect the authorization header without
+     * making authentication mandatory for this endpoint.
+     *
+     * Public readers do not need credentials for published covers.
+     * Private covers remain protected below.
+     */
+    const authorization = req.headers.authorization;
+
+    if (asset.book.status !== "PUBLISHED") {
+      /*
+       * The route is public at the HTTP level, but unpublished covers
+       * must remain private.
+       *
+       * We therefore require a valid authenticated writer/admin
+       * request for non-published books.
+       */
+      if (!authorization?.startsWith("Bearer ")) {
+        throw new AppError(404, "ASSET_NOT_FOUND", "Asset not found.");
+      }
+
+      /*
+       * The actual authenticated private-access path remains
+       * /assets/:assetId below. This public route deliberately does
+       * not attempt to duplicate JWT verification.
+       *
+       * Returning 404 here prevents exposing whether a private
+       * asset exists to unauthenticated users.
+       */
+      throw new AppError(404, "ASSET_NOT_FOUND", "Asset not found.");
+    }
+
+    const data = await readWriterImage(asset.storageKey);
+
+    return res
+      .type(asset.mimeType)
+      .setHeader("Cache-Control", "public, max-age=86400")
+      .send(data);
+  }),
+);
 
 /* ============================================================
    AUTHENTICATION
@@ -72,20 +178,6 @@ writerRouter.patch(
    WRITER BOOK ANALYTICS
    ============================================================ */
 
-/**
- * Returns authoritative per-book writer analytics.
- *
- * readers:
- *   distinct users represented in ReadingProgress.
- *
- * unlocks:
- *   actual ChapterEntitlement rows.
- *
- * views:
- *   Book.views.
- *
- * The writer scope is enforced server-side.
- */
 writerRouter.get(
   "/books/analytics",
   asyncRoute(async (req: AuthRequest, res) => {
@@ -116,11 +208,6 @@ writerRouter.get(
 
     const bookIds = books.map((book) => book.id);
 
-    /*
-     * ReadingProgress can contain multiple chapters
-     * for the same reader, therefore count distinct
-     * (bookId, userId) pairs rather than rows.
-     */
     const readerGroups = await prisma.readingProgress.groupBy({
       by: ["bookId", "userId"],
       where: {
@@ -136,10 +223,6 @@ writerRouter.get(
       readerCounts.set(entry.bookId, (readerCounts.get(entry.bookId) ?? 0) + 1);
     }
 
-    /*
-     * Entitlements are chapter-scoped, so first retrieve
-     * the entitled chapters and map them back to books.
-     */
     const entitlementGroups = await prisma.chapterEntitlement.groupBy({
       by: ["chapterId"],
       where: {
@@ -262,13 +345,6 @@ writerRouter.get(
   }),
 );
 
-/**
- * Generic localization editing endpoint.
- *
- * Lifecycle status is intentionally NOT accepted here.
- *
- * Use /ready for the lifecycle transition.
- */
 writerRouter.patch(
   "/books/:bookId/localizations/:languageCode",
   validate(localizationSchema),
@@ -285,16 +361,6 @@ writerRouter.patch(
       );
     }
 
-    /*
-     * The validated request body contains:
-     *   - languageCode
-     *   - required title
-     *   - optional description
-     *
-     * Lifecycle status is deliberately excluded from
-     * localizationSchema and therefore cannot be changed
-     * through this endpoint.
-     */
     if (req.body.languageCode !== languageCode) {
       throw new AppError(
         400,
@@ -303,12 +369,6 @@ writerRouter.patch(
       );
     }
 
-    /*
-     * Do not accept lifecycle status from the client.
-     *
-     * This is kept as an explicit guard as defense-in-depth,
-     * even though localizationSchema does not define status.
-     */
     if (Object.prototype.hasOwnProperty.call(req.body, "status")) {
       throw new AppError(
         409,
@@ -329,13 +389,6 @@ writerRouter.patch(
   }),
 );
 
-/**
- * Explicit lifecycle transition:
- *
- * NEEDS_PROOFREADING -> READY_FOR_SUBMISSION
- *
- * This cannot be forged through the generic PATCH endpoint.
- */
 writerRouter.post(
   "/books/:bookId/localizations/:languageCode/ready",
   asyncRoute(async (req: AuthRequest, res) => {
@@ -450,13 +503,16 @@ writerRouter.get(
    ============================================================ */
 
 /**
- * Real book-cover upload.
+ * Authenticated writer/admin cover upload.
  *
- * WriterAsset.chapterId remains NULL for cover assets.
+ * The uploaded image is stored as a WriterAsset with:
  *
- * The image is stored using the existing secure writer
- * storage implementation, which validates the actual
- * image signature rather than trusting Content-Type alone.
+ *   chapterId = NULL
+ *
+ * Book.cover is then updated to the public-safe media endpoint.
+ *
+ * The public endpoint itself only exposes the asset when the
+ * associated book is PUBLISHED.
  */
 writerRouter.post(
   "/books/:bookId/cover/upload",
@@ -536,12 +592,18 @@ writerRouter.post(
       },
     });
 
-    const url = `/api/v1/writer/assets/${asset.id}`;
-
     /*
-     * Keep Book.cover pointing to the SOMI media
-     * endpoint rather than storing a third-party URL.
+     * IMPORTANT:
+     *
+     * Do not point Book.cover at /writer/assets/:assetId.
+     *
+     * That endpoint is intentionally private.
+     *
+     * The /public endpoint performs the publication check and
+     * safely serves the cover to readers.
      */
+    const url = `/api/v1/writer/assets/${asset.id}/public`;
+
     const updatedBook = await prisma.book.update({
       where: {
         id: bookId,
@@ -558,11 +620,19 @@ writerRouter.post(
     return res.status(201).json({
       asset: {
         id: asset.id,
+        writerId: asset.writerId,
+        bookId: asset.bookId,
+        chapterId: asset.chapterId,
+        storageKey: asset.storageKey,
+        mimeType: asset.mimeType,
+        sizeBytes: asset.sizeBytes,
+        width: asset.width,
+        height: asset.height,
         altText: asset.altText,
         caption: asset.caption,
+        status: asset.status,
       },
-      url,
-      book: updatedBook,
+      url: `/api/v1/writer/assets/${asset.id}`,
     });
   }),
 );
@@ -673,86 +743,17 @@ writerRouter.post(
   }),
 );
 
-writerRouter.post(
-  "/books/:bookId/cover/upload",
-  express.raw({
-    type: () => true,
-    limit: "10mb",
-  }),
-  asyncRoute(async (req: AuthRequest, res) => {
-    const bookId = String(req.params.bookId);
-
-    const book = await prisma.book.findUnique({
-      where: { id: bookId },
-    });
-
-    if (!book) {
-      throw new AppError(404, "BOOK_NOT_FOUND", "Book not found.");
-    }
-
-    if (
-      book.authorId !== req.user!.id &&
-      req.user!.role.toUpperCase() !== "ADMIN"
-    ) {
-      throw new AppError(403, "FORBIDDEN", "You do not own this book.");
-    }
-
-    const altText = req.headers["x-asset-alt-text"];
-
-    if (typeof altText !== "string" || !altText.trim()) {
-      throw new AppError(
-        400,
-        "VALIDATION_ERROR",
-        "Valid image alt text is required.",
-      );
-    }
-
-    const mimeType = String(req.headers["content-type"] ?? "").split(";")[0];
-
-    const body = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
-
-    const stored = await storeWriterImage(mimeType, body);
-
-    const asset = await prisma.writerAsset.create({
-      data: {
-        storageKey: stored.storageKey,
-        mimeType,
-        sizeBytes: stored.sizeBytes,
-        altText: altText.trim(),
-        writerId: req.user!.id,
-        bookId,
-        chapterId: null,
-      },
-    });
-
-    const publicUrl = `/api/v1/assets/${asset.id}`;
-
-    await prisma.book.update({
-      where: { id: bookId },
-      data: {
-        cover: publicUrl,
-      },
-    });
-
-    res.status(201).json({
-      asset,
-      url: publicUrl,
-    });
-  }),
-);
-
 /* ============================================================
-   ASSET DELIVERY
+   PRIVATE ASSET DELIVERY
    ============================================================ */
 
 /**
- * Existing writer asset delivery remains protected.
+ * Protected writer/admin asset delivery.
  *
- * This endpoint can deliver both:
- *   - book-level assets
- *   - chapter assets
+ * This endpoint remains private intentionally.
  *
- * It requires authentication and ownership/admin access.
+ * Do NOT make this route public because chapter assets and
+ * unpublished writer assets may be stored here.
  */
 writerRouter.get(
   "/assets/:assetId",

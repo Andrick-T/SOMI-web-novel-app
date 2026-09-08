@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowUpRight,
   CircleDollarSign,
@@ -14,23 +14,65 @@ import {
 } from "../../services/repositories/writerRepository";
 import MiniBarChart from "../../components/MiniBarChart";
 
+type EarningTransaction = {
+  id: string;
+  bookId: string;
+  chapterId: string;
+  sourceTransactionId: string;
+  coins: number;
+  status: string;
+  createdAt: string;
+};
+
 export default function WriterEarnings({}: CommonProps) {
   const mockEarnings = writerRepository.getEarnings();
+
   const [earnings, setEarnings] = useState({
-    grossEarnings: mockEarnings.grossEarnings,
-    pending: mockEarnings.pending,
-    available: mockEarnings.available,
-    netEarnings: mockEarnings.netEarnings,
+    grossEarnings: useApiWriterContent ? 0 : mockEarnings.grossEarnings,
+    pending: useApiWriterContent ? 0 : mockEarnings.pending,
+    available: useApiWriterContent ? 0 : mockEarnings.available,
+    netEarnings: useApiWriterContent ? 0 : mockEarnings.netEarnings,
   });
-  const [transactions, setTransactions] = useState(() => [
-    { label: "The Baobab Kingdom", amount: 620, type: "Chapter unlocks" },
-    { label: "Echoes of Kongo", amount: 470, type: "Series release" },
-    { label: "Grandmother's Fire", amount: 310, type: "Reader milestone" },
-  ]);
+
+  const [transactions, setTransactions] = useState<EarningTransaction[]>(
+    useApiWriterContent
+      ? []
+      : [
+          {
+            id: "mock-1",
+            bookId: "mock-book-1",
+            chapterId: "mock-chapter-1",
+            sourceTransactionId: "mock-transaction-1",
+            coins: 620,
+            status: "COMPLETED",
+            createdAt: new Date().toISOString(),
+          },
+          {
+            id: "mock-2",
+            bookId: "mock-book-2",
+            chapterId: "mock-chapter-2",
+            sourceTransactionId: "mock-transaction-2",
+            coins: 470,
+            status: "COMPLETED",
+            createdAt: new Date().toISOString(),
+          },
+          {
+            id: "mock-3",
+            bookId: "mock-book-3",
+            chapterId: "mock-chapter-3",
+            sourceTransactionId: "mock-transaction-3",
+            coins: 310,
+            status: "COMPLETED",
+            createdAt: new Date().toISOString(),
+          },
+        ],
+  );
+
   const [loadError, setLoadError] = useState("");
 
   useEffect(() => {
     if (!useApiWriterContent) return;
+
     Promise.all([
       apiWriterRepository.getEarnings(),
       apiWriterRepository.getEarningTransactions(),
@@ -42,20 +84,53 @@ export default function WriterEarnings({}: CommonProps) {
           available: summary.availableCoins,
           netEarnings: summary.availableCoins,
         });
+
         setTransactions(
           result.transactions.map((transaction) => ({
-            label: transaction.chapterId,
-            amount: transaction.coins,
-            type: transaction.status,
+            ...transaction,
+            sourceTransactionId: transaction.id,
           })),
         );
       })
-      .catch((caught) =>
+      .catch((caught) => {
         setLoadError(
           caught instanceof Error ? caught.message : "Unable to load earnings.",
-        ),
-      );
+        );
+      });
   }, []);
+
+  const revenueTrend = useMemo(() => {
+    const now = new Date();
+
+    const days = Array.from({ length: 7 }, (_, index) => {
+      const day = new Date(now);
+      day.setHours(0, 0, 0, 0);
+      day.setDate(day.getDate() - (6 - index));
+      return day;
+    });
+
+    return days.map((day) => {
+      const nextDay = new Date(day);
+      nextDay.setDate(nextDay.getDate() + 1);
+
+      const total = transactions
+        .filter((transaction) => {
+          const createdAt = new Date(transaction.createdAt);
+
+          return createdAt >= day && createdAt < nextDay;
+        })
+        .reduce((sum, transaction) => sum + transaction.coins, 0);
+
+      return {
+        value: total,
+        label: day
+          .toLocaleDateString(undefined, { weekday: "short" })
+          .slice(0, 1),
+      };
+    });
+  }, [transactions]);
+
+  const hasRevenueActivity = revenueTrend.some((day) => day.value > 0);
 
   return (
     <div
@@ -69,6 +144,7 @@ export default function WriterEarnings({}: CommonProps) {
         >
           Writer Studio
         </p>
+
         <h1
           className="font-display text-2xl font-bold"
           style={{ color: "var(--color-text-primary)" }}
@@ -82,6 +158,7 @@ export default function WriterEarnings({}: CommonProps) {
           {loadError}
         </p>
       )}
+
       <div className="px-5 mb-5 grid grid-cols-2 gap-3">
         {[
           {
@@ -112,6 +189,7 @@ export default function WriterEarnings({}: CommonProps) {
           >
             <div className="flex items-center justify-between mb-2">
               {item.icon}
+
               <span
                 className="text-[9px] uppercase tracking-wider"
                 style={{ color: "#4a6540" }}
@@ -119,6 +197,7 @@ export default function WriterEarnings({}: CommonProps) {
                 {item.label}
               </span>
             </div>
+
             <p
               className="font-display text-2xl font-bold"
               style={{ color: "#f0ece4" }}
@@ -140,13 +219,23 @@ export default function WriterEarnings({}: CommonProps) {
           >
             Revenue trend
           </p>
-          <MiniBarChart
-            values={[32, 46, 42, 73, 58, 80, 92]}
-            labels={["M", "T", "W", "T", "F", "S", "S"]}
-            color="#4ade80"
-            labelColor="#4a6540"
-            height={64}
-          />
+
+          {hasRevenueActivity ? (
+            <MiniBarChart
+              values={revenueTrend.map((day) => day.value)}
+              labels={revenueTrend.map((day) => day.label)}
+              color="#4ade80"
+              labelColor="#4a6540"
+              height={64}
+            />
+          ) : (
+            <div
+              className="h-16 flex items-center justify-center text-xs"
+              style={{ color: "#6a8060" }}
+            >
+              No earnings activity in the last 7 days.
+            </div>
+          )}
         </div>
       </div>
 
@@ -157,15 +246,17 @@ export default function WriterEarnings({}: CommonProps) {
         >
           Recent payouts
         </h3>
+
         <div className="flex flex-col gap-3">
           {transactions.length === 0 && (
             <p className="text-sm" style={{ color: "#6a8060" }}>
               No earnings transactions yet.
             </p>
           )}
+
           {transactions.map((item) => (
             <div
-              key={item.label}
+              key={item.id}
               className="rounded-xl p-4 flex items-center justify-between"
               style={{ background: "#1e2118", border: "1px solid #2a3525" }}
             >
@@ -174,19 +265,22 @@ export default function WriterEarnings({}: CommonProps) {
                   className="text-sm font-semibold"
                   style={{ color: "#f0ece4" }}
                 >
-                  {item.label}
+                  Chapter {item.chapterId}
                 </p>
+
                 <p className="text-[10px] mt-0.5" style={{ color: "#6a8060" }}>
-                  {item.type}
+                  {item.status}
                 </p>
               </div>
+
               <div className="flex items-center gap-2">
                 <span
                   className="text-sm font-bold"
                   style={{ color: "#4ade80" }}
                 >
-                  $ {item.amount.toLocaleString()}
+                  {item.coins.toLocaleString()} coins
                 </span>
+
                 <ArrowUpRight size={14} color="#4ade80" />
               </div>
             </div>

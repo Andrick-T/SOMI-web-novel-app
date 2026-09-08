@@ -416,6 +416,16 @@ class ApiWriterRepository {
       body: file,
     });
   }
+  async getBookAnalytics() {
+    return this.request<{
+      analytics: Array<{
+        bookId: string;
+        views: number;
+        readers: number;
+        unlocks: number;
+      }>;
+    }>("/api/v1/writer/books/analytics");
+  }
 }
 
 export const apiWriterRepository = new ApiWriterRepository();

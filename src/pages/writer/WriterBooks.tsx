@@ -31,10 +31,19 @@ type StatusFilter =
   | "UNPUBLISHED"
   | "ARCHIVED";
 
+type BookAnalytics = {
+  bookId: string;
+  views: number;
+  readers: number;
+  unlocks: number;
+};
+
 export default function WriterBooks({ navigate }: CommonProps) {
   const [books, setBooks] = useState(() =>
     useApiWriterContent ? [] : writerRepository.getWriterBooks(),
   );
+
+  const [analytics, setAnalytics] = useState<BookAnalytics[]>([]);
   const [loadError, setLoadError] = useState("");
   const [filter, setFilter] = useState<StatusFilter>("all");
   const [query, setQuery] = useState("");
@@ -42,9 +51,15 @@ export default function WriterBooks({ navigate }: CommonProps) {
 
   useEffect(() => {
     if (!useApiWriterContent) return;
-    apiWriterRepository
-      .getWriterBooks()
-      .then(setBooks)
+
+    Promise.all([
+      apiWriterRepository.getWriterBooks(),
+      apiWriterRepository.getBookAnalytics(),
+    ])
+      .then(([writerBooks, analyticsResult]) => {
+        setBooks(writerBooks);
+        setAnalytics(analyticsResult.analytics);
+      })
       .catch((caught) => {
         setLoadError(
           caught instanceof Error ? caught.message : "Unable to load books.",
@@ -57,11 +72,13 @@ export default function WriterBooks({ navigate }: CommonProps) {
       books.filter((book) => {
         const matchesFilter = filter === "all" || book.status === filter;
         const search = query.trim().toLowerCase();
+
         const matchesQuery =
           !search ||
           `${book.title} ${book.genres.join(" ")}`
             .toLowerCase()
             .includes(search);
+
         return matchesFilter && matchesQuery;
       }),
     [books, filter, query],
@@ -80,6 +97,7 @@ export default function WriterBooks({ navigate }: CommonProps) {
           >
             Writer Studio
           </p>
+
           <h1
             className="font-display text-2xl font-bold"
             style={{ color: "var(--color-text-primary)" }}
@@ -87,6 +105,7 @@ export default function WriterBooks({ navigate }: CommonProps) {
             My books
           </h1>
         </div>
+
         <button
           onClick={() => navigate("writer-create")}
           className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold active:scale-95 transition-transform"
@@ -95,7 +114,8 @@ export default function WriterBooks({ navigate }: CommonProps) {
             color: "var(--color-background)",
           }}
         >
-          <Plus size={14} /> New Book
+          <Plus size={14} />
+          New Book
         </button>
       </div>
 
@@ -107,6 +127,7 @@ export default function WriterBooks({ navigate }: CommonProps) {
         }}
       >
         <Search size={15} style={{ color: "var(--color-text-muted)" }} />
+
         <input
           aria-label="Search your books"
           value={query}
@@ -115,6 +136,7 @@ export default function WriterBooks({ navigate }: CommonProps) {
           className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-[color:var(--color-text-muted)]"
           style={{ color: "var(--color-text-primary)" }}
         />
+
         {query && (
           <button
             type="button"
@@ -196,8 +218,18 @@ export default function WriterBooks({ navigate }: CommonProps) {
         ) : (
           filtered.map((book) => {
             const chapterCount = book.chapters.length;
-            const readers = Math.max(120, chapterCount * 220);
-            const unlocks = Math.max(80, chapterCount * 180);
+            const bookAnalytics = analytics.find(
+              (entry) => entry.bookId === book.id,
+            );
+
+            const readers = useApiWriterContent
+              ? bookAnalytics?.readers
+              : Math.max(120, chapterCount * 220);
+
+            const unlocks = useApiWriterContent
+              ? bookAnalytics?.unlocks
+              : Math.max(80, chapterCount * 180);
+
             return (
               <div
                 key={book.id}
@@ -218,6 +250,7 @@ export default function WriterBooks({ navigate }: CommonProps) {
                       className="w-full h-full object-cover"
                     />
                   </div>
+
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
@@ -227,6 +260,7 @@ export default function WriterBooks({ navigate }: CommonProps) {
                         >
                           {book.title}
                         </p>
+
                         <p
                           className="text-[10px] mt-0.5"
                           style={{ color: "var(--color-text-muted)" }}
@@ -234,6 +268,7 @@ export default function WriterBooks({ navigate }: CommonProps) {
                           {book.genres.join(" • ")}
                         </p>
                       </div>
+
                       <button
                         onClick={() =>
                           setMenuOpen(menuOpen === book.id ? null : book.id)
@@ -265,17 +300,21 @@ export default function WriterBooks({ navigate }: CommonProps) {
                         {
                           label: "Readers",
                           value:
-                            readers >= 1000
-                              ? `${(readers / 1000).toFixed(1)}k`
-                              : readers,
+                            readers === undefined
+                              ? "—"
+                              : readers >= 1000
+                                ? `${(readers / 1000).toFixed(1)}k`
+                                : readers,
                           icon: <Eye size={9} />,
                         },
                         {
                           label: "Unlocks",
                           value:
-                            unlocks >= 1000
-                              ? `${(unlocks / 1000).toFixed(1)}k`
-                              : unlocks,
+                            unlocks === undefined
+                              ? "—"
+                              : unlocks >= 1000
+                                ? `${(unlocks / 1000).toFixed(1)}k`
+                                : unlocks,
                           icon: <LockIcon size={9} />,
                         },
                       ].map((stat) => (
@@ -287,6 +326,7 @@ export default function WriterBooks({ navigate }: CommonProps) {
                             {stat.icon}
                             <span className="text-[9px]">{stat.label}</span>
                           </div>
+
                           <p
                             className="text-sm font-bold"
                             style={{ color: "#f0ece4" }}
@@ -318,7 +358,9 @@ export default function WriterBooks({ navigate }: CommonProps) {
                               ? await apiWriterRepository.createChapter(
                                   book.id,
                                   {
-                                    title: `Chapter ${book.chapters.length + 1}`,
+                                    title: `Chapter ${
+                                      book.chapters.length + 1
+                                    }`,
                                     number: book.chapters.length + 1,
                                     content: "Begin your chapter here.",
                                   },
@@ -326,9 +368,11 @@ export default function WriterBooks({ navigate }: CommonProps) {
                               : writerRepository.createChapter(book.id, {
                                   title: `Chapter ${book.chapters.length + 1}`,
                                 });
+
                             navigate("writer-editor", book.id, newChapter.id);
                             setMenuOpen(null);
                           };
+
                           void createChapter();
                         },
                       },
@@ -385,15 +429,19 @@ export default function WriterBooks({ navigate }: CommonProps) {
                     className="flex-1 flex items-center justify-center gap-2 py-3 text-xs font-bold active:bg-white/5"
                     style={{ color: "#4ade80" }}
                   >
-                    <PenLine size={13} /> Write
+                    <PenLine size={13} />
+                    Write
                   </button>
+
                   <div style={{ width: 1, background: "#2a3525" }} />
+
                   <button
                     onClick={() => navigate("writer-analytics")}
                     className="flex-1 flex items-center justify-center gap-2 py-3 text-xs font-bold active:bg-white/5"
                     style={{ color: "#a8c0a0" }}
                   >
-                    <Eye size={13} /> Stats
+                    <Eye size={13} />
+                    Stats
                   </button>
                 </div>
               </div>
@@ -412,10 +460,12 @@ export default function WriterBooks({ navigate }: CommonProps) {
           >
             <Plus size={18} color="#4ade80" />
           </div>
+
           <div className="text-left">
             <p className="text-sm font-semibold" style={{ color: "#f0ece4" }}>
               Start a new book
             </p>
+
             <p className="text-xs" style={{ color: "#6a8060" }}>
               Begin your next SOMI story
             </p>
