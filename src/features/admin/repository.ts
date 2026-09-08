@@ -1,3 +1,4 @@
+import { buildAuditEvent } from "./service";
 import type {
   AdminBook,
   AdminDashboardSummary,
@@ -23,6 +24,7 @@ const adminUsers: AdminUser[] = [
     lastActiveAt: "2025-08-20T15:00:00.000Z",
     booksPublished: 5,
     avatar: "AD",
+    createdAt: "2024-02-14T00:00:00.000Z",
   },
   {
     id: "user-02",
@@ -34,6 +36,7 @@ const adminUsers: AdminUser[] = [
     lastActiveAt: "2025-08-21T10:00:00.000Z",
     booksPublished: 0,
     avatar: "KM",
+    createdAt: "2024-02-14T00:00:00.000Z",
   },
   {
     id: "user-03",
@@ -45,6 +48,7 @@ const adminUsers: AdminUser[] = [
     lastActiveAt: "2025-08-18T08:00:00.000Z",
     booksPublished: 1,
     avatar: "FN",
+    createdAt: "2024-02-14T00:00:00.000Z",
   },
   {
     id: "user-04",
@@ -56,6 +60,7 @@ const adminUsers: AdminUser[] = [
     lastActiveAt: "2025-08-17T14:00:00.000Z",
     booksPublished: 0,
     avatar: "CO",
+    createdAt: "2024-02-14T00:00:00.000Z",
   },
   {
     id: "user-05",
@@ -67,6 +72,7 @@ const adminUsers: AdminUser[] = [
     lastActiveAt: "2025-08-22T12:00:00.000Z",
     booksPublished: 2,
     avatar: "ZD",
+    createdAt: "2024-02-14T00:00:00.000Z",
   },
 ];
 
@@ -364,6 +370,22 @@ export const mockAdminRepository: AdminRepository = {
         refunds: 480,
         failedTransactions: 7,
       },
+      totalUsers: adminUsers.length,
+      activeUsers: adminUsers.filter((user) => user.status === "ACTIVE").length,
+      newUsers: 0,
+      totalWriters: adminUsers.filter((user) => user.role === "WRITER").length,
+      books: adminBooks.length,
+      pendingReviews: adminBooks.filter(
+        (book) => book.moderationStatus === "PENDING",
+      ).length,
+      reportedContent: adminReports.filter(
+        (report) =>
+          report.status !== "RESOLVED" && report.status !== "DISMISSED",
+      ).length,
+      revenue: 28620,
+      coinsPurchased: 320000,
+      coinsSpent: 218500,
+      pendingTransactions: 4,
     };
   },
   getUsers() {

@@ -33,7 +33,7 @@ describe("pageTurn engine", () => {
   it("locks while flipping is already in progress", () => {
     const state = {
       ...createReaderState(4),
-      status: "flipping",
+      status: "flipping" as const,
       pendingPage: 2,
     };
     const next = requestPageTransition(state, "prev", 4);

@@ -292,7 +292,10 @@ export default function AdminUsers({ navigate }: CommonProps) {
                           size={10}
                           color="var(--color-accent-primary)"
                         />{" "}
-                        Joined {new Date(user.joinedAt).toLocaleDateString()}
+                        Joined{" "}
+                        {user.joinedAt
+                          ? new Date(user.joinedAt).toLocaleDateString()
+                          : "—"}
                       </span>
                     </div>
                   </div>

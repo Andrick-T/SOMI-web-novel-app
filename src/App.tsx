@@ -7,6 +7,7 @@ import {
   useNavigate,
 } from "react-router-dom";
 import type { Page, AppEnvironment, CommonProps } from "./types";
+import type { Book } from "./services/repositories/bookRepository";
 import { AuthProvider, useAuth } from "./app/auth";
 import { RequireAuth, UnauthorizedPage } from "./app/router/guards";
 import {
@@ -187,9 +188,7 @@ function AppShell() {
   const [environment, setEnvironment] = useState<AppEnvironment>(
     environmentFromPath(pathname),
   );
-  const [apiBooks, setApiBooks] = useState<
-    (typeof bookRepository extends { getBooks: () => infer T } ? T : never)[]
-  >([]);
+  const [apiBooks, setApiBooks] = useState<Book[]>([]);
   const [apiError, setApiError] = useState<Error | null>(null);
   const [apiLoading, setApiLoading] = useState(
     import.meta.env.VITE_USE_API_CONTENT === "true",
@@ -205,16 +204,18 @@ function AppShell() {
     }
     const authenticatedUserId = user.id;
     setWallet(createWallet({ userId: authenticatedUserId, balance: 0 }));
-    void apiWalletRepository.getWallet().then((remoteWallet) => {
-      if (user?.id === authenticatedUserId && isAuthenticated) {
-        setWallet(
-          createWallet({
-            userId: authenticatedUserId,
-            balance: remoteWallet.balance,
-          }),
-        );
-      }
-    });
+    void apiWalletRepository
+      .getWallet()
+      .then((remoteWallet: { balance: any }) => {
+        if (user?.id === authenticatedUserId && isAuthenticated) {
+          setWallet(
+            createWallet({
+              userId: authenticatedUserId,
+              balance: remoteWallet.balance,
+            }),
+          );
+        }
+      });
   }, [isAuthenticated, user]);
 
   useEffect(() => {
@@ -337,12 +338,8 @@ function AppShell() {
     import.meta.env.VITE_USE_API_CONTENT === "true"
       ? apiBooks
       : bookRepository.getBooks();
-  const [detailBook, setDetailBook] = useState<
-    (typeof books)[number] | undefined
-  >();
-  const [chapterBook, setChapterBook] = useState<
-    (typeof books)[number] | undefined
-  >();
+  const [detailBook, setDetailBook] = useState<Book | undefined>();
+  const [chapterBook, setChapterBook] = useState<Book | undefined>();
 
   useEffect(() => {
     if (import.meta.env.VITE_USE_API_CONTENT !== "true" || !bookIdFromPath) {
@@ -389,6 +386,11 @@ function AppShell() {
       : (books[0] ?? undefined));
   const selectedChapterId =
     chapterIdFromPath ?? selectedBook?.chapters?.[0]?.id ?? "";
+  const bookLoading =
+    import.meta.env.VITE_USE_API_CONTENT === "true" &&
+    Boolean(bookIdFromPath) &&
+    !selectedBook;
+  const bookFallback = bookLoading ? <RouteLoading /> : <NotFoundPage />;
 
   useEffect(() => {
     if (!useApiEconomy || !isAuthenticated || !user || !selectedBook) return;
@@ -508,15 +510,18 @@ function AppShell() {
             background: bgColor,
           }}
         >
-          {pathname.includes("/read/") && (
-            <Suspense fallback={<RouteLoading />}>
-              <ReaderPage
-                {...commonProps}
-                book={selectedBook}
-                chapterId={selectedChapterId}
-              />
-            </Suspense>
-          )}
+          {pathname.includes("/read/") &&
+            (selectedBook ? (
+              <Suspense fallback={<RouteLoading />}>
+                <ReaderPage
+                  {...commonProps}
+                  book={selectedBook}
+                  chapterId={selectedChapterId}
+                />
+              </Suspense>
+            ) : (
+              bookFallback
+            ))}
           {pathname === "/auth" && (
             <Suspense fallback={<RouteLoading />}>
               <AuthPage {...commonProps} />
@@ -639,17 +644,28 @@ function AppShell() {
                     <Route
                       path="/books/:bookId"
                       element={
-                        <BookDetailPage {...commonProps} book={selectedBook} />
+                        selectedBook ? (
+                          <BookDetailPage
+                            {...commonProps}
+                            book={selectedBook}
+                          />
+                        ) : (
+                          bookFallback
+                        )
                       }
                     />
                     <Route
                       path="/books/:bookId/read/:chapterId"
                       element={
-                        <ReaderPage
-                          {...commonProps}
-                          book={selectedBook}
-                          chapterId={selectedChapterId}
-                        />
+                        selectedBook ? (
+                          <ReaderPage
+                            {...commonProps}
+                            book={selectedBook}
+                            chapterId={selectedChapterId}
+                          />
+                        ) : (
+                          bookFallback
+                        )
                       }
                     />
                     <Route

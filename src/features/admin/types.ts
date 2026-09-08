@@ -104,7 +104,11 @@ export interface AdminBook {
   genre: string;
   chapters: number;
   status: ModerationStatus;
-  moderationStatus: "PENDING" | "APPROVED" | "REJECTED" | "CHANGES_REQUESTED";
+  moderationStatus:
+    | ModerationStatus
+    | "PENDING"
+    | "APPROVED"
+    | "CHANGES_REQUESTED";
   priority?: ReportPriority;
   reported?: boolean;
   reportsCount?: number;

@@ -40,7 +40,8 @@ describe("economy service", () => {
 
     expect(result.success).toBe(true);
     expect(result.wallet.balance).toBe(120);
-    expect(result.transaction.type).toBe("CHAPTER_UNLOCK");
+    expect(result.transaction).toBeDefined();
+    expect(result.transaction?.type).toBe("CHAPTER_UNLOCK");
 
     const duplicate = unlockChapterEntitlement({
       userId: "u-1",

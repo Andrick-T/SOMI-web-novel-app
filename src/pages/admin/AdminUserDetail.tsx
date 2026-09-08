@@ -97,7 +97,10 @@ export default function AdminUserDetail({ navigate }: CommonProps) {
               </div>
               <div className="flex items-center gap-2">
                 <CalendarDays size={14} color="var(--color-accent-primary)" />{" "}
-                Joined {new Date(user.joinedAt).toLocaleDateString()}
+                Joined{" "}
+                {user.joinedAt
+                  ? new Date(user.joinedAt).toLocaleDateString()
+                  : "—"}
               </div>
               <div className="flex items-center gap-2">
                 <UserRound size={14} color="var(--color-accent-primary)" /> Last

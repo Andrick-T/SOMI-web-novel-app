@@ -31,11 +31,8 @@ import {
   hydrateReadingProgress,
   persistReadingProgress,
 } from "../features/reader/services/readingProgressService";
-import {
-  readerPreferencesStorage,
-  type ReaderFontFamily,
-  type ReaderTheme,
-} from "../features/reader/services/persistence";
+import { readerPreferencesStorage } from "../features/reader/services/persistence";
+import type { ReaderFontFamily, ReaderTheme } from "../features/reader/types";
 import type { Book } from "../services/repositories";
 import type { CommonProps } from "../types";
 

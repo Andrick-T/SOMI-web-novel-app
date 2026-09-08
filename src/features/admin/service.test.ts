@@ -115,7 +115,7 @@ describe("admin domain behavior", () => {
       { id: "t1", type: "COIN_PURCHASE", status: "COMPLETED" },
       { id: "t2", type: "REFUND", status: "PENDING" },
       { id: "t3", type: "CHAPTER_UNLOCK", status: "FAILED" },
-    ];
+    ] as const;
     expect(filterTransactions(txs, { type: "COIN_PURCHASE" }).length).toBe(1);
     expect(filterTransactions(txs, { status: "PENDING" }).length).toBe(1);
   });

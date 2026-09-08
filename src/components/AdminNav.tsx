@@ -28,39 +28,50 @@ const icons: Record<string, React.ElementType> = {
   "admin-settings": Settings,
 };
 
+type AdminNavItem =
+  | { page: Page; label: string }
+  | { page: "admin-more"; label: string };
+
 export default function AdminNav({ page, navigate }: AdminNavProps) {
   const [moreOpen, setMoreOpen] = useState(false);
+
   const primaryItems = navigation.admin.slice(0, 5);
   const secondaryItems = navigation.admin.slice(5);
+
+  const items: AdminNavItem[] = [
+    ...primaryItems,
+    { page: "admin-more", label: "More" },
+  ];
 
   return (
     <nav className="relative border-t border-[var(--color-border-subtle)] bg-[var(--color-background)]">
       <div className="flex items-center justify-around px-1 pb-5 pt-2.5">
-        {[...primaryItems, { page: "admin-more" as Page, label: "More" }].map(
-          (item) => {
-            const active = page === item.page;
-            const Icon = icons[item.page];
-            const isMore = item.page === "admin-more";
-            return (
-              <button
-                key={item.page}
-                type="button"
-                onClick={() =>
-                  isMore ? setMoreOpen((value) => !value) : navigate(item.page)
-                }
-                className="flex min-w-[52px] flex-col items-center gap-1 rounded-xl px-2 py-1.5 transition-all active:scale-90 hover:bg-[var(--color-hover-surface)]"
-              >
-                {isMore ? (
-                  <MoreHorizontal
-                    size={20}
-                    strokeWidth={moreOpen ? 2.5 : 1.8}
-                    color={
-                      moreOpen
-                        ? "var(--color-accent-primary)"
-                        : "var(--color-text-muted)"
-                    }
-                  />
-                ) : (
+        {items.map((item) => {
+          const isMore = item.page === "admin-more";
+          const active = !isMore && page === item.page;
+          const Icon = !isMore ? icons[item.page] : undefined;
+
+          return (
+            <button
+              key={item.page}
+              type="button"
+              onClick={() =>
+                isMore ? setMoreOpen((value) => !value) : navigate(item.page)
+              }
+              className="flex min-w-[52px] flex-col items-center gap-1 rounded-xl px-2 py-1.5 transition-all active:scale-90 hover:bg-[var(--color-hover-surface)]"
+            >
+              {isMore ? (
+                <MoreHorizontal
+                  size={20}
+                  strokeWidth={moreOpen ? 2.5 : 1.8}
+                  color={
+                    moreOpen
+                      ? "var(--color-accent-primary)"
+                      : "var(--color-text-muted)"
+                  }
+                />
+              ) : (
+                Icon && (
                   <Icon
                     size={20}
                     strokeWidth={active ? 2.5 : 1.8}
@@ -70,28 +81,30 @@ export default function AdminNav({ page, navigate }: AdminNavProps) {
                         : "var(--color-text-muted)"
                     }
                   />
-                )}
-                <span
-                  className="text-[9px] font-bold"
-                  style={{
-                    color:
-                      active || (isMore && moreOpen)
-                        ? "var(--color-accent-primary)"
-                        : "var(--color-text-muted)",
-                  }}
-                >
-                  {item.label}
-                </span>
-              </button>
-            );
-          },
-        )}
+                )
+              )}
+
+              <span
+                className="text-[9px] font-bold"
+                style={{
+                  color:
+                    active || (isMore && moreOpen)
+                      ? "var(--color-accent-primary)"
+                      : "var(--color-text-muted)",
+                }}
+              >
+                {item.label}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {moreOpen && (
         <div className="absolute bottom-[4.5rem] right-2 flex min-w-40 flex-col gap-1 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface)] p-2 shadow-2xl">
           {secondaryItems.map((item) => {
             const Icon = icons[item.page];
+
             return (
               <button
                 key={item.page}
@@ -108,7 +121,7 @@ export default function AdminNav({ page, navigate }: AdminNavProps) {
                       : "var(--color-text-secondary)",
                 }}
               >
-                <Icon size={14} />
+                {Icon && <Icon size={14} />}
                 {item.label}
               </button>
             );

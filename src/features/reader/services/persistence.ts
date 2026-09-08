@@ -1,7 +1,4 @@
-import type {
-  ReaderPreferences,
-  ReadingProgress,
-} from "../../features/reader/types";
+import type { ReaderPreferences, ReadingProgress } from "../types";
 
 const READING_PROGRESS_KEY = "somi-reading-progress";
 const READER_PREFERENCES_KEY = "somi-reader-preferences";

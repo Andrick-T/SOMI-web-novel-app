@@ -7,7 +7,7 @@ import {
 
 describe("book repository empty-catalog handling", () => {
   it("returns no selected book when the catalog is empty", () => {
-    const catalog: Array<{ id: string; views: number; title: string }> = [];
+    const catalog: Parameters<typeof resolveSelectedBook>[0] = [];
 
     expect(resolveSelectedBook(catalog, "missing-book")).toBeUndefined();
     expect(resolveSelectedBook(catalog)).toBeUndefined();

@@ -94,6 +94,7 @@ class ApiChapterRepository {
         rating: 0,
         views: 0,
         favorites: 0,
+        tags: [],
         chapters: (found.chapters ?? []).map(normalizeApiChapter),
       };
     } catch {

@@ -66,7 +66,7 @@ function AppRoutes() {
     libraryBooks: [],
     unlockedChapters: ["bk-c1", "bk-c2", "bk-c3", "mt-c1", "mt-c2", "mt-c3"],
     addToLibrary: () => undefined,
-    unlockChapter: () => undefined,
+    unlockChapter: async () => undefined,
     addCoins: () => undefined,
     onLogin: login,
     onLogout: logout,

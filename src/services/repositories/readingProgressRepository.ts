@@ -2,6 +2,8 @@ import { books } from "../../data/books";
 import type { ReadingProgress } from "../../features/reader/types";
 
 const storageKey = "somi-reading-progress";
+const totalPagesForBook = (bookId: string) =>
+  books.find((book) => book.id === bookId)?.chapters.length ?? 1;
 
 const initialProgress: Record<string, ReadingProgress> = {
   "midnight-throne": {
@@ -9,6 +11,7 @@ const initialProgress: Record<string, ReadingProgress> = {
     bookId: "midnight-throne",
     chapterId: "mt-c1",
     page: 1,
+    totalPages: totalPagesForBook("midnight-throne"),
     progressPercentage: 68,
     lastReadAt: "2 hours ago",
   },
@@ -17,6 +20,7 @@ const initialProgress: Record<string, ReadingProgress> = {
     bookId: "sins-of-father",
     chapterId: "sf-c2",
     page: 1,
+    totalPages: totalPagesForBook("sins-of-father"),
     progressPercentage: 32,
     lastReadAt: "Yesterday",
   },
@@ -25,6 +29,7 @@ const initialProgress: Record<string, ReadingProgress> = {
     bookId: "baobab-kingdom",
     chapterId: "bk-c1",
     page: 1,
+    totalPages: totalPagesForBook("baobab-kingdom"),
     progressPercentage: 15,
     lastReadAt: "3 days ago",
   },

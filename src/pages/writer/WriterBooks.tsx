@@ -157,7 +157,7 @@ export default function WriterBooks({ navigate }: CommonProps) {
             {s === "all"
               ? "All"
               : s
-                  .replace("_", " ")
+                  .replace(/_/g, " ")
                   .replace(/([A-Z])/g, " $1")
                   .trim()}
           </button>
@@ -249,7 +249,7 @@ export default function WriterBooks({ navigate }: CommonProps) {
 
                     <div className="mt-2">
                       <StatusBadge
-                        label={book.status.replaceAll("_", " ")}
+                        label={book.status.replace(/_/g, " ")}
                         tone={statusToneFor(book.status)}
                         compact
                       />

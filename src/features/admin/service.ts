@@ -405,7 +405,7 @@ export function dismissReport(
 }
 
 export function filterTransactions(
-  transactions: Pick<AdminTransaction, "id" | "type" | "status">[],
+  transactions: readonly Pick<AdminTransaction, "id" | "type" | "status">[],
   filters: TransactionFilters,
 ): Pick<AdminTransaction, "id" | "type" | "status">[] {
   return transactions.filter((transaction) => {
@@ -519,14 +519,19 @@ export const adminService = {
         (book) => book.moderationStatus === filters.moderationStatus,
       );
     }
-    if (filters.genre && filters.genre !== "ALL") {
+    const genreFilter = filters.genre;
+
+    if (genreFilter && genreFilter !== "ALL") {
       books = books.filter(
-        (book) => book.genre.toLowerCase() === filters.genre.toLowerCase(),
+        (book) => book.genre.toLowerCase() === genreFilter.toLowerCase(),
       );
     }
-    if (filters.writer && filters.writer !== "ALL") {
+
+    const writerFilter = filters.writer;
+
+    if (writerFilter && writerFilter !== "ALL") {
       books = books.filter((book) =>
-        book.writer.toLowerCase().includes(filters.writer.toLowerCase()),
+        book.writer.toLowerCase().includes(writerFilter.toLowerCase()),
       );
     }
     return books;

@@ -11,20 +11,43 @@ import {
   LoadingState,
   TransactionRow,
 } from "../components/DesignPrimitives";
+
 import type { CommonProps } from "../types";
 import {
   useApiEconomy,
   walletRepository,
 } from "../services/repositories/walletRepository";
 
-const bundles = coinPackageCatalog.map((bundle) => ({
+interface WalletTransaction {
+  id: string;
+  type: string;
+  coins: number;
+  createdAt: string;
+}
+
+interface MockTransaction {
+  id: number;
+  type: "purchase" | "spend";
+  label: string;
+  coins: number;
+  date: string;
+  icon: string;
+}
+
+type BundleItem = (typeof coinPackageCatalog)[number] & {
+  priceCFA: number;
+  bonus: number;
+  best: boolean;
+};
+
+const bundles: BundleItem[] = coinPackageCatalog.map((bundle) => ({
   ...bundle,
   priceCFA: bundle.amountCfa,
   bonus: bundle.bonusCoins ?? 0,
-  best: bundle.bestValue,
+  best: bundle.bestValue ?? false,
 }));
 
-const mockTransactions = [
+const mockTransactions: MockTransaction[] = [
   {
     id: 1,
     type: "purchase",
@@ -89,11 +112,17 @@ export default function WalletPage({
 
   useEffect(() => {
     if (!useApiEconomy) {
-      setTransactionHistory(mockTransactions);
+      setTransactionHistory(
+        mockTransactions.map(({ id, type, coins, date }) => ({
+          id: String(id),
+          type,
+          coins,
+          createdAt: date,
+        })),
+      );
       return;
     }
-    void walletRepository
-      .getTransactions()
+    void Promise.resolve(walletRepository.getTransactions())
       .then((items) => setTransactionHistory(items))
       .catch((requestError: Error) => setError(requestError.message));
   }, []);

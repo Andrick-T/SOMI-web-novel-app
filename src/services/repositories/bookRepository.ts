@@ -113,7 +113,26 @@ const normalizeGenreList = (value: unknown): string[] => {
   return value.filter((entry): entry is string => typeof entry === "string");
 };
 
-const normalizeApiBook = (apiBook: ApiBook | null | undefined) => {
+const supportedGenres = new Set<(typeof books)[number]["genres"][number]>([
+  "Fantasy",
+  "Adventure",
+  "Children's",
+  "African Culture",
+  "Thriller",
+  "Family Saga",
+  "Historical",
+  "Romance",
+]);
+
+const normalizeGenres = (value: unknown): (typeof books)[number]["genres"] =>
+  normalizeGenreList(value).filter(
+    (genre): genre is (typeof books)[number]["genres"][number] =>
+      supportedGenres.has(genre as (typeof books)[number]["genres"][number]),
+  );
+
+const normalizeApiBook = (
+  apiBook: ApiBook | null | undefined,
+): (typeof books)[number] | undefined => {
   if (!apiBook) return undefined;
 
   return {
@@ -123,7 +142,7 @@ const normalizeApiBook = (apiBook: ApiBook | null | undefined) => {
       apiBook.author?.displayName ?? apiBook.author?.email ?? "Unknown Author",
     cover: apiBook.cover ?? apiBook.heroImage ?? "",
     heroImage: apiBook.heroImage ?? apiBook.cover ?? "",
-    genres: normalizeGenreList(apiBook.genres),
+    genres: normalizeGenres(apiBook.genres),
     status: normalizeStatus(apiBook.status),
     synopsis: apiBook.synopsis ?? "",
     totalChapters: Number(
@@ -172,7 +191,9 @@ class ApiBookRepository {
 
   async loadBooks(): Promise<(typeof books)[number][]> {
     try {
-      const response = await this.request<{ books?: ApiBook[] | unknown }>('/books');
+      const response = await this.request<{ books?: ApiBook[] | unknown }>(
+        "/books",
+      );
       const rawBooks = Array.isArray(response.books) ? response.books : [];
       this.cache = rawBooks
         .map(normalizeApiBook)
