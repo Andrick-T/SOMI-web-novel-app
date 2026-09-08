@@ -12,7 +12,8 @@
     "backend:test": "vitest run",
     "backend:build": "tsc -p backend/tsconfig.json",
     "phase7e:fixture": "tsx backend/scripts/phase7e-acceptance-fixture.ts",
-    "phase7f:fixture": "tsx backend/scripts/phase7f-acceptance-fixture.ts"
+    "phase7f:fixture": "tsx backend/scripts/phase7f-acceptance-fixture.ts",
+    "db:seed": "tsx backend/prisma/seed.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.21.0",

@@ -42,6 +42,7 @@ export default function WriterBooks({ navigate }: CommonProps) {
   const [books, setBooks] = useState(() =>
     useApiWriterContent ? [] : writerRepository.getWriterBooks(),
   );
+  const [coverUrls, setCoverUrls] = useState<Record<string, string>>({});
 
   const [analytics, setAnalytics] = useState<BookAnalytics[]>([]);
   const [loadError, setLoadError] = useState("");
@@ -66,6 +67,66 @@ export default function WriterBooks({ navigate }: CommonProps) {
         );
       });
   }, []);
+
+  useEffect(() => {
+    if (!useApiWriterContent || books.length === 0) return;
+
+    let cancelled = false;
+    const objectUrls: string[] = [];
+
+    const loadDraftCovers = async () => {
+      const entries = await Promise.all(
+        books
+          .filter((book) => book.cover)
+          .map(async (book) => {
+            const match = book.cover.match(
+              /\/writer\/assets\/([^/]+)\/public$/,
+            );
+
+            if (!match) {
+              return null;
+            }
+
+            try {
+              const url = await apiWriterRepository.getPrivateAssetBlobUrl(
+                match[1],
+              );
+
+              objectUrls.push(url);
+
+              return {
+                bookId: book.id,
+                url,
+              };
+            } catch {
+              return null;
+            }
+          }),
+      );
+
+      if (cancelled) {
+        objectUrls.forEach((url) => URL.revokeObjectURL(url));
+        return;
+      }
+
+      const nextUrls: Record<string, string> = {};
+
+      for (const entry of entries) {
+        if (entry) {
+          nextUrls[entry.bookId] = entry.url;
+        }
+      }
+
+      setCoverUrls(nextUrls);
+    };
+
+    void loadDraftCovers();
+
+    return () => {
+      cancelled = true;
+      objectUrls.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [books]);
 
   const filtered = useMemo(
     () =>
@@ -218,6 +279,7 @@ export default function WriterBooks({ navigate }: CommonProps) {
         ) : (
           filtered.map((book) => {
             const chapterCount = book.chapters.length;
+
             const bookAnalytics = analytics.find(
               (entry) => entry.bookId === book.id,
             );
@@ -240,15 +302,48 @@ export default function WriterBooks({ navigate }: CommonProps) {
                 }}
               >
                 <div className="flex gap-3 p-4">
+                  {/* Book cover */}
                   <div
                     className="rounded-xl overflow-hidden flex-shrink-0"
                     style={{ width: 64, height: 96 }}
                   >
-                    <img
-                      src={book.cover}
-                      alt={book.title}
-                      className="w-full h-full object-cover"
-                    />
+                    {useApiWriterContent ? (
+                      coverUrls[book.id] ? (
+                        <img
+                          src={coverUrls[book.id]}
+                          alt={book.title}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div
+                          className="w-full h-full flex items-center justify-center"
+                          aria-label={`${book.title} cover is loading`}
+                          style={{
+                            background: "var(--color-background)",
+                            color: "var(--color-text-muted)",
+                          }}
+                        >
+                          <BookOpen size={22} />
+                        </div>
+                      )
+                    ) : book.cover ? (
+                      <img
+                        src={book.cover}
+                        alt={book.title}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div
+                        className="w-full h-full flex items-center justify-center"
+                        aria-label={`${book.title} has no cover`}
+                        style={{
+                          background: "var(--color-background)",
+                          color: "var(--color-text-muted)",
+                        }}
+                      >
+                        <BookOpen size={22} />
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex-1 min-w-0">

@@ -237,6 +237,29 @@ export async function getBookDetail(bookId: string, viewer?: AuthPrincipal) {
 
   return mapBook(book, false);
 }
+export async function getGenres() {
+  return prisma.genre.findMany({
+    orderBy: {
+      name: "asc",
+    },
+    select: {
+      id: true,
+      name: true,
+    },
+  });
+}
+
+export async function getTags() {
+  return prisma.tag.findMany({
+    orderBy: {
+      name: "asc",
+    },
+    select: {
+      id: true,
+      name: true,
+    },
+  });
+}
 
 export async function createBook(
   writer: AuthPrincipal,

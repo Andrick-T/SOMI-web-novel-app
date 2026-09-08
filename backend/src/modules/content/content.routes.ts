@@ -27,6 +27,8 @@ import {
   getWriterChapters,
   updateBook,
   updateChapter,
+  getGenres,
+  getTags,
 } from "./content.service.js";
 import { AppError } from "../../common/errors/http-error.js";
 
@@ -51,6 +53,22 @@ const assertWriterCannotChangeLifecycleStatus = (
 };
 
 export const contentRouter = Router();
+
+contentRouter.get(
+  "/genres",
+  asyncRoute(async (_req, res) => {
+    const genres = await getGenres();
+    res.json({ genres });
+  }),
+);
+
+contentRouter.get(
+  "/tags",
+  asyncRoute(async (_req, res) => {
+    const tags = await getTags();
+    res.json({ tags });
+  }),
+);
 
 contentRouter.get(
   "/books",

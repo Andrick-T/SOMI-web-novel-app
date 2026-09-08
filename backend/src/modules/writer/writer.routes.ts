@@ -36,25 +36,24 @@ const asyncRoute =
    ============================================================ */
 
 /**
- * Public-safe delivery for book covers.
+ * Public delivery for published book covers.
  *
- * This route intentionally lives BEFORE the writer authentication
+ * IMPORTANT:
+ * This route is intentionally registered BEFORE the authentication
  * middleware below.
  *
- * Access rules:
+ * Security rules:
  *
- * 1. Published books:
- *    Public readers may access the cover.
+ * - Asset must exist.
+ * - Asset must be ACTIVE.
+ * - Asset must belong directly to a book.
+ * - Asset must NOT belong to a chapter.
+ * - Associated book must be PUBLISHED.
  *
- * 2. Draft/private books:
- *    Only the owning writer or an ADMIN may access the cover.
+ * No JWT is required.
  *
- * 3. Non-cover assets:
- *    This endpoint cannot expose chapter assets because it requires
- *    WriterAsset.chapterId to be NULL.
- *
- * This prevents the private writer asset endpoint from being used
- * as the public media endpoint.
+ * Draft/unpublished covers are deliberately NOT exposed here.
+ * Writers/admins access those through the protected asset endpoint.
  */
 writerRouter.get(
   "/assets/:assetId/public",
@@ -67,7 +66,6 @@ writerRouter.get(
       },
       select: {
         id: true,
-        writerId: true,
         bookId: true,
         chapterId: true,
         storageKey: true,
@@ -86,49 +84,30 @@ writerRouter.get(
       throw new AppError(404, "ASSET_NOT_FOUND", "Asset not found.");
     }
 
+    /*
+     * Only active assets may be delivered.
+     */
     if (asset.status !== "ACTIVE") {
       throw new AppError(404, "ASSET_NOT_FOUND", "Asset not found.");
     }
 
     /*
-     * A public cover asset must belong directly to a book.
-     * Chapter assets can never be delivered through this route.
+     * This endpoint is strictly for book covers.
+     *
+     * Chapter assets can never be delivered through the public
+     * cover endpoint.
      */
     if (!asset.bookId || asset.chapterId !== null || !asset.book) {
       throw new AppError(404, "ASSET_NOT_FOUND", "Asset not found.");
     }
 
     /*
-     * Determine whether this request is authenticated.
+     * Only published books have publicly accessible covers.
      *
-     * We intentionally inspect the authorization header without
-     * making authentication mandatory for this endpoint.
-     *
-     * Public readers do not need credentials for published covers.
-     * Private covers remain protected below.
+     * Deliberately return 404 instead of 403 so the endpoint does
+     * not disclose the existence of private/draft assets.
      */
-    const authorization = req.headers.authorization;
-
     if (asset.book.status !== "PUBLISHED") {
-      /*
-       * The route is public at the HTTP level, but unpublished covers
-       * must remain private.
-       *
-       * We therefore require a valid authenticated writer/admin
-       * request for non-published books.
-       */
-      if (!authorization?.startsWith("Bearer ")) {
-        throw new AppError(404, "ASSET_NOT_FOUND", "Asset not found.");
-      }
-
-      /*
-       * The actual authenticated private-access path remains
-       * /assets/:assetId below. This public route deliberately does
-       * not attempt to duplicate JWT verification.
-       *
-       * Returning 404 here prevents exposing whether a private
-       * asset exists to unauthenticated users.
-       */
       throw new AppError(404, "ASSET_NOT_FOUND", "Asset not found.");
     }
 
@@ -369,6 +348,10 @@ writerRouter.patch(
       );
     }
 
+    /*
+     * Lifecycle status must never be changed through the generic
+     * localization update endpoint.
+     */
     if (Object.prototype.hasOwnProperty.call(req.body, "status")) {
       throw new AppError(
         409,
@@ -509,9 +492,10 @@ writerRouter.get(
  *
  *   chapterId = NULL
  *
- * Book.cover is then updated to the public-safe media endpoint.
+ * Book.cover points to the public-safe endpoint.
  *
- * The public endpoint itself only exposes the asset when the
+ * IMPORTANT:
+ * The public endpoint itself will only serve the image once the
  * associated book is PUBLISHED.
  */
 writerRouter.post(
@@ -593,27 +577,19 @@ writerRouter.post(
     });
 
     /*
-     * IMPORTANT:
+     * Book.cover deliberately points to the public-safe endpoint.
      *
-     * Do not point Book.cover at /writer/assets/:assetId.
-     *
-     * That endpoint is intentionally private.
-     *
-     * The /public endpoint performs the publication check and
-     * safely serves the cover to readers.
+     * This endpoint itself decides whether the book is currently
+     * published before serving the image.
      */
     const url = `/api/v1/writer/assets/${asset.id}/public`;
 
-    const updatedBook = await prisma.book.update({
+    await prisma.book.update({
       where: {
         id: bookId,
       },
       data: {
         cover: url,
-      },
-      select: {
-        id: true,
-        cover: true,
       },
     });
 
@@ -632,7 +608,20 @@ writerRouter.post(
         caption: asset.caption,
         status: asset.status,
       },
+
+      /*
+       * Return the private authenticated URL as the upload response
+       * for writer-side access to the newly uploaded draft asset.
+       *
+       * Book.cover remains the public-safe URL above.
+       */
       url: `/api/v1/writer/assets/${asset.id}`,
+
+      /*
+       * Explicitly expose the public URL separately so callers do
+       * not have to construct it themselves.
+       */
+      publicUrl: url,
     });
   }),
 );
@@ -735,9 +724,19 @@ writerRouter.post(
     return res.status(201).json({
       asset: {
         id: asset.id,
+        writerId: asset.writerId,
+        bookId: asset.bookId,
+        chapterId: asset.chapterId,
+        storageKey: asset.storageKey,
+        mimeType: asset.mimeType,
+        sizeBytes: asset.sizeBytes,
+        width: asset.width,
+        height: asset.height,
         altText: asset.altText,
         caption: asset.caption,
+        status: asset.status,
       },
+
       url: `/api/v1/writer/assets/${asset.id}`,
     });
   }),
@@ -750,10 +749,16 @@ writerRouter.post(
 /**
  * Protected writer/admin asset delivery.
  *
- * This endpoint remains private intentionally.
+ * This endpoint intentionally remains authenticated.
  *
- * Do NOT make this route public because chapter assets and
- * unpublished writer assets may be stored here.
+ * It is used for:
+ *
+ * - draft covers
+ * - unpublished covers
+ * - chapter assets
+ * - other private writer assets
+ *
+ * Ownership is enforced independently of authentication.
  */
 writerRouter.get(
   "/assets/:assetId",

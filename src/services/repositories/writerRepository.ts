@@ -426,6 +426,14 @@ class ApiWriterRepository {
       }>;
     }>("/api/v1/writer/books/analytics");
   }
+
+  async getPrivateAssetBlobUrl(assetId: string): Promise<string> {
+    const blob = await apiAuthRepository.authorizedImageRequest(
+      `/api/v1/writer/assets/${encodeURIComponent(assetId)}`,
+    );
+
+    return URL.createObjectURL(blob);
+  }
 }
 
 export const apiWriterRepository = new ApiWriterRepository();

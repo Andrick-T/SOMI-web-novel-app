@@ -125,6 +125,57 @@ class ApiAuthRepository {
   async authorizedBinaryRequest<T>(path: string, init: RequestInit = {}) {
     return this.request<T>(path, init);
   }
+  async authorizedImageRequest(
+    path: string,
+    init: RequestInit = {},
+  ): Promise<Blob> {
+    const tokenAtRequest = this.accessToken;
+    const versionAtRequest = this.authVersion;
+
+    const headers = new Headers(init.headers);
+
+    if (this.accessToken) {
+      headers.set("Authorization", `Bearer ${this.accessToken}`);
+    }
+
+    const baseUrl = appConfig.apiBaseUrl.replace(/\/$/, "");
+
+    const requestUrl = path.startsWith("/api/v1/")
+      ? `${baseUrl}${path}`
+      : `${baseUrl}/api/v1/auth${path}`;
+
+    const response = await fetch(requestUrl, {
+      ...init,
+      headers,
+      credentials: "include",
+    });
+
+    if (response.status === 401) {
+      if (versionAtRequest !== this.authVersion) {
+        throw new Error("Authentication request failed.");
+      }
+
+      const token = await this.refresh();
+
+      if (token) {
+        return this.authorizedImageRequest(path, init);
+      }
+
+      if (this.accessToken === tokenAtRequest) {
+        this.setAccessToken(null);
+      }
+
+      throw new Error("Authentication required.");
+    }
+
+    if (!response.ok) {
+      const body = await response.json().catch(() => null);
+
+      throw new Error(body?.error?.message ?? "Unable to load image.");
+    }
+
+    return response.blob();
+  }
 }
 
 export const apiAuthRepository = new ApiAuthRepository();
