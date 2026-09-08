@@ -8,28 +8,28 @@ datasource db {
 }
 
 model User {
-  id            String   @id @default(uuid())
-  email         String   @unique
-  username      String   @unique
-  passwordHash  String
-  role          String   @default("READER")
-  status        String   @default("ACTIVE")
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  lastLoginAt   DateTime?
+  id           String    @id @default(uuid())
+  email        String    @unique
+  username     String    @unique
+  passwordHash String
+  role         String    @default("READER")
+  status       String    @default("ACTIVE")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  lastLoginAt  DateTime?
 
-  profile       UserProfile?
-  authSessions  AuthSession[]
-  books         Book[]   @relation("BookAuthor")
-  wallets      Wallet?
-  libraryItems  LibraryItem[]
-  readings     ReadingProgress[]
-  entitlements ChapterEntitlement[]
-  transactions WalletTransaction[]
-  writerProfile WriterProfile?
+  profile           UserProfile?
+  authSessions      AuthSession[]
+  books             Book[]               @relation("BookAuthor")
+  wallets           Wallet?
+  libraryItems      LibraryItem[]
+  readings          ReadingProgress[]
+  entitlements      ChapterEntitlement[]
+  transactions      WalletTransaction[]
+  writerProfile     WriterProfile?
   writerSubmissions WriterSubmission[]
-  writerEarnings WriterEarning[]
-  writerAssets WriterAsset[]
+  writerEarnings    WriterEarning[]
+  writerAssets      WriterAsset[]
 }
 
 model AuthSession {
@@ -63,54 +63,54 @@ model UserProfile {
 }
 
 model Book {
-  id           String   @id @default(uuid())
-  authorId     String
-  title        String
-  slug         String   @unique
-  synopsis     String?
-  cover        String?
-  heroImage    String?
-  status       String   @default("DRAFT")
-  rating       Float    @default(0)
-  views        Int      @default(0)
-  favorites    Int      @default(0)
-  totalChapters Int     @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  publishedAt  DateTime?
+  id            String    @id @default(uuid())
+  authorId      String
+  title         String
+  slug          String    @unique
+  synopsis      String?
+  cover         String?
+  heroImage     String?
+  status        String    @default("DRAFT")
+  rating        Float     @default(0)
+  views         Int       @default(0)
+  favorites     Int       @default(0)
+  totalChapters Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  publishedAt   DateTime?
 
-  author        User @relation("BookAuthor", fields: [authorId], references: [id])
-  chapters      Chapter[]
-  libraryItems  LibraryItem[]
+  author          User                 @relation("BookAuthor", fields: [authorId], references: [id])
+  chapters        Chapter[]
+  libraryItems    LibraryItem[]
   readingProgress ReadingProgress[]
-  entitlements  ChapterEntitlement[]
-  genres        BookGenre[]
-  tags          BookTag[]
-  localizations BookLocalization[]
-  submissions   WriterSubmission[]
-  assets        WriterAsset[]
-  earnings      WriterEarning[]
+  entitlements    ChapterEntitlement[]
+  genres          BookGenre[]
+  tags            BookTag[]
+  localizations   BookLocalization[]
+  submissions     WriterSubmission[]
+  assets          WriterAsset[]
+  earnings        WriterEarning[]
 }
 
 model Chapter {
-  id           String   @id @default(uuid())
-  bookId       String
-  number       Int
-  title        String
-  content      String
-  wordCount    Int      @default(0)
-  readingTime  Int      @default(0)
-  accessType   String   @default("FREE")
-  price        Int      @default(0)
-  status       String   @default("DRAFT")
-  publishedAt  DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  contentVersion Int     @default(0)
+  id             String    @id @default(uuid())
+  bookId         String
+  number         Int
+  title          String
+  content        String
+  wordCount      Int       @default(0)
+  readingTime    Int       @default(0)
+  accessType     String    @default("FREE")
+  price          Int       @default(0)
+  status         String    @default("DRAFT")
+  publishedAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  contentVersion Int       @default(0)
 
-  book         Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
-  progress     ReadingProgress[]
-  entitlements ChapterEntitlement[]
+  book          Book                  @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  progress      ReadingProgress[]
+  entitlements  ChapterEntitlement[]
   localizations ChapterLocalization[]
   assets        WriterAsset[]
   submissions   WriterSubmission[]
@@ -120,14 +120,14 @@ model Chapter {
 }
 
 model Genre {
-  id    String @id @default(uuid())
-  name  String @unique
+  id    String      @id @default(uuid())
+  name  String      @unique
   books BookGenre[]
 }
 
 model Tag {
-  id    String @id @default(uuid())
-  name  String @unique
+  id    String    @id @default(uuid())
+  name  String    @unique
   books BookTag[]
 }
 
@@ -143,9 +143,9 @@ model BookGenre {
 }
 
 model BookTag {
-  id      String @id @default(uuid())
-  bookId  String
-  tagId   String
+  id     String @id @default(uuid())
+  bookId String
+  tagId  String
 
   book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
   tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
@@ -154,14 +154,14 @@ model BookTag {
 }
 
 model LibraryItem {
-  id          String   @id @default(uuid())
-  userId      String
-  bookId      String
-  status      String   @default("SAVED")
-  progress    Int      @default(0)
-  lastReadAt  DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id         String    @id @default(uuid())
+  userId     String
+  bookId     String
+  status     String    @default("SAVED")
+  progress   Int       @default(0)
+  lastReadAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
@@ -170,15 +170,15 @@ model LibraryItem {
 }
 
 model ReadingProgress {
-  id                String   @id @default(uuid())
-  userId            String
-  bookId            String
-  chapterId         String
+  id                 String   @id @default(uuid())
+  userId             String
+  bookId             String
+  chapterId          String
   progressPercentage Float    @default(0)
-  position          Int      @default(0)
-  lastReadAt        DateTime @default(now())
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  position           Int      @default(0)
+  lastReadAt         DateTime @default(now())
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   book    Book    @relation(fields: [bookId], references: [id], onDelete: Cascade)
@@ -198,26 +198,26 @@ model Wallet {
 }
 
 model WalletTransaction {
-  id         String   @id @default(uuid())
-  userId     String
-  type       String
-  amount     Int
-  coins      Int
-  status     String   @default("PENDING")
-  reference  String?   @unique
-  metadata   Json?
-  createdAt  DateTime @default(now())
+  id        String   @id @default(uuid())
+  userId    String
+  type      String
+  amount    Int
+  coins     Int
+  status    String   @default("PENDING")
+  reference String?  @unique
+  metadata  Json?
+  createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model ChapterEntitlement {
-  id           String   @id @default(uuid())
-  userId       String
-  bookId       String
-  chapterId    String
+  id            String   @id @default(uuid())
+  userId        String
+  bookId        String
+  chapterId     String
   transactionId String?
-  grantedAt    DateTime @default(now())
+  grantedAt     DateTime @default(now())
 
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   book    Book    @relation(fields: [bookId], references: [id], onDelete: Cascade)
@@ -227,29 +227,29 @@ model ChapterEntitlement {
 }
 
 model WriterProfile {
-  id         String   @id @default(uuid())
-  userId     String   @unique
+  id          String   @id @default(uuid())
+  userId      String   @unique
   displayName String?
-  penName    String?
-  bio        String?
-  avatar     String?
-  banner     String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  penName     String?
+  bio         String?
+  avatar      String?
+  banner      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model BookLocalization {
-  id           String   @id @default(uuid())
-  bookId       String
-  languageCode String
-  title        String
-  description  String?
-  status       String   @default("NOT_STARTED")
-  sourceVersion Int     @default(0)
-  contentVersion Int    @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id             String   @id @default(uuid())
+  bookId         String
+  languageCode   String
+  title          String
+  description    String?
+  status         String   @default("NOT_STARTED")
+  sourceVersion  Int      @default(0)
+  contentVersion Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
 
@@ -258,17 +258,17 @@ model BookLocalization {
 }
 
 model ChapterLocalization {
-  id           String   @id @default(uuid())
-  chapterId    String
-  languageCode String
-  title        String
-  content      String
-  contentFormat String  @default("plain-text")
-  status       String   @default("NOT_STARTED")
-  sourceVersion Int     @default(0)
-  contentVersion Int    @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id             String   @id @default(uuid())
+  chapterId      String
+  languageCode   String
+  title          String
+  content        String
+  contentFormat  String   @default("plain-text")
+  status         String   @default("NOT_STARTED")
+  sourceVersion  Int      @default(0)
+  contentVersion Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   chapter Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
 
@@ -277,20 +277,20 @@ model ChapterLocalization {
 }
 
 model WriterSubmission {
-  id          String   @id @default(uuid())
-  writerId    String
-  bookId      String
-  chapterId   String?
-  languageCode String?
-  status      String   @default("SUBMITTED")
+  id              String    @id @default(uuid())
+  writerId        String
+  bookId          String
+  chapterId       String?
+  languageCode    String?
+  status          String    @default("SUBMITTED")
   rejectionReason String?
-  submittedAt DateTime @default(now())
-  reviewedAt  DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  submittedAt     DateTime  @default(now())
+  reviewedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
-  writer  User    @relation(fields: [writerId], references: [id], onDelete: Cascade)
-  book    Book    @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  writer  User     @relation(fields: [writerId], references: [id], onDelete: Cascade)
+  book    Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
   chapter Chapter? @relation(fields: [chapterId], references: [id], onDelete: Cascade)
 
   @@index([writerId, status])
@@ -298,23 +298,23 @@ model WriterSubmission {
 }
 
 model WriterAsset {
-  id          String   @id @default(uuid())
-  writerId    String
-  bookId      String
-  chapterId   String?
-  storageKey  String   @unique
-  mimeType    String
-  sizeBytes   Int
-  width       Int?
-  height      Int?
-  altText     String
-  caption     String?
-  status      String   @default("DRAFT")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id         String   @id @default(uuid())
+  writerId   String
+  bookId     String
+  chapterId  String?
+  storageKey String   @unique
+  mimeType   String
+  sizeBytes  Int
+  width      Int?
+  height     Int?
+  altText    String
+  caption    String?
+  status     String   @default("DRAFT")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
-  writer  User    @relation(fields: [writerId], references: [id], onDelete: Cascade)
-  book    Book    @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  writer  User     @relation(fields: [writerId], references: [id], onDelete: Cascade)
+  book    Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
   chapter Chapter? @relation(fields: [chapterId], references: [id], onDelete: Cascade)
 
   @@index([writerId, bookId])
@@ -322,18 +322,18 @@ model WriterAsset {
 }
 
 model WriterEarning {
-  id                String   @id @default(uuid())
-  writerId          String
-  bookId            String
-  chapterId         String
-  sourceTransactionId String  @unique
-  coins             Int
-  status            String   @default("PENDING")
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id                  String   @id @default(uuid())
+  writerId            String
+  bookId              String
+  chapterId           String
+  sourceTransactionId String   @unique
+  coins               Int
+  status              String   @default("PENDING")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
-  writer User    @relation(fields: [writerId], references: [id], onDelete: Cascade)
-  book   Book    @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  writer  User    @relation(fields: [writerId], references: [id], onDelete: Cascade)
+  book    Book    @relation(fields: [bookId], references: [id], onDelete: Cascade)
   chapter Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
 
   @@index([writerId, status])
@@ -341,33 +341,33 @@ model WriterEarning {
 }
 
 model PlatformSettings {
-  id                            String   @id @default(uuid())
-  platformName                  String   @default("SOMI")
-  supportEmail                  String   @default("support@somi.app")
-  maintenanceMode               Boolean  @default(false)
-  moderationEnabled             Boolean  @default(true)
-  writerRegistrationEnabled     Boolean  @default(true)
-  autoPublishEnabled            Boolean  @default(false)
-  coinConversionRate            Float    @default(18)
-  minimumPurchase               Int      @default(100)
-  chapterPricingRules           String   @default("premium chapters require explicit pricing")
-  emailNotifications            Boolean  @default(true)
-  moderationNotifications       Boolean  @default(true)
-  paymentNotifications          Boolean  @default(true)
-  sessionPolicy                 String   @default("JWT")
-  adminSessionTimeoutMinutes    Int      @default(60)
-  suspiciousActivityMonitoring  Boolean  @default(true)
-  createdAt                     DateTime @default(now())
-  updatedAt                     DateTime @updatedAt
+  id                           String   @id @default(uuid())
+  platformName                 String   @default("SOMI")
+  supportEmail                 String   @default("support@somi.app")
+  maintenanceMode              Boolean  @default(false)
+  moderationEnabled            Boolean  @default(true)
+  writerRegistrationEnabled    Boolean  @default(true)
+  autoPublishEnabled           Boolean  @default(false)
+  coinConversionRate           Float    @default(18)
+  minimumPurchase              Int      @default(100)
+  chapterPricingRules          String   @default("premium chapters require explicit pricing")
+  emailNotifications           Boolean  @default(true)
+  moderationNotifications      Boolean  @default(true)
+  paymentNotifications         Boolean  @default(true)
+  sessionPolicy                String   @default("JWT")
+  adminSessionTimeoutMinutes   Int      @default(60)
+  suspiciousActivityMonitoring Boolean  @default(true)
+  createdAt                    DateTime @default(now())
+  updatedAt                    DateTime @updatedAt
 }
 
 model AuditEvent {
-  id          String   @id @default(uuid())
-  actorId     String?
-  actorName   String?
-  action      String
-  targetType  String
-  targetId    String?
-  metadata    Json?
-  createdAt   DateTime @default(now())
+  id         String   @id @default(uuid())
+  actorId    String?
+  actorName  String?
+  action     String
+  targetType String
+  targetId   String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
 }

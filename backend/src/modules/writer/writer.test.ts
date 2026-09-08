@@ -3,6 +3,7 @@ import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createApp } from "../../app.js";
 import { prisma } from "../../config/database.js";
+import { creditWalletFromTrustedPayment } from "../economy/economy.service.js";
 
 const app = createApp();
 const password = "Somi-writer-password-123";
@@ -270,5 +271,315 @@ describe("Phase 7F Writer workflow", () => {
       .set("Authorization", `Bearer ${writer.token}`);
     expect(submission.status).toBe(201);
     expect(submission.body.submission.status).toBe("SUBMITTED");
+  });
+
+  it("isolates earnings and earning transactions to the authenticated writer", async () => {
+    const writerA = await createWriter();
+    const writerB = await createWriter();
+
+    /*
+     * Create one book/chapter owned by each writer through the real
+     * writer API.
+     */
+    const bookA = await createBook(writerA.token);
+    const bookB = await createBook(writerB.token);
+
+    const chapterAResponse = await request(app)
+      .post(`/api/v1/books/${bookA.id}/chapters`)
+      .set("Authorization", `Bearer ${writerA.token}`)
+      .send({
+        title: "Writer A Premium Chapter",
+        number: 1,
+        content: "Writer A premium content",
+      });
+
+    expect(chapterAResponse.status).toBe(201);
+
+    const chapterBResponse = await request(app)
+      .post(`/api/v1/books/${bookB.id}/chapters`)
+      .set("Authorization", `Bearer ${writerB.token}`)
+      .send({
+        title: "Writer B Premium Chapter",
+        number: 1,
+        content: "Writer B premium content",
+      });
+
+    expect(chapterBResponse.status).toBe(201);
+
+    const chapterAId = chapterAResponse.body.chapter.id;
+    const chapterBId = chapterBResponse.body.chapter.id;
+
+    created.chapters.push(chapterAId, chapterBId);
+
+    /*
+     * Promote the fixture content to PUBLISHED/PREMIUM so the real
+     * economy unlock endpoint can be exercised.
+     *
+     * This is fixture preparation only; the earning itself is created
+     * through the real wallet -> unlock -> attribution path.
+     */
+    await prisma.book.update({
+      where: { id: bookA.id },
+      data: {
+        status: "PUBLISHED",
+        publishedAt: new Date(),
+      },
+    });
+
+    await prisma.book.update({
+      where: { id: bookB.id },
+      data: {
+        status: "PUBLISHED",
+        publishedAt: new Date(),
+      },
+    });
+
+    await prisma.chapter.update({
+      where: { id: chapterAId },
+      data: {
+        accessType: "PREMIUM",
+        price: 120,
+        status: "PUBLISHED",
+        publishedAt: new Date(),
+      },
+    });
+
+    await prisma.chapter.update({
+      where: { id: chapterBId },
+      data: {
+        accessType: "PREMIUM",
+        price: 120,
+        status: "PUBLISHED",
+        publishedAt: new Date(),
+      },
+    });
+
+    /*
+     * Create a real reader through the authentication API.
+     */
+    const readerEmail = `earnings-isolation-${Date.now()}@example.test`;
+    const readerResponse = await request(app)
+      .post("/api/v1/auth/register")
+      .send({
+        email: readerEmail,
+        password: "Somi-earnings-isolation-123",
+        name: "Earnings Isolation Reader",
+      });
+
+    expect(readerResponse.status).toBe(201);
+
+    const readerId = readerResponse.body.user.id;
+    const readerToken = readerResponse.body.accessToken;
+
+    created.users.push(readerId);
+
+    /*
+     * Fund the reader through the trusted-payment service.
+     */
+    await creditWalletFromTrustedPayment({
+      userId: readerId,
+      packageId: "starter",
+      providerReference: `earnings-isolation-payment-${Date.now()}`,
+      verified: true,
+    });
+
+    /*
+     * Real economy flow:
+     *
+     * reader wallet
+     *   -> chapter unlock
+     *   -> wallet transaction
+     *   -> entitlement
+     *   -> writer earning attribution
+     *
+     * Unlock Writer A's chapter.
+     */
+    const unlockA = await request(app)
+      .post(`/api/v1/books/${bookA.id}/chapters/${chapterAId}/unlock`)
+      .set("Authorization", `Bearer ${readerToken}`)
+      .send({});
+
+    expect(unlockA.status).toBe(200);
+    expect(unlockA.body.alreadyUnlocked).not.toBe(true);
+
+    /*
+     * Unlock Writer B's chapter.
+     */
+    const unlockB = await request(app)
+      .post(`/api/v1/books/${bookB.id}/chapters/${chapterBId}/unlock`)
+      .set("Authorization", `Bearer ${readerToken}`)
+      .send({});
+
+    expect(unlockB.status).toBe(200);
+    expect(unlockB.body.alreadyUnlocked).not.toBe(true);
+
+    /*
+     * Verify the two earnings were actually attributed to the
+     * correct writers before testing the API isolation boundary.
+     */
+    const databaseEarnings = await prisma.writerEarning.findMany({
+      where: {
+        chapterId: {
+          in: [chapterAId, chapterBId],
+        },
+      },
+      orderBy: {
+        createdAt: "asc",
+      },
+    });
+
+    expect(databaseEarnings).toHaveLength(2);
+
+    const earningA = databaseEarnings.find(
+      (earning) => earning.chapterId === chapterAId,
+    );
+    const earningB = databaseEarnings.find(
+      (earning) => earning.chapterId === chapterBId,
+    );
+
+    expect(earningA).toBeDefined();
+    expect(earningB).toBeDefined();
+    expect(earningA!.writerId).toBe(writerA.id);
+    expect(earningB!.writerId).toBe(writerB.id);
+    expect(earningA!.coins).toBe(120);
+    expect(earningB!.coins).toBe(120);
+
+    /*
+     * ============================================================
+     * Writer A earnings
+     * ============================================================
+     */
+    const writerAEarnings = await request(app)
+      .get("/api/v1/writer/earnings")
+      .set("Authorization", `Bearer ${writerA.token}`);
+
+    expect(writerAEarnings.status).toBe(200);
+    expect(writerAEarnings.body.totalCoins).toBe(120);
+    expect(writerAEarnings.body.pendingCoins).toBe(120);
+    expect(writerAEarnings.body.availableCoins).toBe(0);
+
+    /*
+     * Writer A transaction list must contain only A's earning.
+     */
+    const writerATransactions = await request(app)
+      .get("/api/v1/writer/earnings/transactions")
+      .set("Authorization", `Bearer ${writerA.token}`);
+
+    expect(writerATransactions.status).toBe(200);
+    expect(writerATransactions.body.transactions).toHaveLength(1);
+    expect(writerATransactions.body.transactions[0]).toMatchObject({
+      id: earningA!.id,
+      bookId: bookA.id,
+      chapterId: chapterAId,
+      coins: 120,
+      status: "PENDING",
+    });
+
+    expect(
+      writerATransactions.body.transactions.some(
+        (transaction: { id: string }) => transaction.id === earningB!.id,
+      ),
+    ).toBe(false);
+
+    /*
+     * ============================================================
+     * Writer B earnings
+     * ============================================================
+     */
+    const writerBEarnings = await request(app)
+      .get("/api/v1/writer/earnings")
+      .set("Authorization", `Bearer ${writerB.token}`);
+
+    expect(writerBEarnings.status).toBe(200);
+    expect(writerBEarnings.body.totalCoins).toBe(120);
+    expect(writerBEarnings.body.pendingCoins).toBe(120);
+    expect(writerBEarnings.body.availableCoins).toBe(0);
+
+    /*
+     * Writer B transaction list must contain only B's earning.
+     */
+    const writerBTransactions = await request(app)
+      .get("/api/v1/writer/earnings/transactions")
+      .set("Authorization", `Bearer ${writerB.token}`);
+
+    expect(writerBTransactions.status).toBe(200);
+    expect(writerBTransactions.body.transactions).toHaveLength(1);
+    expect(writerBTransactions.body.transactions[0]).toMatchObject({
+      id: earningB!.id,
+      bookId: bookB.id,
+      chapterId: chapterBId,
+      coins: 120,
+      status: "PENDING",
+    });
+
+    expect(
+      writerBTransactions.body.transactions.some(
+        (transaction: { id: string }) => transaction.id === earningA!.id,
+      ),
+    ).toBe(false);
+
+    /*
+     * ============================================================
+     * Query-parameter IDOR attempts
+     * ============================================================
+     *
+     * The endpoint must ignore arbitrary writerId parameters and
+     * continue using the authenticated session as the authority.
+     */
+    const writerAAttack = await request(app)
+      .get(`/api/v1/writer/earnings?writerId=${writerB.id}`)
+      .set("Authorization", `Bearer ${writerA.token}`);
+
+    expect(writerAAttack.status).toBe(200);
+    expect(writerAAttack.body.totalCoins).toBe(120);
+
+    const writerAAttackTransactions = await request(app)
+      .get(`/api/v1/writer/earnings/transactions?writerId=${writerB.id}`)
+      .set("Authorization", `Bearer ${writerA.token}`);
+
+    expect(writerAAttackTransactions.status).toBe(200);
+    expect(writerAAttackTransactions.body.transactions).toHaveLength(1);
+    expect(writerAAttackTransactions.body.transactions[0].id).toBe(
+      earningA!.id,
+    );
+
+    const writerBAttack = await request(app)
+      .get(`/api/v1/writer/earnings?writerId=${writerA.id}`)
+      .set("Authorization", `Bearer ${writerB.token}`);
+
+    expect(writerBAttack.status).toBe(200);
+    expect(writerBAttack.body.totalCoins).toBe(120);
+
+    const writerBAttackTransactions = await request(app)
+      .get(`/api/v1/writer/earnings/transactions?writerId=${writerA.id}`)
+      .set("Authorization", `Bearer ${writerB.token}`);
+
+    expect(writerBAttackTransactions.status).toBe(200);
+    expect(writerBAttackTransactions.body.transactions).toHaveLength(1);
+    expect(writerBAttackTransactions.body.transactions[0].id).toBe(
+      earningB!.id,
+    );
+
+    /*
+     * ============================================================
+     * Authentication / role boundaries
+     * ============================================================
+     */
+
+    const unauthenticated = await request(app).get("/api/v1/writer/earnings");
+
+    expect(unauthenticated.status).toBe(401);
+
+    const readerForbidden = await request(app)
+      .get("/api/v1/writer/earnings")
+      .set("Authorization", `Bearer ${readerToken}`);
+
+    expect(readerForbidden.status).toBe(403);
+
+    const readerTransactionsForbidden = await request(app)
+      .get("/api/v1/writer/earnings/transactions")
+      .set("Authorization", `Bearer ${readerToken}`);
+
+    expect(readerTransactionsForbidden.status).toBe(403);
   });
 });

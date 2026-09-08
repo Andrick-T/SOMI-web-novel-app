@@ -162,6 +162,169 @@ describe("Phase 7C content lifecycle", () => {
     expect(forbidden.status).toBe(403);
   });
 
+  it("creates every new chapter as an owner-scoped draft and ignores client lifecycle status", async () => {
+    const writer = await createUser("WRITER");
+
+    const createBook = await request(app)
+      .post("/api/v1/books")
+      .set("Authorization", `Bearer ${writer.accessToken}`)
+      .send({
+        title: "Chapter Creation Integrity Book",
+        slug: `chapter-integrity-${randomUUID()}`,
+        synopsis: "Book used for chapter creation acceptance testing.",
+        genres: [],
+        tags: [],
+      });
+
+    expect(createBook.status).toBe(201);
+
+    const bookId = createBook.body.book.id;
+    created.books.push(bookId);
+
+    const createChapter = await request(app)
+      .post(`/api/v1/books/${bookId}/chapters`)
+      .set("Authorization", `Bearer ${writer.accessToken}`)
+      .send({
+        title: "Protected First Chapter",
+        number: 1,
+        content:
+          "This chapter must remain a draft regardless of any lifecycle value supplied by the client.",
+
+        // Malicious client attempt:
+        status: "PUBLISHED",
+      });
+
+    expect(createChapter.status).toBe(201);
+
+    const chapter = createChapter.body.chapter;
+    created.chapters.push(chapter.id);
+
+    expect(chapter.bookId).toBe(bookId);
+    expect(chapter.status).toBe("DRAFT");
+
+    const persisted = await prisma.chapter.findUnique({
+      where: { id: chapter.id },
+      select: {
+        id: true,
+        bookId: true,
+        title: true,
+        number: true,
+        status: true,
+        publishedAt: true,
+        accessType: true,
+        price: true,
+        wordCount: true,
+        readingTime: true,
+      },
+    });
+
+    expect(persisted).not.toBeNull();
+    expect(persisted?.bookId).toBe(bookId);
+    expect(persisted?.title).toBe("Protected First Chapter");
+    expect(persisted?.number).toBe(1);
+    expect(persisted?.status).toBe("DRAFT");
+    expect(persisted?.publishedAt).toBeNull();
+    expect(persisted?.accessType).toBe("FREE");
+    expect(persisted?.price).toBe(0);
+    expect(persisted?.wordCount).toBeGreaterThan(0);
+    expect(persisted?.readingTime).toBeGreaterThanOrEqual(1);
+
+    const persistedBook = await prisma.book.findUnique({
+      where: { id: bookId },
+      select: {
+        id: true,
+        authorId: true,
+        totalChapters: true,
+      },
+    });
+
+    expect(persistedBook).not.toBeNull();
+    expect(persistedBook?.authorId).toBe(writer.userId);
+    expect(persistedBook?.totalChapters).toBe(1);
+
+    const publicChapter = await request(app).get(
+      `/api/v1/books/${bookId}/chapters/${chapter.id}`,
+    );
+
+    expect(publicChapter.status).toBe(404);
+
+    const ownerChapter = await request(app)
+      .get(`/api/v1/books/${bookId}/chapters/${chapter.id}`)
+      .set("Authorization", `Bearer ${writer.accessToken}`);
+
+    expect(ownerChapter.status).toBe(200);
+    expect(ownerChapter.body.chapter.id).toBe(chapter.id);
+    expect(ownerChapter.body.chapter.bookId).toBe(bookId);
+    expect(ownerChapter.body.chapter.status).toBe("DRAFT");
+  });
+
+  it("creates every new book as an owner-scoped draft and ignores client lifecycle status", async () => {
+    const writer = await createUser("WRITER");
+
+    const slug = `protected-book-${randomUUID()}`;
+
+    const response = await request(app)
+      .post("/api/v1/books")
+      .set("Authorization", `Bearer ${writer.accessToken}`)
+      .send({
+        title: "Protected Lifecycle Book",
+        slug,
+        synopsis: "Lifecycle must be server controlled.",
+        genres: [],
+        tags: [],
+
+        // Malicious client attempt:
+        status: "PUBLISHED",
+      });
+
+    expect(response.status).toBe(201);
+
+    const book = response.body.book;
+
+    created.books.push(book.id);
+
+    // Ownership must come from the authenticated principal.
+    expect(book.authorId).toBe(writer.userId);
+
+    // Publication state must never come from the client.
+    expect(book.status).toBe("DRAFT");
+
+    // Verify the actual persisted database state.
+    const persisted = await prisma.book.findUnique({
+      where: { id: book.id },
+      select: {
+        id: true,
+        authorId: true,
+        title: true,
+        slug: true,
+        status: true,
+        publishedAt: true,
+      },
+    });
+
+    expect(persisted).not.toBeNull();
+    expect(persisted?.authorId).toBe(writer.userId);
+    expect(persisted?.title).toBe("Protected Lifecycle Book");
+    expect(persisted?.slug).toBe(slug);
+    expect(persisted?.status).toBe("DRAFT");
+    expect(persisted?.publishedAt).toBeNull();
+
+    // Draft must not leak through the public API.
+    const publicDetail = await request(app).get(`/api/v1/books/${book.id}`);
+
+    expect(publicDetail.status).toBe(404);
+
+    // Owner must be able to retrieve the draft.
+    const ownerDetail = await request(app)
+      .get(`/api/v1/books/${book.id}`)
+      .set("Authorization", `Bearer ${writer.accessToken}`);
+
+    expect(ownerDetail.status).toBe(200);
+    expect(ownerDetail.body.book.id).toBe(book.id);
+    expect(ownerDetail.body.book.authorId).toBe(writer.userId);
+    expect(ownerDetail.body.book.status).toBe("DRAFT");
+  });
+
   it("prevents unauthorized updates and enforces book ownership", async () => {
     const writerA = await createUser("WRITER");
     const writerB = await createUser("WRITER");
@@ -201,5 +364,51 @@ describe("Phase 7C content lifecycle", () => {
       .send({ status: "UNPUBLISHED" });
 
     expect(lifecycleUpdate.status).toBe(409);
+  });
+
+  it("prevents a writer from creating a chapter inside another writer's book", async () => {
+    const writerA = await createUser("WRITER");
+    const writerB = await createUser("WRITER");
+
+    const createBook = await request(app)
+      .post("/api/v1/books")
+      .set("Authorization", `Bearer ${writerA.accessToken}`)
+      .send({
+        title: "Writer A Private Book",
+        slug: `writer-a-private-${randomUUID()}`,
+        genres: [],
+        tags: [],
+      });
+
+    expect(createBook.status).toBe(201);
+
+    const bookId = createBook.body.book.id;
+    created.books.push(bookId);
+
+    const attack = await request(app)
+      .post(`/api/v1/books/${bookId}/chapters`)
+      .set("Authorization", `Bearer ${writerB.accessToken}`)
+      .send({
+        title: "Unauthorized Chapter",
+        number: 1,
+        content:
+          "Writer B must not be able to create content in Writer A's book.",
+      });
+
+    expect(attack.status).toBe(403);
+
+    const chapters = await prisma.chapter.findMany({
+      where: { bookId },
+      select: { id: true },
+    });
+
+    expect(chapters).toHaveLength(0);
+
+    const book = await prisma.book.findUnique({
+      where: { id: bookId },
+      select: { totalChapters: true },
+    });
+
+    expect(book?.totalChapters).toBe(0);
   });
 });

@@ -269,7 +269,6 @@ export async function createBook(
     synopsis?: string | null;
     cover?: string | null;
     heroImage?: string | null;
-    status?: string;
     genres?: string[];
     tags?: string[];
   },
@@ -309,7 +308,7 @@ export async function createBook(
         synopsis: input.synopsis ?? null,
         cover: input.cover ?? null,
         heroImage: input.heroImage ?? null,
-        status: input.status ?? "DRAFT",
+        status: "DRAFT",
       },
       include: {
         author: {
@@ -605,7 +604,6 @@ export async function getChapterDetail(
     : null;
   return mapChapter(chapter, entitlement ? "UNLOCKED" : "LOCKED");
 }
-
 export async function createChapter(
   writer: AuthPrincipal | undefined,
   bookId: string,
@@ -613,59 +611,69 @@ export async function createChapter(
     title: string;
     number: number;
     content: string;
-    status?: string;
     accessType?: string;
     price?: number;
   },
 ) {
   const book = await prisma.book.findUnique({ where: { id: bookId } });
-  if (!book) throw new AppError(404, "BOOK_NOT_FOUND", "Book not found.");
+
+  if (!book) {
+    throw new AppError(404, "BOOK_NOT_FOUND", "Book not found.");
+  }
+
   assertAuthorOrAdmin(writer, book.authorId);
 
   const duplicate = await prisma.chapter.findUnique({
     where: { bookId_number: { bookId, number: input.number } },
   });
-  if (duplicate)
+
+  if (duplicate) {
     throw new AppError(
       409,
       "CHAPTER_NUMBER_CONFLICT",
       "A chapter with this number already exists for this book.",
     );
+  }
 
-  const chapter = await prisma.chapter.create({
-    data: {
-      bookId,
-      title: input.title,
-      number: input.number,
-      content: input.content,
-      status: input.status ?? "DRAFT",
-      accessType: input.accessType ?? "FREE",
-      price: input.price ?? 0,
-      wordCount: input.content.trim().split(/\s+/).filter(Boolean).length,
-      readingTime: Math.max(
-        1,
-        Math.ceil(
-          input.content.trim().split(/\s+/).filter(Boolean).length / 200,
+  const chapter = await prisma.$transaction(async (tx) => {
+    const created = await tx.chapter.create({
+      data: {
+        bookId,
+        title: input.title,
+        number: input.number,
+        content: input.content,
+        status: "DRAFT",
+        accessType: input.accessType ?? "FREE",
+        price: input.price ?? 0,
+        wordCount: input.content.trim().split(/\s+/).filter(Boolean).length,
+        readingTime: Math.max(
+          1,
+          Math.ceil(
+            input.content.trim().split(/\s+/).filter(Boolean).length / 200,
+          ),
         ),
-      ),
-    },
-    include: {
-      book: {
-        select: {
-          id: true,
-          title: true,
-          slug: true,
-          status: true,
-          authorId: true,
+      },
+      include: {
+        book: {
+          select: {
+            id: true,
+            title: true,
+            slug: true,
+            status: true,
+            authorId: true,
+          },
         },
       },
-    },
+    });
+
+    await tx.book.update({
+      where: { id: bookId },
+      data: { totalChapters: { increment: 1 } },
+    });
+
+    return created;
   });
 
-  await prisma.book.update({
-    where: { id: bookId },
-    data: { totalChapters: { increment: 1 } },
-  });
   return mapChapter(chapter);
 }
 
