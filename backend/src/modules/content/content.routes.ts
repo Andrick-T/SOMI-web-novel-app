@@ -1,4 +1,6 @@
 import { Router, type RequestHandler } from "express";
+import { prisma } from "../../config/database.js";
+import { readWriterImage } from "../writer/writer.storage.js";
 import { validate } from "../../common/middleware/validate.js";
 import {
   optionalAuth,
@@ -196,5 +198,43 @@ contentRouter.delete(
     await deleteChapter(req.user, bookId, chapterId);
 
     res.status(204).send();
+  }),
+);
+
+contentRouter.get(
+  "/assets/:assetId",
+  optionalAuth,
+  asyncRoute(async (req: AuthRequest, res) => {
+    const asset = await prisma.writerAsset.findUnique({
+      where: {
+        id: String(req.params.assetId),
+      },
+      include: {
+        book: {
+          select: {
+            status: true,
+            authorId: true,
+          },
+        },
+      },
+    });
+
+    if (!asset) {
+      throw new AppError(404, "ASSET_NOT_FOUND", "Asset not found.");
+    }
+
+    const isOwner =
+      req.user?.id === asset.book.authorId ||
+      req.user?.role?.toUpperCase() === "ADMIN";
+
+    const isPublic = asset.book.status === "PUBLISHED";
+
+    if (!isOwner && !isPublic) {
+      throw new AppError(404, "ASSET_NOT_FOUND", "Asset not found.");
+    }
+
+    const data = await readWriterImage(asset.storageKey);
+
+    res.type(asset.mimeType).send(data);
   }),
 );

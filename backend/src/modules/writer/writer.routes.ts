@@ -673,6 +673,74 @@ writerRouter.post(
   }),
 );
 
+writerRouter.post(
+  "/books/:bookId/cover/upload",
+  express.raw({
+    type: () => true,
+    limit: "10mb",
+  }),
+  asyncRoute(async (req: AuthRequest, res) => {
+    const bookId = String(req.params.bookId);
+
+    const book = await prisma.book.findUnique({
+      where: { id: bookId },
+    });
+
+    if (!book) {
+      throw new AppError(404, "BOOK_NOT_FOUND", "Book not found.");
+    }
+
+    if (
+      book.authorId !== req.user!.id &&
+      req.user!.role.toUpperCase() !== "ADMIN"
+    ) {
+      throw new AppError(403, "FORBIDDEN", "You do not own this book.");
+    }
+
+    const altText = req.headers["x-asset-alt-text"];
+
+    if (typeof altText !== "string" || !altText.trim()) {
+      throw new AppError(
+        400,
+        "VALIDATION_ERROR",
+        "Valid image alt text is required.",
+      );
+    }
+
+    const mimeType = String(req.headers["content-type"] ?? "").split(";")[0];
+
+    const body = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+
+    const stored = await storeWriterImage(mimeType, body);
+
+    const asset = await prisma.writerAsset.create({
+      data: {
+        storageKey: stored.storageKey,
+        mimeType,
+        sizeBytes: stored.sizeBytes,
+        altText: altText.trim(),
+        writerId: req.user!.id,
+        bookId,
+        chapterId: null,
+      },
+    });
+
+    const publicUrl = `/api/v1/assets/${asset.id}`;
+
+    await prisma.book.update({
+      where: { id: bookId },
+      data: {
+        cover: publicUrl,
+      },
+    });
+
+    res.status(201).json({
+      asset,
+      url: publicUrl,
+    });
+  }),
+);
+
 /* ============================================================
    ASSET DELIVERY
    ============================================================ */

@@ -57,6 +57,7 @@ const mapBook = (book: any, includePrivate = false) => {
     status: book.status,
     rating: Number(book.rating ?? 0),
     views: Number(book.views ?? 0),
+    unlocks: Number(book._count?.entitlements ?? 0),
     favorites: Number(book.favorites ?? 0),
     totalChapters: Number(book.totalChapters ?? visibleChapters.length),
     createdAt: book.createdAt.toISOString(),
@@ -181,6 +182,11 @@ export async function getWriterBooks(writerId: string) {
           publishedAt: true,
           accessType: true,
           price: true,
+        },
+      },
+      _count: {
+        select: {
+          entitlements: true,
         },
       },
     },

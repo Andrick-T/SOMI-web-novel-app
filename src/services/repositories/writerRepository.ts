@@ -145,8 +145,8 @@ class ApiWriterRepository {
          * Server creates the book as DRAFT.
          */
 
-        genres: [],
-        tags: [],
+        genres: input.genres ?? [],
+        tags: input.tags ?? [],
       }),
     });
 
