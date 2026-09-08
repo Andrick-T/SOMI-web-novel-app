@@ -137,6 +137,79 @@ describe("Phase 7F Writer workflow", () => {
     expect(stale.body.error.code).toBe("AUTOSAVE_CONFLICT");
   });
 
+  it("persists rich chapter formatting without altering the stored representation", async () => {
+    const writer = await createWriter();
+    const book = await createBook(writer.token);
+
+    const chapterResponse = await request(app)
+      .post(`/api/v1/books/${book.id}/chapters`)
+      .set("Authorization", `Bearer ${writer.token}`)
+      .send({
+        title: "Rich Formatting",
+        number: 1,
+        content: "Initial chapter content",
+      });
+
+    expect(chapterResponse.status).toBe(201);
+
+    const chapterId = chapterResponse.body.chapter.id;
+    created.chapters.push(chapterId);
+
+    const richContent = [
+      "# Chapter One",
+      "",
+      "This is **bold**, this is _italic_, and this is `inline code`.",
+      "",
+      "- First item",
+      "- Second item",
+      "",
+      "> A quoted passage.",
+      "",
+      "A final paragraph with **nested _formatting_**.",
+    ].join("\n");
+
+    const saved = await request(app)
+      .patch(`/api/v1/writer/books/${book.id}/chapters/${chapterId}/autosave`)
+      .set("Authorization", `Bearer ${writer.token}`)
+      .send({
+        languageCode: "en",
+        title: "Rich Formatting",
+        content: richContent,
+        contentFormat: "plain-text",
+        clientVersion: 0,
+      });
+
+    expect(saved.status).toBe(200);
+    console.log("RICH AUTOSAVE RESPONSE:", JSON.stringify(saved.body, null, 2));
+    expect(saved.body.content).toBe(richContent);
+    expect(saved.body.contentVersion).toBe(1);
+
+    const persisted = await prisma.chapter.findUnique({
+      where: { id: chapterId },
+      select: {
+        title: true,
+        content: true,
+        contentVersion: true,
+        status: true,
+        wordCount: true,
+      },
+    });
+
+    expect(persisted).not.toBeNull();
+    expect(persisted?.title).toBe("Rich Formatting");
+    expect(persisted?.content).toBe(richContent);
+    expect(persisted?.contentVersion).toBe(1);
+    expect(persisted?.status).toBe("DRAFT");
+    expect(persisted?.wordCount).toBeGreaterThan(0);
+
+    const reloaded = await request(app)
+      .get(`/api/v1/books/${book.id}/chapters/${chapterId}`)
+      .set("Authorization", `Bearer ${writer.token}`);
+
+    expect(reloaded.status).toBe(200);
+    expect(reloaded.body.chapter.content).toBe(richContent);
+  });
+
   it("scopes the profile to the session and stores a real binary asset", async () => {
     const writerA = await createWriter();
     const writerB = await createWriter();

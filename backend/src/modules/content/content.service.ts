@@ -31,6 +31,7 @@ const bookSelectors = {
       publishedAt: true,
       accessType: true,
       price: true,
+      contentVersion: true,
     },
   },
 };
@@ -81,6 +82,7 @@ const mapBook = (book: any, includePrivate = false) => {
         : null,
       accessType: chapter.accessType,
       price: chapter.price,
+      ...(includePrivate ? { contentVersion: chapter.contentVersion } : {}),
     })),
   };
 };
@@ -110,6 +112,7 @@ const mapChapter = (
   publishedAt: chapter.publishedAt ? chapter.publishedAt.toISOString() : null,
   createdAt: chapter.createdAt.toISOString(),
   updatedAt: chapter.updatedAt.toISOString(),
+  contentVersion: chapter.contentVersion,
 });
 
 const assertAuthorOrAdmin = (
@@ -182,6 +185,7 @@ export async function getWriterBooks(writerId: string) {
           publishedAt: true,
           accessType: true,
           price: true,
+          contentVersion: true,
         },
       },
       _count: {
@@ -220,6 +224,7 @@ export async function getBookDetail(bookId: string, viewer?: AuthPrincipal) {
           accessType: true,
           price: true,
           content: true,
+          contentVersion: true,
         },
       },
     },
@@ -330,6 +335,7 @@ export async function createBook(
             publishedAt: true,
             accessType: true,
             price: true,
+            contentVersion: true,
           },
         },
       },
@@ -370,6 +376,7 @@ export async function createBook(
             publishedAt: true,
             accessType: true,
             price: true,
+            contentVersion: true,
           },
         },
       },
@@ -463,6 +470,7 @@ export async function updateBook(
             publishedAt: true,
             accessType: true,
             price: true,
+            contentVersion: true,
           },
         },
       },
@@ -510,6 +518,7 @@ export async function updateBook(
             publishedAt: true,
             accessType: true,
             price: true,
+            contentVersion: true,
           },
         },
       },
@@ -589,9 +598,6 @@ export async function getChapterDetail(
   if (chapter.status !== "PUBLISHED") {
     throw new AppError(404, "CHAPTER_NOT_FOUND", "Chapter not found.");
   }
-
-  if (viewer && viewer.id === chapter.book.authorId)
-    return mapChapter(chapter, "UNLOCKED");
   if (chapter.accessType !== "PREMIUM") return mapChapter(chapter, "FREE");
   if (chapter.book.status !== PUBLIC_BOOK_STATUS) {
     throw new AppError(404, "CHAPTER_NOT_FOUND", "Chapter not found.");

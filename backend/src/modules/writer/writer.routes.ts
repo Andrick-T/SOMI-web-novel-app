@@ -7,6 +7,7 @@ import { requireAuth, requireRole } from "../auth/auth.middleware.js";
 import type { AuthRequest } from "../auth/auth.types.js";
 import {
   assetMetadataSchema,
+  autosaveSchema,
   localizationSchema,
   writerProfileSchema,
 } from "./writer.schemas.js";
@@ -439,6 +440,7 @@ writerRouter.post(
 
 writerRouter.patch(
   "/books/:bookId/chapters/:chapterId/autosave",
+  validate(autosaveSchema),
   asyncRoute(async (req: AuthRequest, res) => {
     const result = await autosaveChapter(
       req.user,
