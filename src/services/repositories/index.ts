@@ -6,3 +6,4 @@ export * from "./walletRepository";
 export * from "./authRepository";
 export * from "./libraryApiRepository";
 export * from "./readingProgressApiRepository";
+export * from "./commentsApiRepository";

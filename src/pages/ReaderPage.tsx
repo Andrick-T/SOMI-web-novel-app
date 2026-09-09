@@ -35,7 +35,11 @@ import {
 } from "../features/reader/services/readingProgressService";
 import { readerPreferencesStorage } from "../features/reader/services/persistence";
 import type { ReaderFontFamily, ReaderTheme } from "../features/reader/types";
-import type { Book } from "../services/repositories";
+import {
+  apiCommentsRepository,
+  type Book,
+  type ChapterComment,
+} from "../services/repositories";
 import type { CommonProps } from "../types";
 
 interface Props extends CommonProps {
@@ -116,6 +120,8 @@ export default function ReaderPage({
   unlockedChapters,
   coins,
   unlockChapter,
+  libraryBooks,
+  addToLibrary,
 }: Props) {
   const chapterIndex = book?.chapters.findIndex(
     (chapter) => chapter.id === chapterId,
@@ -123,6 +129,7 @@ export default function ReaderPage({
 
   const chapter =
     chapterIndex >= 0 ? book.chapters[chapterIndex] : book?.chapters?.[0];
+  const isBookmarked = libraryBooks.includes(book.id);
 
   const [theme, setTheme] = useState<Theme>("light");
   const [fontSize, setFontSize] = useState<FontSize>(16);
@@ -131,6 +138,12 @@ export default function ReaderPage({
   const [showControls, setShowControls] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showChapterList, setShowChapterList] = useState(false);
+  const [showComments, setShowComments] = useState(false);
+  const [comments, setComments] = useState<ChapterComment[]>([]);
+  const [commentText, setCommentText] = useState("");
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [commentSubmitting, setCommentSubmitting] = useState(false);
+  const [commentsError, setCommentsError] = useState<string | null>(null);
   const [screenState, setScreenState] = useState<"reading" | "locked">(
     "reading",
   );
@@ -168,6 +181,7 @@ export default function ReaderPage({
   const closePanels = useCallback(() => {
     setShowSettings(false);
     setShowChapterList(false);
+    setShowComments(false);
   }, []);
 
   const toggleControls = useCallback(() => {
@@ -309,6 +323,39 @@ export default function ReaderPage({
     });
   }, [book, chapter, chapterProgress, isLoggedIn]);
 
+  useEffect(() => {
+    if (!showComments || !chapter) return;
+
+    let cancelled = false;
+
+    const loadComments = async () => {
+      setCommentsLoading(true);
+      setCommentsError(null);
+
+      try {
+        const result = await apiCommentsRepository.list(book.id, chapter.id);
+
+        if (!cancelled) {
+          setComments(result);
+        }
+      } catch {
+        if (!cancelled) {
+          setCommentsError("Unable to load comments. Please try again.");
+        }
+      } finally {
+        if (!cancelled) {
+          setCommentsLoading(false);
+        }
+      }
+    };
+
+    void loadComments();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [book.id, chapter?.id, showComments]);
+
   const scheduleProgressSave = useCallback(() => {
     if (!isLoggedIn || !book || !chapter) return;
 
@@ -409,6 +456,56 @@ export default function ReaderPage({
     navigate("wallet");
   }, [chapter, coins, navigate, unlockChapter]);
 
+  const handleSubmitComment = useCallback(async () => {
+    if (!chapter) return;
+
+    const content = commentText.trim();
+
+    if (!content || commentSubmitting) {
+      return;
+    }
+
+    if (!isLoggedIn) {
+      navigate("auth");
+      return;
+    }
+
+    setCommentSubmitting(true);
+    setCommentsError(null);
+
+    try {
+      const comment = await apiCommentsRepository.create(
+        book.id,
+        chapter.id,
+        content,
+      );
+
+      setComments((current) => [comment, ...current]);
+      setCommentText("");
+    } catch {
+      setCommentsError("Unable to post your comment. Please try again.");
+    } finally {
+      setCommentSubmitting(false);
+    }
+  }, [book.id, chapter, commentText, commentSubmitting, isLoggedIn, navigate]);
+
+  const handleDeleteComment = useCallback(
+    async (commentId: string) => {
+      if (!chapter) return;
+
+      try {
+        await apiCommentsRepository.remove(book.id, chapter.id, commentId);
+
+        setComments((current) =>
+          current.filter((comment) => comment.id !== commentId),
+        );
+      } catch {
+        setCommentsError("Unable to delete the comment. Please try again.");
+      }
+    },
+    [book.id, chapter],
+  );
+
   const handleKeyDown = useCallback(
     (event: KeyboardEvent<HTMLDivElement>) => {
       if (event.key === "ArrowRight") {
@@ -426,7 +523,7 @@ export default function ReaderPage({
       if (event.key === "Escape") {
         event.preventDefault();
 
-        if (showChapterList || showSettings) {
+        if (showComments || showChapterList || showSettings) {
           closePanels();
           return;
         }
@@ -434,7 +531,15 @@ export default function ReaderPage({
         navigate("book", book.id);
       }
     },
-    [book, closePanels, goToChapter, navigate, showChapterList, showSettings],
+    [
+      book,
+      closePanels,
+      goToChapter,
+      navigate,
+      showChapterList,
+      showComments,
+      showSettings,
+    ],
   );
 
   const handleSwipe = useCallback(
@@ -737,11 +842,51 @@ export default function ReaderPage({
               <List size={18} color={tc.controlText} />
             </button>
 
-            <button className="active:scale-90" aria-label="Bookmark chapter">
-              <Bookmark size={18} color={tc.controlText} />
+            <button
+              onClick={(event) => {
+                event.stopPropagation();
+
+                if (!isLoggedIn) {
+                  navigate("auth");
+                  return;
+                }
+
+                addToLibrary(book.id);
+                scheduleControlsHide();
+              }}
+              className="active:scale-90 transition-transform"
+              aria-label={
+                isBookmarked
+                  ? "Remove book from library"
+                  : "Add book to library"
+              }
+              title={isBookmarked ? "Remove from library" : "Add to library"}
+            >
+              <Bookmark
+                size={18}
+                color={tc.controlText}
+                fill={isBookmarked ? tc.controlText : "none"}
+              />
             </button>
 
-            <button className="active:scale-90" aria-label="Open reader notes">
+            <button
+              onClick={(event) => {
+                event.stopPropagation();
+
+                if (!isLoggedIn) {
+                  navigate("auth");
+                  return;
+                }
+
+                setShowSettings(false);
+                setShowChapterList(false);
+                setShowComments(true);
+                scheduleControlsHide();
+              }}
+              className="active:scale-90 transition-transform"
+              aria-label="Open chapter comments"
+              title="Comments"
+            >
               <MessageSquare size={18} color={tc.controlText} />
             </button>
           </div>
@@ -875,6 +1020,180 @@ export default function ReaderPage({
               >
                 A
               </button>
+            </div>
+          </div>
+        )}
+
+        {showComments && (
+          <div
+            className="absolute inset-y-0 right-0 z-[1100] w-full max-w-md flex flex-col shadow-2xl"
+            style={{
+              background: tc.controlBg,
+              color: tc.controlText,
+            }}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div
+              className="flex items-center justify-between px-5 py-4 border-b"
+              style={{
+                borderColor: `${tc.controlText}20`,
+              }}
+            >
+              <div>
+                <p
+                  className="text-[9px] uppercase tracking-widest font-bold"
+                  style={{ color: `${tc.controlText}66` }}
+                >
+                  Chapter {chapter.number}
+                </p>
+
+                <h2 className="text-base font-bold">Comments</h2>
+              </div>
+
+              <button
+                onClick={() => {
+                  setShowComments(false);
+                  scheduleControlsHide();
+                }}
+                className="w-8 h-8 rounded-full flex items-center justify-center active:scale-90"
+                style={{
+                  background: `${tc.controlText}10`,
+                }}
+                aria-label="Close comments"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-5 py-4">
+              {commentsLoading && (
+                <div
+                  className="py-10 text-center text-sm"
+                  style={{ color: `${tc.controlText}70` }}
+                >
+                  Loading comments…
+                </div>
+              )}
+
+              {!commentsLoading && comments.length === 0 && (
+                <div
+                  className="py-12 text-center"
+                  style={{ color: `${tc.controlText}70` }}
+                >
+                  <MessageSquare
+                    size={28}
+                    className="mx-auto mb-3 opacity-50"
+                  />
+
+                  <p className="text-sm font-semibold">No comments yet</p>
+
+                  <p className="text-xs mt-1">
+                    Be the first to share your thoughts.
+                  </p>
+                </div>
+              )}
+
+              {!commentsLoading && comments.length > 0 && (
+                <div className="space-y-5">
+                  {comments.map((comment) => (
+                    <article
+                      key={comment.id}
+                      className="rounded-xl p-3"
+                      style={{
+                        background: `${tc.controlText}08`,
+                      }}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold">
+                            {comment.author.displayName}
+                          </p>
+
+                          <p
+                            className="text-[10px] mt-0.5"
+                            style={{
+                              color: `${tc.controlText}55`,
+                            }}
+                          >
+                            {new Date(comment.createdAt).toLocaleDateString()}
+                          </p>
+                        </div>
+
+                        {comment.author.id ===
+                          // Replace with the authenticated user's ID
+                          // if it is available through your auth state.
+                          "" && (
+                          <button
+                            className="text-[10px]"
+                            style={{
+                              color: `${tc.controlText}66`,
+                            }}
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </div>
+
+                      <p
+                        className="mt-2 text-sm leading-relaxed whitespace-pre-wrap break-words"
+                        style={{
+                          color: tc.controlText,
+                        }}
+                      >
+                        {comment.content}
+                      </p>
+                    </article>
+                  ))}
+                </div>
+              )}
+
+              {commentsError && (
+                <p className="mt-4 text-xs text-red-400">{commentsError}</p>
+              )}
+            </div>
+
+            <div
+              className="p-4 border-t"
+              style={{
+                borderColor: `${tc.controlText}20`,
+              }}
+            >
+              <textarea
+                value={commentText}
+                onChange={(event) => setCommentText(event.target.value)}
+                placeholder="Write a comment…"
+                maxLength={2000}
+                rows={3}
+                className="w-full resize-none rounded-xl px-3 py-2 text-sm outline-none"
+                style={{
+                  background: `${tc.controlText}0D`,
+                  color: tc.controlText,
+                  border: `1px solid ${tc.controlText}18`,
+                }}
+              />
+
+              <div className="flex items-center justify-between mt-2">
+                <span
+                  className="text-[10px]"
+                  style={{
+                    color: `${tc.controlText}45`,
+                  }}
+                >
+                  {commentText.length}/2000
+                </span>
+
+                <button
+                  onClick={() => void handleSubmitComment()}
+                  disabled={commentSubmitting || !commentText.trim()}
+                  className="px-4 py-2 rounded-lg text-xs font-bold disabled:opacity-40 active:scale-95"
+                  style={{
+                    background: "#e8a84c",
+                    color: "#2C1A0A",
+                  }}
+                >
+                  {commentSubmitting ? "Posting…" : "Post"}
+                </button>
+              </div>
             </div>
           </div>
         )}
