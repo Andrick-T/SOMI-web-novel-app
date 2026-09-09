@@ -9,6 +9,7 @@ import { healthRouter } from "./modules/health/health.routes.js";
 import { authRouter } from "./modules/auth/auth.routes.js";
 import { contentRouter } from "./modules/content/content.routes.js";
 import { libraryRouter } from "./modules/library/library.routes.js";
+import { commentsRouter } from "./modules/comments/comments.routes.js";
 import { economyRouter } from "./modules/economy/economy.routes.js";
 import { writerRouter } from "./modules/writer/writer.routes.js";
 
@@ -32,6 +33,7 @@ export const createApp = () => {
   app.get("/api/v1/health", healthRouter);
   app.use("/api/v1/auth", authRouter);
   app.use("/api/v1", contentRouter);
+  app.use("/api/v1", commentsRouter);
   app.use("/api/v1", libraryRouter);
   app.use("/api/v1", economyRouter);
   app.use("/api/v1/writer", writerRouter);

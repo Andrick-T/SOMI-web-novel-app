@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
-  url      = env("DATABASE_URL")
+  provider          = "mysql"
+  url               = env("DATABASE_URL")
+  shadowDatabaseUrl  = env("SHADOW_DATABASE_URL")
 }
 
 model User {
@@ -24,6 +25,7 @@ model User {
   wallets           Wallet?
   libraryItems      LibraryItem[]
   readings          ReadingProgress[]
+  comments Comment[]
   entitlements      ChapterEntitlement[]
   transactions      WalletTransaction[]
   writerProfile     WriterProfile?
@@ -83,6 +85,7 @@ model Book {
   chapters        Chapter[]
   libraryItems    LibraryItem[]
   readingProgress ReadingProgress[]
+  comments Comment[]
   entitlements    ChapterEntitlement[]
   genres          BookGenre[]
   tags            BookTag[]
@@ -110,6 +113,7 @@ model Chapter {
 
   book          Book                  @relation(fields: [bookId], references: [id], onDelete: Cascade)
   progress      ReadingProgress[]
+  comments Comment[]
   entitlements  ChapterEntitlement[]
   localizations ChapterLocalization[]
   assets        WriterAsset[]
@@ -117,6 +121,24 @@ model Chapter {
   earnings      WriterEarning[]
 
   @@unique([bookId, number])
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  userId    String
+  bookId    String
+  chapterId String
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book    Book    @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  chapter Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@index([chapterId, createdAt])
+  @@index([bookId, createdAt])
+  @@index([userId, createdAt])
 }
 
 model Genre {
@@ -243,7 +265,7 @@ model BookLocalization {
   id             String   @id @default(uuid())
   bookId         String
   languageCode   String
-  title          String
+  title String @db.VarChar(200)
   description    String?
   status         String   @default("NOT_STARTED")
   sourceVersion  Int      @default(0)
@@ -261,7 +283,7 @@ model ChapterLocalization {
   id             String   @id @default(uuid())
   chapterId      String
   languageCode   String
-  title          String
+  title String @db.VarChar(200)
   content        String
   contentFormat  String   @default("plain-text")
   status         String   @default("NOT_STARTED")
@@ -307,8 +329,8 @@ model WriterAsset {
   sizeBytes  Int
   width      Int?
   height     Int?
-  altText    String
-  caption    String?
+  altText String  @db.VarChar(500)
+  caption String? @db.VarChar(500)
   status     String   @default("DRAFT")
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
