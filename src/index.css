@@ -728,29 +728,229 @@ textarea:focus-visible,
 
 /* ─── READING SURFACE THEMES ──────────────────────── */
 
+/*
+ * Reader themes are intentionally scoped to the reader surface.
+ * Do not change the global application theme when the reader theme changes.
+ */
+
 /* Light / Paper — warm cream like a physical novel */
 .reader-surface-light {
-  background: radial-gradient(ellipse at 50% 0%, #faf6ea 0%, #f2ecd6 100%);
-  color: #2c1a0a;
-}
-.reader-outer-light {
-  background: #d4c8a0;
+  --reader-bg: #f2ecd6;
+  --reader-bg-deep: #e8dfc2;
+  --reader-text: #2c1a0a;
+  --reader-muted: #8a6840;
+  --reader-control-bg: rgba(44, 26, 10, 0.88);
+  --reader-control-text: #f6f1e4;
+  --reader-border: rgba(74, 42, 6, 0.16);
+
+  background: radial-gradient(
+    ellipse at 50% 0%,
+    #faf6ea 0%,
+    #f2ecd6 70%,
+    #e8dfc2 100%
+  );
+  background-color: #f2ecd6;
+  color: var(--reader-text);
+  color-scheme: light;
 }
 
 /* Sepia — aged parchment */
 .reader-surface-sepia {
-  background: radial-gradient(ellipse at 50% 0%, #edd9a3 0%, #dec98a 100%);
+  --reader-bg: #dec98a;
+  --reader-bg-deep: #cdb875;
+  --reader-text: #4a2a06;
+  --reader-muted: #7a5828;
+  --reader-control-bg: rgba(74, 42, 6, 0.9);
+  --reader-control-text: #edd9a3;
+  --reader-border: rgba(74, 42, 6, 0.2);
+
+  background: radial-gradient(
+    ellipse at 50% 0%,
+    #edd9a3 0%,
+    #dec98a 70%,
+    #cdb875 100%
+  );
+  background-color: #dec98a;
+  color: var(--reader-text);
+  color-scheme: light;
+}
+
+/* Dark / Night — deep warm charcoal, not pure black */
+.reader-surface-dark {
+  --reader-bg: #18140e;
+  --reader-bg-deep: #0d0a06;
+  --reader-text: #e8e0cc;
+  --reader-muted: #9a8e78;
+  --reader-control-bg: rgba(18, 15, 10, 0.92);
+  --reader-control-text: #e8e0cc;
+  --reader-border: rgba(232, 224, 204, 0.12);
+
+  background: linear-gradient(160deg, #1e1a12 0%, #18140e 60%, #0d0a06 100%);
+  background-color: #18140e;
+  color: var(--reader-text);
+  color-scheme: dark;
+}
+
+/*
+ * All physical page layers inherit the selected reader theme.
+ * This is important because the page-flip system uses several
+ * absolutely positioned layers rather than a single surface.
+ */
+.reader-surface-light .reader-page-backdrop,
+.reader-surface-light .reader-page-sheet,
+.reader-surface-light .reader-flip-sheet,
+.reader-surface-light .reader-page-face {
+  background: #f2ecd6;
+  color: #2c1a0a;
+}
+
+.reader-surface-sepia .reader-page-backdrop,
+.reader-surface-sepia .reader-page-sheet,
+.reader-surface-sepia .reader-flip-sheet,
+.reader-surface-sepia .reader-page-face {
+  background: #dec98a;
   color: #4a2a06;
 }
+
+.reader-surface-dark .reader-page-backdrop,
+.reader-surface-dark .reader-page-sheet,
+.reader-surface-dark .reader-flip-sheet,
+.reader-surface-dark .reader-page-face {
+  background: #18140e;
+  color: #e8e0cc;
+}
+
+/*
+ * Reader controls.
+ */
+.reader-surface-light .reader-continue-button {
+  background: rgba(44, 26, 10, 0.88);
+  color: #f6f1e4;
+}
+
+.reader-surface-sepia .reader-continue-button {
+  background: rgba(74, 42, 6, 0.9);
+  color: #edd9a3;
+}
+
+.reader-surface-dark .reader-continue-button {
+  background: rgba(18, 15, 10, 0.92);
+  color: #e8e0cc;
+}
+
+/*
+ * Chapter drawer must also follow the active reader theme.
+ * The previous implementation was permanently dark.
+ */
+.reader-surface-light .reader-chapter-drawer {
+  background: rgba(250, 246, 234, 0.97);
+  color: #2c1a0a;
+  border-color: rgba(74, 42, 6, 0.2);
+  box-shadow: 0 18px 45px rgba(80, 60, 20, 0.25);
+}
+
+.reader-surface-sepia .reader-chapter-drawer {
+  background: rgba(237, 217, 163, 0.97);
+  color: #4a2a06;
+  border-color: rgba(74, 42, 6, 0.24);
+  box-shadow: 0 18px 45px rgba(60, 40, 10, 0.3);
+}
+
+.reader-surface-dark .reader-chapter-drawer {
+  background: rgba(13, 11, 8, 0.97);
+  color: #e8e0cc;
+  border-color: rgba(232, 168, 76, 0.24);
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.4);
+}
+
+/*
+ * Chapter list inside the drawer.
+ */
+.reader-surface-light .reader-chapter-list-item {
+  color: rgba(44, 26, 10, 0.68);
+  border-color: rgba(74, 42, 6, 0.1);
+}
+
+.reader-surface-light .reader-chapter-list-item:hover,
+.reader-surface-light .reader-chapter-list-item.is-current {
+  color: #2c1a0a;
+}
+
+.reader-surface-light .reader-chapter-list-item.is-current {
+  background: rgba(74, 42, 6, 0.08);
+}
+
+.reader-surface-sepia .reader-chapter-list-item {
+  color: rgba(74, 42, 6, 0.72);
+  border-color: rgba(74, 42, 6, 0.12);
+}
+
+.reader-surface-sepia .reader-chapter-list-item:hover,
+.reader-surface-sepia .reader-chapter-list-item.is-current {
+  color: #4a2a06;
+}
+
+.reader-surface-sepia .reader-chapter-list-item.is-current {
+  background: rgba(74, 42, 6, 0.08);
+}
+
+.reader-surface-dark .reader-chapter-list-item {
+  color: rgba(232, 224, 204, 0.68);
+  border-color: rgba(232, 168, 76, 0.1);
+}
+
+.reader-surface-dark .reader-chapter-list-item:hover,
+.reader-surface-dark .reader-chapter-list-item.is-current {
+  color: #e8e0cc;
+}
+
+.reader-surface-dark .reader-chapter-list-item.is-current {
+  background: rgba(232, 168, 76, 0.08);
+}
+
+/*
+ * Divider follows the active theme.
+ */
+.reader-surface-light .reader-divider {
+  background: rgba(74, 42, 6, 0.18);
+}
+
+.reader-surface-sepia .reader-divider {
+  background: rgba(74, 42, 6, 0.22);
+}
+
+.reader-surface-dark .reader-divider {
+  background: rgba(232, 224, 204, 0.16);
+}
+
+/*
+ * Explicit reader text inheritance.
+ * ReaderPage already supplies the main text color inline,
+ * but this protects headings and markdown content.
+ */
+.reader-surface-light .reader-copy {
+  color: #2c1a0a;
+}
+
+.reader-surface-sepia .reader-copy {
+  color: #4a2a06;
+}
+
+.reader-surface-dark .reader-copy {
+  color: #e8e0cc;
+}
+
+/*
+ * Outer background helpers, if used by the reader shell.
+ */
+.reader-outer-light {
+  background: #d4c8a0;
+}
+
 .reader-outer-sepia {
   background: #b8a060;
 }
 
-/* Dark — deep warm charcoal (NOT pure black) */
-.reader-surface-dark {
-  background: linear-gradient(160deg, #1e1a12 0%, #18140e 100%);
-  color: #e8e0cc;
-}
 .reader-outer-dark {
   background: #0d0a06;
 }
@@ -761,11 +961,13 @@ textarea:focus-visible,
     0 4px 40px rgba(80, 60, 20, 0.3),
     2px 2px 12px rgba(80, 60, 20, 0.2);
 }
+
 .page-shadow-sepia {
   box-shadow:
     0 4px 40px rgba(60, 40, 10, 0.35),
     2px 2px 12px rgba(60, 40, 10, 0.25);
 }
+
 .page-shadow-dark {
   box-shadow:
     0 4px 40px rgba(0, 0, 0, 0.6),

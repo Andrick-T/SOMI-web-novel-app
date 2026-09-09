@@ -93,7 +93,7 @@ export interface WriterChapter {
   scheduledAt?: string;
   createdAt: string;
   updatedAt: string;
-  contentVersion?: number;
+  contentVersion: number;
 }
 
 export interface WriterBook {

@@ -11,7 +11,6 @@ type ApiBook = {
   status?: string;
   createdAt: string;
   updatedAt: string;
-  contentVersion?: number;
   chapters?: ApiChapter[];
   genres?: string[];
   tags?: string[];
@@ -31,7 +30,7 @@ type ApiChapter = {
   publishedAt?: string | null;
   createdAt: string;
   updatedAt: string;
-  contentVersion?: number;
+  contentVersion: number;
 };
 
 const status = (value?: string) =>
@@ -40,24 +39,30 @@ const status = (value?: string) =>
 const chapterStatus = (value?: string) =>
   (value?.toUpperCase() ?? "DRAFT") as WriterChapter["status"];
 
-const normalizeChapter = (chapter: ApiChapter): WriterChapter => ({
-  id: chapter.id,
-  bookId: chapter.bookId,
-  number: chapter.number,
-  title: chapter.title,
-  content: chapter.content ?? "",
-  status: chapterStatus(chapter.status),
-  accessType:
-    (chapter.accessType?.toUpperCase() as WriterChapter["accessType"]) ??
-    "FREE",
-  price: chapter.price ?? 0,
-  wordCount: chapter.wordCount ?? 0,
-  readingTime: chapter.readingTime ?? 0,
-  publishedAt: chapter.publishedAt ?? undefined,
-  createdAt: chapter.createdAt,
-  updatedAt: chapter.updatedAt,
-  contentVersion: chapter.contentVersion ?? 0,
-});
+const normalizeChapter = (chapter: ApiChapter): WriterChapter => {
+  if (chapter.contentVersion === undefined) {
+    throw new Error(`API chapter ${chapter.id} is missing contentVersion.`);
+  }
+
+  return {
+    id: chapter.id,
+    bookId: chapter.bookId,
+    number: chapter.number,
+    title: chapter.title,
+    content: chapter.content ?? "",
+    status: chapterStatus(chapter.status),
+    accessType:
+      (chapter.accessType?.toUpperCase() as WriterChapter["accessType"]) ??
+      "FREE",
+    price: chapter.price ?? 0,
+    wordCount: chapter.wordCount ?? 0,
+    readingTime: chapter.readingTime ?? 0,
+    publishedAt: chapter.publishedAt ?? undefined,
+    createdAt: chapter.createdAt,
+    updatedAt: chapter.updatedAt,
+    contentVersion: chapter.contentVersion,
+  };
+};
 
 const normalizeBook = (book: ApiBook): WriterBook => ({
   id: book.id,
@@ -208,9 +213,7 @@ class ApiWriterRepository {
   }
 
   async autosaveChapter(bookId: string, chapter: WriterChapter) {
-    const result = await this.request<{
-      content: ApiChapter;
-    }>(
+    const result = await this.request<ApiChapter>(
       `/api/v1/writer/books/${encodeURIComponent(
         bookId,
       )}/chapters/${encodeURIComponent(chapter.id)}/autosave`,
@@ -221,12 +224,12 @@ class ApiWriterRepository {
           title: chapter.title,
           content: chapter.content,
           contentFormat: "plain-text",
-          clientVersion: chapter.contentVersion ?? 0,
+          clientVersion: chapter.contentVersion,
         }),
       },
     );
 
-    return normalizeChapter(result.content);
+    return normalizeChapter(result);
   }
 
   async getLocalizations(bookId: string) {

@@ -1,8 +1,10 @@
 import { Router } from "express";
+import { prisma } from "../../config/database.js";
+import { readWriterImage } from "../writer/writer.storage.js";
 import { validate } from "../../common/middleware/validate.js";
 import { optionalAuth, requireAuth, requireRole, } from "../auth/auth.middleware.js";
 import { createBookSchema, createChapterSchema, updateBookSchema, updateChapterSchema, } from "./content.schemas.js";
-import { createBook, createChapter, deleteBook, deleteChapter, getBookDetail, getChapterDetail, getPublicBooks, getPublicChapters, getWriterBooks, getWriterChapters, updateBook, updateChapter, } from "./content.service.js";
+import { createBook, createChapter, deleteBook, deleteChapter, getBookDetail, getChapterDetail, getPublicBooks, getPublicChapters, getWriterBooks, getWriterChapters, updateBook, updateChapter, getGenres, getTags, } from "./content.service.js";
 import { AppError } from "../../common/errors/http-error.js";
 const asyncRoute = (handler) => (req, res, next) => {
     Promise.resolve(handler(req, res, next)).catch(next);
@@ -13,6 +15,14 @@ const assertWriterCannotChangeLifecycleStatus = (req, status, resource) => {
     }
 };
 export const contentRouter = Router();
+contentRouter.get("/genres", asyncRoute(async (_req, res) => {
+    const genres = await getGenres();
+    res.json({ genres });
+}));
+contentRouter.get("/tags", asyncRoute(async (_req, res) => {
+    const tags = await getTags();
+    res.json({ tags });
+}));
 contentRouter.get("/books", asyncRoute(async (_req, res) => {
     const books = await getPublicBooks();
     res.json({ books });
@@ -85,4 +95,30 @@ contentRouter.delete("/books/:bookId/chapters/:chapterId", requireAuth, asyncRou
     const chapterId = String(req.params.chapterId);
     await deleteChapter(req.user, bookId, chapterId);
     res.status(204).send();
+}));
+contentRouter.get("/assets/:assetId", optionalAuth, asyncRoute(async (req, res) => {
+    const asset = await prisma.writerAsset.findUnique({
+        where: {
+            id: String(req.params.assetId),
+        },
+        include: {
+            book: {
+                select: {
+                    status: true,
+                    authorId: true,
+                },
+            },
+        },
+    });
+    if (!asset) {
+        throw new AppError(404, "ASSET_NOT_FOUND", "Asset not found.");
+    }
+    const isOwner = req.user?.id === asset.book.authorId ||
+        req.user?.role?.toUpperCase() === "ADMIN";
+    const isPublic = asset.book.status === "PUBLISHED";
+    if (!isOwner && !isPublic) {
+        throw new AppError(404, "ASSET_NOT_FOUND", "Asset not found.");
+    }
+    const data = await readWriterImage(asset.storageKey);
+    res.type(asset.mimeType).send(data);
 }));

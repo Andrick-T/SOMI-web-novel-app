@@ -1,3 +1,5 @@
+import { AppUser } from "./app/auth";
+
 export type Page =
   /* Reader App */
   | "home"
@@ -43,7 +45,7 @@ export interface CommonProps {
     email: string;
     password: string;
     name?: string;
-  }) => Promise<void>;
+  }) => Promise<AppUser>;
   onLogout: () => Promise<void>;
   environment: AppEnvironment;
   setEnvironment: (env: AppEnvironment) => void;

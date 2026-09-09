@@ -59,48 +59,162 @@ describe("Phase 7F Writer workflow", () => {
     await prisma.$disconnect();
   });
 
-  it("isolates localizations and rejects incomplete bilingual submissions", async () => {
+  it("rejects an intentionally incomplete submission, then accepts a valid one and blocks duplicates", async () => {
     const writerA = await createWriter();
     const writerB = await createWriter();
     const book = await createBook(writerA.token);
+
     const chapterResponse = await request(app)
       .post(`/api/v1/books/${book.id}/chapters`)
       .set("Authorization", `Bearer ${writerA.token}`)
-      .send({ title: "Chapter One", number: 1, content: "English content" });
+      .send({
+        title: "Chapter One",
+        number: 1,
+        content: "English content",
+      });
+
     expect(chapterResponse.status).toBe(201);
+
     const chapterId = chapterResponse.body.chapter.id;
     created.chapters.push(chapterId);
 
+    // Ownership isolation must still hold.
     const forbidden = await request(app)
       .get(`/api/v1/writer/books/${book.id}/localizations`)
       .set("Authorization", `Bearer ${writerB.token}`);
+
     expect(forbidden.status).toBe(403);
-    for (const languageCode of ["en", "fr"] as const) {
-      const localization = await request(app)
-        .patch(`/api/v1/writer/books/${book.id}/localizations/${languageCode}`)
-        .set("Authorization", `Bearer ${writerA.token}`)
-        .send({
-          languageCode,
-          title: `${languageCode} title`,
-        });
 
-      expect(localization.status).toBe(200);
+    // Prepare the English book localization.
+    const enLocalization = await request(app)
+      .patch(`/api/v1/writer/books/${book.id}/localizations/en`)
+      .set("Authorization", `Bearer ${writerA.token}`)
+      .send({
+        languageCode: "en",
+        title: "English title",
+      });
 
-      const ready = await request(app)
-        .post(
-          `/api/v1/writer/books/${book.id}/localizations/${languageCode}/ready`,
-        )
-        .set("Authorization", `Bearer ${writerA.token}`);
+    expect(enLocalization.status).toBe(200);
 
-      expect(ready.status).toBe(200);
-      expect(ready.body.localization.status).toBe("READY_FOR_SUBMISSION");
-    }
+    const enReady = await request(app)
+      .post(`/api/v1/writer/books/${book.id}/localizations/en/ready`)
+      .set("Authorization", `Bearer ${writerA.token}`);
+
+    expect(enReady.status).toBe(200);
+    expect(enReady.body.localization.status).toBe("READY_FOR_SUBMISSION");
+
+    // Prepare the French chapter localization so that the ONLY
+    // intentionally invalid prerequisite is the French BOOK localization.
+    const frChapter = await request(app)
+      .patch(`/api/v1/writer/books/${book.id}/chapters/${chapterId}/autosave`)
+      .set("Authorization", `Bearer ${writerA.token}`)
+      .send({
+        languageCode: "fr",
+        title: "Chapitre Un",
+        content: "Contenu français",
+        contentFormat: "plain-text",
+        clientVersion: 0,
+      });
+
+    expect(frChapter.status).toBe(200);
+
+    const frChapterReady = await request(app)
+      .post(
+        `/api/v1/writer/books/${book.id}/chapters/${chapterId}/localizations/fr/ready`,
+      )
+      .set("Authorization", `Bearer ${writerA.token}`);
+
+    expect(frChapterReady.status).toBe(200);
+    expect(frChapterReady.body.localization.status).toBe(
+      "READY_FOR_SUBMISSION",
+    );
+
+    // Deliberately DO NOT create or mark the French BOOK localization
+    // as ready. This makes the submission genuinely invalid.
+    const submissionsBeforeInvalidAttempt = await prisma.writerSubmission.count(
+      {
+        where: { bookId: book.id },
+      },
+    );
 
     const incomplete = await request(app)
       .post(`/api/v1/writer/books/${book.id}/submit`)
       .set("Authorization", `Bearer ${writerA.token}`);
+
     expect(incomplete.status).toBe(422);
     expect(incomplete.body.error.code).toBe("LOCALIZATION_INCOMPLETE");
+
+    // The failed submission must not mutate the book lifecycle.
+    const afterInvalidBook = await prisma.book.findUnique({
+      where: { id: book.id },
+      select: { status: true },
+    });
+
+    expect(afterInvalidBook?.status).toBe("DRAFT");
+
+    // The failed submission must not create a submission record.
+    const submissionsAfterInvalidAttempt = await prisma.writerSubmission.count({
+      where: { bookId: book.id },
+    });
+
+    expect(submissionsAfterInvalidAttempt).toBe(
+      submissionsBeforeInvalidAttempt,
+    );
+
+    // Now make the fixture genuinely valid.
+    const frLocalization = await request(app)
+      .patch(`/api/v1/writer/books/${book.id}/localizations/fr`)
+      .set("Authorization", `Bearer ${writerA.token}`)
+      .send({
+        languageCode: "fr",
+        title: "Titre français",
+      });
+
+    expect(frLocalization.status).toBe(200);
+
+    const frReady = await request(app)
+      .post(`/api/v1/writer/books/${book.id}/localizations/fr/ready`)
+      .set("Authorization", `Bearer ${writerA.token}`);
+
+    expect(frReady.status).toBe(200);
+    expect(frReady.body.localization.status).toBe("READY_FOR_SUBMISSION");
+
+    // Valid submission must now succeed.
+    const submitted = await request(app)
+      .post(`/api/v1/writer/books/${book.id}/submit`)
+      .set("Authorization", `Bearer ${writerA.token}`);
+
+    expect(submitted.status).toBe(201);
+
+    const submittedBook = await prisma.book.findUnique({
+      where: { id: book.id },
+      select: { status: true },
+    });
+
+    expect(submittedBook?.status).toBe("SUBMITTED");
+
+    const submissionsAfterValidAttempt = await prisma.writerSubmission.count({
+      where: { bookId: book.id },
+    });
+
+    expect(submissionsAfterValidAttempt).toBe(1);
+
+    // Duplicate active submission must be rejected.
+    const duplicate = await request(app)
+      .post(`/api/v1/writer/books/${book.id}/submit`)
+      .set("Authorization", `Bearer ${writerA.token}`);
+
+    expect(duplicate.status).toBe(409);
+    expect(duplicate.body.error.code).toBe("INVALID_STATE_TRANSITION");
+
+    // The lifecycle guard rejects resubmission once the book is already SUBMITTED.
+    // Most importantly, no second submission record may be created.
+
+    const submissionsAfterDuplicate = await prisma.writerSubmission.count({
+      where: { bookId: book.id },
+    });
+
+    expect(submissionsAfterDuplicate).toBe(1);
   });
 
   it("persists autosave and rejects stale versions", async () => {

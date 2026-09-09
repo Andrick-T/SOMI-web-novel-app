@@ -1,157 +1,348 @@
-import { Router } from "express";
-import express from "express";
-import { randomUUID } from "node:crypto";
-import { validate } from "../../common/middleware/validate.js";
-import { requireAuth, requireRole } from "../auth/auth.middleware.js";
-import { assetSchema, assetMetadataSchema, autosaveSchema, localizationSchema, translationSchema, writerProfileSchema, } from "./writer.schemas.js";
-import { autosaveChapter, getBookLocalizations, getWriterEarningTransactions, getWriterEarnings, getWriterProfile, saveWriterProfile, getWriterSubmissions, markBookLocalizationReady, markChapterLocalizationReady, requestTranslation, saveBookLocalization, submitBook, } from "./writer.service.js";
+import express, { Router } from "express";
 import { prisma } from "../../config/database.js";
 import { AppError } from "../../common/errors/http-error.js";
+import { validate } from "../../common/middleware/validate.js";
+import { requireAuth, requireRole } from "../auth/auth.middleware.js";
+import { assetMetadataSchema, autosaveSchema, localizationSchema, writerProfileSchema, } from "./writer.schemas.js";
 import { readWriterImage, storeWriterImage } from "./writer.storage.js";
+import { getWriterEarnings, getWriterEarningTransactions, getWriterProfile, saveWriterProfile, autosaveChapter, saveBookLocalization, markBookLocalizationReady, markChapterLocalizationReady, submitBook, getWriterSubmissions, } from "./writer.service.js";
+const writerRouter = Router();
 const asyncRoute = (handler) => (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
-export const writerRouter = Router();
+/* ============================================================
+   PUBLIC BOOK COVER DELIVERY
+   ============================================================ */
+/**
+ * Public delivery for published book covers.
+ *
+ * IMPORTANT:
+ * This route is intentionally registered BEFORE the authentication
+ * middleware below.
+ *
+ * Security rules:
+ *
+ * - Asset must exist.
+ * - Asset must be ACTIVE.
+ * - Asset must belong directly to a book.
+ * - Asset must NOT belong to a chapter.
+ * - Associated book must be PUBLISHED.
+ *
+ * No JWT is required.
+ *
+ * Draft/unpublished covers are deliberately NOT exposed here.
+ * Writers/admins access those through the protected asset endpoint.
+ */
+writerRouter.get("/assets/:assetId/public", asyncRoute(async (req, res) => {
+    const assetId = String(req.params.assetId);
+    const asset = await prisma.writerAsset.findUnique({
+        where: {
+            id: assetId,
+        },
+        select: {
+            id: true,
+            bookId: true,
+            chapterId: true,
+            storageKey: true,
+            mimeType: true,
+            status: true,
+            book: {
+                select: {
+                    id: true,
+                    status: true,
+                },
+            },
+        },
+    });
+    if (!asset) {
+        throw new AppError(404, "ASSET_NOT_FOUND", "Asset not found.");
+    }
+    /*
+     * Only active assets may be delivered.
+     */
+    if (asset.status !== "ACTIVE") {
+        throw new AppError(404, "ASSET_NOT_FOUND", "Asset not found.");
+    }
+    /*
+     * This endpoint is strictly for book covers.
+     *
+     * Chapter assets can never be delivered through the public
+     * cover endpoint.
+     */
+    if (!asset.bookId || asset.chapterId !== null || !asset.book) {
+        throw new AppError(404, "ASSET_NOT_FOUND", "Asset not found.");
+    }
+    /*
+     * Only published books have publicly accessible covers.
+     *
+     * Deliberately return 404 instead of 403 so the endpoint does
+     * not disclose the existence of private/draft assets.
+     */
+    if (asset.book.status !== "PUBLISHED") {
+        throw new AppError(404, "ASSET_NOT_FOUND", "Asset not found.");
+    }
+    const data = await readWriterImage(asset.storageKey);
+    return res
+        .type(asset.mimeType)
+        .setHeader("Cache-Control", "public, max-age=86400")
+        .send(data);
+}));
+/* ============================================================
+   AUTHENTICATION
+   ============================================================ */
 writerRouter.use(requireAuth, requireRole("WRITER", "ADMIN"));
+/* ============================================================
+   WRITER PROFILE
+   ============================================================ */
 writerRouter.get("/profile", asyncRoute(async (req, res) => {
-    res.json({
-        profile: await getWriterProfile(req.user),
+    const profile = await getWriterProfile(req.user);
+    return res.json({
+        profile,
     });
 }));
 writerRouter.patch("/profile", validate(writerProfileSchema), asyncRoute(async (req, res) => {
-    res.json({
-        profile: await saveWriterProfile(req.user, req.body),
+    const profile = await saveWriterProfile(req.user, req.body);
+    return res.json({
+        profile,
     });
 }));
+/* ============================================================
+   WRITER BOOK ANALYTICS
+   ============================================================ */
+writerRouter.get("/books/analytics", asyncRoute(async (req, res) => {
+    const viewer = req.user;
+    const isAdmin = viewer.role.toUpperCase() === "ADMIN";
+    const books = await prisma.book.findMany({
+        where: isAdmin
+            ? {}
+            : {
+                authorId: viewer.id,
+            },
+        select: {
+            id: true,
+            views: true,
+        },
+        orderBy: {
+            createdAt: "desc",
+        },
+    });
+    if (books.length === 0) {
+        return res.json({
+            analytics: [],
+        });
+    }
+    const bookIds = books.map((book) => book.id);
+    const readerGroups = await prisma.readingProgress.groupBy({
+        by: ["bookId", "userId"],
+        where: {
+            bookId: {
+                in: bookIds,
+            },
+        },
+    });
+    const readerCounts = new Map();
+    for (const entry of readerGroups) {
+        readerCounts.set(entry.bookId, (readerCounts.get(entry.bookId) ?? 0) + 1);
+    }
+    const entitlementGroups = await prisma.chapterEntitlement.groupBy({
+        by: ["chapterId"],
+        where: {
+            chapter: {
+                bookId: {
+                    in: bookIds,
+                },
+            },
+        },
+    });
+    const chapterIds = entitlementGroups.map((entry) => entry.chapterId);
+    const chapters = chapterIds.length > 0
+        ? await prisma.chapter.findMany({
+            where: {
+                id: {
+                    in: chapterIds,
+                },
+            },
+            select: {
+                id: true,
+                bookId: true,
+            },
+        })
+        : [];
+    const chapterToBook = new Map(chapters.map((chapter) => [chapter.id, chapter.bookId]));
+    const unlockCounts = new Map();
+    for (const entitlement of entitlementGroups) {
+        const bookId = chapterToBook.get(entitlement.chapterId);
+        if (!bookId)
+            continue;
+        unlockCounts.set(bookId, (unlockCounts.get(bookId) ?? 0) + 1);
+    }
+    return res.json({
+        analytics: books.map((book) => ({
+            bookId: book.id,
+            views: book.views ?? 0,
+            readers: readerCounts.get(book.id) ?? 0,
+            unlocks: unlockCounts.get(book.id) ?? 0,
+        })),
+    });
+}));
+/* ============================================================
+   WRITER EARNINGS
+   ============================================================ */
+writerRouter.get("/earnings", asyncRoute(async (req, res) => {
+    const earnings = await getWriterEarnings(req.user);
+    return res.json(earnings);
+}));
+writerRouter.get("/earnings/transactions", asyncRoute(async (req, res) => {
+    const transactions = await getWriterEarningTransactions(req.user);
+    return res.json({
+        transactions,
+    });
+}));
+/* ============================================================
+   BOOK LOCALIZATIONS
+   ============================================================ */
 writerRouter.get("/books/:bookId/localizations", asyncRoute(async (req, res) => {
-    res.json({
-        localizations: await getBookLocalizations(req.user, String(req.params.bookId)),
+    const bookId = String(req.params.bookId);
+    const book = await prisma.book.findUnique({
+        where: {
+            id: bookId,
+        },
+        select: {
+            id: true,
+            authorId: true,
+        },
+    });
+    if (!book) {
+        throw new AppError(404, "BOOK_NOT_FOUND", "Book not found.");
+    }
+    if (book.authorId !== req.user.id &&
+        req.user.role.toUpperCase() !== "ADMIN") {
+        throw new AppError(403, "FORBIDDEN", "You do not own this book.");
+    }
+    const localizations = await prisma.bookLocalization.findMany({
+        where: {
+            bookId,
+        },
+        orderBy: {
+            languageCode: "asc",
+        },
+    });
+    return res.json({
+        localizations,
     });
 }));
 writerRouter.patch("/books/:bookId/localizations/:languageCode", validate(localizationSchema), asyncRoute(async (req, res) => {
-    const languageCode = String(req.params.languageCode);
+    const bookId = String(req.params.bookId);
+    const languageCode = String(req.params.languageCode).toLowerCase();
+    if (!["en", "fr"].includes(languageCode)) {
+        throw new AppError(400, "INVALID_LANGUAGE", "Only English and French are supported.");
+    }
     if (req.body.languageCode !== languageCode) {
-        throw new AppError(400, "VALIDATION_ERROR", "Language route and body must match.");
+        throw new AppError(400, "INVALID_LANGUAGE", "The localization language does not match the route.");
     }
-    if (languageCode !== "en" && languageCode !== "fr") {
-        throw new AppError(400, "VALIDATION_ERROR", "Unsupported language.");
+    /*
+     * Lifecycle status must never be changed through the generic
+     * localization update endpoint.
+     */
+    if (Object.prototype.hasOwnProperty.call(req.body, "status")) {
+        throw new AppError(409, "LIFECYCLE_STATUS_FORBIDDEN", "Localization lifecycle status must be changed through the dedicated ready workflow.");
     }
-    res.json({
-        localization: await saveBookLocalization(req.user, String(req.params.bookId), req.body),
+    const localization = await saveBookLocalization(req.user, bookId, {
+        languageCode: languageCode,
+        title: req.body.title,
+        description: req.body.description,
+    });
+    return res.json({
+        localization,
     });
 }));
-/**
- * Explicit book-localization lifecycle transition:
- *
- * PATCH editable content
- *        ↓
- * NEEDS_PROOFREADING
- *        ↓
- * POST /ready
- *        ↓
- * READY_FOR_SUBMISSION
- */
 writerRouter.post("/books/:bookId/localizations/:languageCode/ready", asyncRoute(async (req, res) => {
-    const languageCode = String(req.params.languageCode);
-    if (languageCode !== "en" && languageCode !== "fr") {
-        throw new AppError(400, "VALIDATION_ERROR", "Unsupported language.");
+    const bookId = String(req.params.bookId);
+    const languageCode = String(req.params.languageCode).toLowerCase();
+    if (!["en", "fr"].includes(languageCode)) {
+        throw new AppError(400, "INVALID_LANGUAGE", "Only English and French are supported.");
     }
-    res.json({
-        localization: await markBookLocalizationReady(req.user, String(req.params.bookId), languageCode),
+    const localization = await markBookLocalizationReady(req.user, bookId, languageCode);
+    return res.json({
+        localization,
     });
 }));
-writerRouter.patch("/books/:bookId/chapters/:chapterId/autosave", validate(autosaveSchema), asyncRoute(async (req, res) => {
-    res.json({
-        saved: true,
-        content: await autosaveChapter(req.user, String(req.params.bookId), String(req.params.chapterId), req.body),
-    });
-}));
-writerRouter.post("/books/:bookId/translate", validate(translationSchema), asyncRoute(async (req, res) => {
-    res.json({
-        translation: await requestTranslation(req.user, String(req.params.bookId), req.body),
-    });
-}));
+/* ============================================================
+   CHAPTER LOCALIZATION READY
+   ============================================================ */
 writerRouter.post("/books/:bookId/chapters/:chapterId/localizations/:languageCode/ready", asyncRoute(async (req, res) => {
-    const languageCode = String(req.params.languageCode);
-    if (languageCode !== "fr" && languageCode !== "en") {
-        throw new AppError(400, "VALIDATION_ERROR", "Unsupported language.");
-    }
-    res.json({
-        localization: await markChapterLocalizationReady(req.user, String(req.params.bookId), String(req.params.chapterId), languageCode),
-    });
-}));
-writerRouter.post("/books/:bookId/submit", asyncRoute(async (req, res) => {
-    res.status(201).json({
-        submission: await submitBook(req.user, String(req.params.bookId)),
-    });
-}));
-writerRouter.get("/submissions", asyncRoute(async (req, res) => {
-    res.json({
-        submissions: await getWriterSubmissions(req.user),
-    });
-}));
-writerRouter.get("/earnings", asyncRoute(async (req, res) => {
-    res.json(await getWriterEarnings(req.user));
-}));
-writerRouter.get("/earnings/transactions", asyncRoute(async (req, res) => {
-    res.json({
-        transactions: await getWriterEarningTransactions(req.user),
-    });
-}));
-writerRouter.post("/books/:bookId/chapters/:chapterId/assets", validate(assetSchema), asyncRoute(async (req, res) => {
     const bookId = String(req.params.bookId);
     const chapterId = String(req.params.chapterId);
-    const chapter = await prisma.chapter.findUnique({
-        where: {
-            id: chapterId,
-        },
-        include: {
-            book: true,
-        },
-    });
-    if (!chapter || chapter.bookId !== bookId) {
-        throw new AppError(404, "CHAPTER_NOT_FOUND", "Chapter not found.");
+    const languageCode = String(req.params.languageCode).toLowerCase();
+    if (!["en", "fr"].includes(languageCode)) {
+        throw new AppError(400, "INVALID_LANGUAGE", "Only English and French are supported.");
     }
-    if (chapter.book.authorId !== req.user.id &&
-        req.user.role.toUpperCase() !== "ADMIN") {
-        throw new AppError(403, "FORBIDDEN", "You do not own this chapter.");
-    }
-    if (req.body.chapterId && req.body.chapterId !== chapterId) {
-        throw new AppError(400, "VALIDATION_ERROR", "Chapter route and body must match.");
-    }
-    const asset = await prisma.writerAsset.create({
-        data: {
-            ...req.body,
-            storageKey: `writer/${req.user.id}/${randomUUID()}`,
-            writerId: req.user.id,
-            bookId,
-            chapterId,
-        },
-    });
-    res.status(201).json({
-        asset,
+    const localization = await markChapterLocalizationReady(req.user, bookId, chapterId, languageCode);
+    return res.json({
+        localization,
     });
 }));
-writerRouter.post("/books/:bookId/chapters/:chapterId/assets/upload", express.raw({
+/* ============================================================
+   CHAPTER AUTOSAVE
+   ============================================================ */
+writerRouter.patch("/books/:bookId/chapters/:chapterId/autosave", validate(autosaveSchema), asyncRoute(async (req, res) => {
+    const result = await autosaveChapter(req.user, String(req.params.bookId), String(req.params.chapterId), req.body);
+    return res.json(result);
+}));
+/* ============================================================
+   BOOK SUBMISSION
+   ============================================================ */
+writerRouter.post("/books/:bookId/submit", asyncRoute(async (req, res) => {
+    const submission = await submitBook(req.user, String(req.params.bookId));
+    return res.status(201).json({
+        submission,
+    });
+}));
+/* ============================================================
+   SUBMISSIONS
+   ============================================================ */
+writerRouter.get("/submissions", asyncRoute(async (req, res) => {
+    const submissions = await getWriterSubmissions(req.user);
+    return res.json({
+        submissions,
+    });
+}));
+/* ============================================================
+   BOOK COVER UPLOAD
+   ============================================================ */
+/**
+ * Authenticated writer/admin cover upload.
+ *
+ * The uploaded image is stored as a WriterAsset with:
+ *
+ *   chapterId = NULL
+ *
+ * Book.cover points to the public-safe endpoint.
+ *
+ * IMPORTANT:
+ * The public endpoint itself will only serve the image once the
+ * associated book is PUBLISHED.
+ */
+writerRouter.post("/books/:bookId/cover/upload", express.raw({
     type: () => true,
     limit: "10mb",
 }), asyncRoute(async (req, res) => {
     const bookId = String(req.params.bookId);
-    const chapterId = String(req.params.chapterId);
-    const chapter = await prisma.chapter.findUnique({
+    const book = await prisma.book.findUnique({
         where: {
-            id: chapterId,
+            id: bookId,
         },
-        include: {
-            book: true,
+        select: {
+            id: true,
+            authorId: true,
         },
     });
-    if (!chapter || chapter.bookId !== bookId) {
-        throw new AppError(404, "CHAPTER_NOT_FOUND", "Chapter not found.");
+    if (!book) {
+        throw new AppError(404, "BOOK_NOT_FOUND", "Book not found.");
     }
-    if (chapter.book.authorId !== req.user.id &&
-        req.user.role.toUpperCase() !== "ADMIN") {
-        throw new AppError(403, "FORBIDDEN", "You do not own this chapter.");
+    const isAdmin = req.user.role.toUpperCase() === "ADMIN";
+    if (book.authorId !== req.user.id && !isAdmin) {
+        throw new AppError(403, "FORBIDDEN", "You do not own this book.");
     }
-    const metadata = assetMetadataSchema.safeParse({
+    const metadataResult = assetMetadataSchema.safeParse({
         altText: req.headers["x-asset-alt-text"],
         caption: req.headers["x-asset-caption"] ?? null,
         width: req.headers["x-asset-width"]
@@ -161,40 +352,210 @@ writerRouter.post("/books/:bookId/chapters/:chapterId/assets/upload", express.ra
             ? Number(req.headers["x-asset-height"])
             : undefined,
     });
-    if (!metadata.success) {
+    if (!metadataResult.success) {
         throw new AppError(400, "VALIDATION_ERROR", "Valid image metadata is required.");
     }
     const mimeType = String(req.headers["content-type"] ?? "").split(";")[0];
-    const stored = await storeWriterImage(mimeType, Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0));
+    const buffer = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+    if (buffer.length === 0) {
+        throw new AppError(400, "EMPTY_FILE", "The uploaded cover image is empty.");
+    }
+    const stored = await storeWriterImage(mimeType, buffer);
     const asset = await prisma.writerAsset.create({
         data: {
-            ...metadata.data,
+            writerId: req.user.id,
+            bookId,
+            chapterId: null,
             storageKey: stored.storageKey,
             mimeType,
             sizeBytes: stored.sizeBytes,
+            width: metadataResult.data.width ?? null,
+            height: metadataResult.data.height ?? null,
+            altText: metadataResult.data.altText,
+            caption: metadataResult.data.caption ?? null,
+            status: "ACTIVE",
+        },
+    });
+    /*
+     * Book.cover deliberately points to the public-safe endpoint.
+     *
+     * This endpoint itself decides whether the book is currently
+     * published before serving the image.
+     */
+    const url = `/api/v1/writer/assets/${asset.id}/public`;
+    await prisma.book.update({
+        where: {
+            id: bookId,
+        },
+        data: {
+            cover: url,
+        },
+    });
+    return res.status(201).json({
+        asset: {
+            id: asset.id,
+            writerId: asset.writerId,
+            bookId: asset.bookId,
+            chapterId: asset.chapterId,
+            storageKey: asset.storageKey,
+            mimeType: asset.mimeType,
+            sizeBytes: asset.sizeBytes,
+            width: asset.width,
+            height: asset.height,
+            altText: asset.altText,
+            caption: asset.caption,
+            status: asset.status,
+        },
+        /*
+         * Return the private authenticated URL as the upload response
+         * for writer-side access to the newly uploaded draft asset.
+         *
+         * Book.cover remains the public-safe URL above.
+         */
+        url: `/api/v1/writer/assets/${asset.id}`,
+        /*
+         * Explicitly expose the public URL separately so callers do
+         * not have to construct it themselves.
+         */
+        publicUrl: url,
+    });
+}));
+/* ============================================================
+   CHAPTER ASSET UPLOAD
+   ============================================================ */
+writerRouter.post("/books/:bookId/chapters/:chapterId/assets/upload", express.raw({
+    type: () => true,
+    limit: "10mb",
+}), asyncRoute(async (req, res) => {
+    const bookId = String(req.params.bookId);
+    const chapterId = String(req.params.chapterId);
+    const book = await prisma.book.findUnique({
+        where: {
+            id: bookId,
+        },
+        select: {
+            id: true,
+            authorId: true,
+        },
+    });
+    if (!book) {
+        throw new AppError(404, "BOOK_NOT_FOUND", "Book not found.");
+    }
+    if (book.authorId !== req.user.id &&
+        req.user.role.toUpperCase() !== "ADMIN") {
+        throw new AppError(403, "FORBIDDEN", "You do not own this book.");
+    }
+    const chapter = await prisma.chapter.findUnique({
+        where: {
+            id: chapterId,
+        },
+        select: {
+            id: true,
+            bookId: true,
+        },
+    });
+    if (!chapter || chapter.bookId !== bookId) {
+        throw new AppError(404, "CHAPTER_NOT_FOUND", "Chapter not found.");
+    }
+    const metadataResult = assetMetadataSchema.safeParse({
+        altText: req.headers["x-asset-alt-text"],
+        caption: req.headers["x-asset-caption"] ?? null,
+        width: req.headers["x-asset-width"]
+            ? Number(req.headers["x-asset-width"])
+            : undefined,
+        height: req.headers["x-asset-height"]
+            ? Number(req.headers["x-asset-height"])
+            : undefined,
+    });
+    if (!metadataResult.success) {
+        throw new AppError(400, "VALIDATION_ERROR", "Valid image metadata is required.");
+    }
+    const mimeType = String(req.headers["content-type"] ?? "").split(";")[0];
+    const buffer = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+    if (buffer.length === 0) {
+        throw new AppError(400, "EMPTY_FILE", "The uploaded file is empty.");
+    }
+    const stored = await storeWriterImage(mimeType, buffer);
+    const asset = await prisma.writerAsset.create({
+        data: {
             writerId: req.user.id,
             bookId,
             chapterId,
+            storageKey: stored.storageKey,
+            mimeType,
+            sizeBytes: stored.sizeBytes,
+            width: metadataResult.data.width ?? null,
+            height: metadataResult.data.height ?? null,
+            altText: metadataResult.data.altText,
+            caption: metadataResult.data.caption ?? null,
+            status: "ACTIVE",
         },
     });
-    res.status(201).json({
-        asset,
+    return res.status(201).json({
+        asset: {
+            id: asset.id,
+            writerId: asset.writerId,
+            bookId: asset.bookId,
+            chapterId: asset.chapterId,
+            storageKey: asset.storageKey,
+            mimeType: asset.mimeType,
+            sizeBytes: asset.sizeBytes,
+            width: asset.width,
+            height: asset.height,
+            altText: asset.altText,
+            caption: asset.caption,
+            status: asset.status,
+        },
         url: `/api/v1/writer/assets/${asset.id}`,
     });
 }));
+/* ============================================================
+   PRIVATE ASSET DELIVERY
+   ============================================================ */
+/**
+ * Protected writer/admin asset delivery.
+ *
+ * This endpoint intentionally remains authenticated.
+ *
+ * It is used for:
+ *
+ * - draft covers
+ * - unpublished covers
+ * - chapter assets
+ * - other private writer assets
+ *
+ * Ownership is enforced independently of authentication.
+ */
 writerRouter.get("/assets/:assetId", asyncRoute(async (req, res) => {
     const asset = await prisma.writerAsset.findUnique({
         where: {
             id: String(req.params.assetId),
         },
+        select: {
+            id: true,
+            writerId: true,
+            bookId: true,
+            chapterId: true,
+            storageKey: true,
+            mimeType: true,
+            status: true,
+        },
     });
     if (!asset) {
         throw new AppError(404, "ASSET_NOT_FOUND", "Asset not found.");
     }
-    if (asset.writerId !== req.user.id &&
-        req.user.role.toUpperCase() !== "ADMIN") {
-        throw new AppError(403, "FORBIDDEN", "You do not own this asset.");
+    if (asset.status !== "ACTIVE") {
+        throw new AppError(404, "ASSET_NOT_FOUND", "Asset not found.");
+    }
+    const isOwner = asset.writerId === req.user.id;
+    const isAdmin = req.user.role.toUpperCase() === "ADMIN";
+    if (!isOwner && !isAdmin) {
+        throw new AppError(403, "FORBIDDEN", "You do not have access to this asset.");
     }
     const data = await readWriterImage(asset.storageKey);
-    res.type(asset.mimeType).send(data);
+    return res
+        .type(asset.mimeType)
+        .setHeader("Cache-Control", "private, max-age=86400")
+        .send(data);
 }));
+export { writerRouter };

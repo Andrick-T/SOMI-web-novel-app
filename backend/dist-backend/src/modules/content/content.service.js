@@ -24,6 +24,7 @@ const bookSelectors = {
             publishedAt: true,
             accessType: true,
             price: true,
+            contentVersion: true,
         },
     },
 };
@@ -47,6 +48,7 @@ const mapBook = (book, includePrivate = false) => {
         status: book.status,
         rating: Number(book.rating ?? 0),
         views: Number(book.views ?? 0),
+        unlocks: Number(book._count?.entitlements ?? 0),
         favorites: Number(book.favorites ?? 0),
         totalChapters: Number(book.totalChapters ?? visibleChapters.length),
         createdAt: book.createdAt.toISOString(),
@@ -69,6 +71,7 @@ const mapBook = (book, includePrivate = false) => {
                 : null,
             accessType: chapter.accessType,
             price: chapter.price,
+            ...(includePrivate ? { contentVersion: chapter.contentVersion } : {}),
         })),
     };
 };
@@ -94,6 +97,7 @@ const mapChapter = (chapter, accessState) => ({
     publishedAt: chapter.publishedAt ? chapter.publishedAt.toISOString() : null,
     createdAt: chapter.createdAt.toISOString(),
     updatedAt: chapter.updatedAt.toISOString(),
+    contentVersion: chapter.contentVersion,
 });
 const assertAuthorOrAdmin = (viewer, ownerId) => {
     if (!viewer)
@@ -156,6 +160,12 @@ export async function getWriterBooks(writerId) {
                     publishedAt: true,
                     accessType: true,
                     price: true,
+                    contentVersion: true,
+                },
+            },
+            _count: {
+                select: {
+                    entitlements: true,
                 },
             },
         },
@@ -187,6 +197,7 @@ export async function getBookDetail(bookId, viewer) {
                     accessType: true,
                     price: true,
                     content: true,
+                    contentVersion: true,
                 },
             },
         },
@@ -200,6 +211,28 @@ export async function getBookDetail(bookId, viewer) {
         throw new AppError(404, "BOOK_NOT_FOUND", "Book not found.");
     }
     return mapBook(book, false);
+}
+export async function getGenres() {
+    return prisma.genre.findMany({
+        orderBy: {
+            name: "asc",
+        },
+        select: {
+            id: true,
+            name: true,
+        },
+    });
+}
+export async function getTags() {
+    return prisma.tag.findMany({
+        orderBy: {
+            name: "asc",
+        },
+        select: {
+            id: true,
+            name: true,
+        },
+    });
 }
 export async function createBook(writer, input) {
     if (!writer || !writer.id)
@@ -224,7 +257,7 @@ export async function createBook(writer, input) {
                 synopsis: input.synopsis ?? null,
                 cover: input.cover ?? null,
                 heroImage: input.heroImage ?? null,
-                status: input.status ?? "DRAFT",
+                status: "DRAFT",
             },
             include: {
                 author: {
@@ -246,6 +279,7 @@ export async function createBook(writer, input) {
                         publishedAt: true,
                         accessType: true,
                         price: true,
+                        contentVersion: true,
                     },
                 },
             },
@@ -284,6 +318,7 @@ export async function createBook(writer, input) {
                         publishedAt: true,
                         accessType: true,
                         price: true,
+                        contentVersion: true,
                     },
                 },
             },
@@ -349,6 +384,7 @@ export async function updateBook(writer, bookId, input) {
                         publishedAt: true,
                         accessType: true,
                         price: true,
+                        contentVersion: true,
                     },
                 },
             },
@@ -393,6 +429,7 @@ export async function updateBook(writer, bookId, input) {
                         publishedAt: true,
                         accessType: true,
                         price: true,
+                        contentVersion: true,
                     },
                 },
             },
@@ -457,8 +494,6 @@ export async function getChapterDetail(bookId, chapterId, viewer) {
     if (chapter.status !== "PUBLISHED") {
         throw new AppError(404, "CHAPTER_NOT_FOUND", "Chapter not found.");
     }
-    if (viewer && viewer.id === chapter.book.authorId)
-        return mapChapter(chapter, "UNLOCKED");
     if (chapter.accessType !== "PREMIUM")
         return mapChapter(chapter, "FREE");
     if (chapter.book.status !== PUBLIC_BOOK_STATUS) {
@@ -473,41 +508,46 @@ export async function getChapterDetail(bookId, chapterId, viewer) {
 }
 export async function createChapter(writer, bookId, input) {
     const book = await prisma.book.findUnique({ where: { id: bookId } });
-    if (!book)
+    if (!book) {
         throw new AppError(404, "BOOK_NOT_FOUND", "Book not found.");
+    }
     assertAuthorOrAdmin(writer, book.authorId);
     const duplicate = await prisma.chapter.findUnique({
         where: { bookId_number: { bookId, number: input.number } },
     });
-    if (duplicate)
+    if (duplicate) {
         throw new AppError(409, "CHAPTER_NUMBER_CONFLICT", "A chapter with this number already exists for this book.");
-    const chapter = await prisma.chapter.create({
-        data: {
-            bookId,
-            title: input.title,
-            number: input.number,
-            content: input.content,
-            status: input.status ?? "DRAFT",
-            accessType: input.accessType ?? "FREE",
-            price: input.price ?? 0,
-            wordCount: input.content.trim().split(/\s+/).filter(Boolean).length,
-            readingTime: Math.max(1, Math.ceil(input.content.trim().split(/\s+/).filter(Boolean).length / 200)),
-        },
-        include: {
-            book: {
-                select: {
-                    id: true,
-                    title: true,
-                    slug: true,
-                    status: true,
-                    authorId: true,
+    }
+    const chapter = await prisma.$transaction(async (tx) => {
+        const created = await tx.chapter.create({
+            data: {
+                bookId,
+                title: input.title,
+                number: input.number,
+                content: input.content,
+                status: "DRAFT",
+                accessType: input.accessType ?? "FREE",
+                price: input.price ?? 0,
+                wordCount: input.content.trim().split(/\s+/).filter(Boolean).length,
+                readingTime: Math.max(1, Math.ceil(input.content.trim().split(/\s+/).filter(Boolean).length / 200)),
+            },
+            include: {
+                book: {
+                    select: {
+                        id: true,
+                        title: true,
+                        slug: true,
+                        status: true,
+                        authorId: true,
+                    },
                 },
             },
-        },
-    });
-    await prisma.book.update({
-        where: { id: bookId },
-        data: { totalChapters: { increment: 1 } },
+        });
+        await tx.book.update({
+            where: { id: bookId },
+            data: { totalChapters: { increment: 1 } },
+        });
+        return created;
     });
     return mapChapter(chapter);
 }

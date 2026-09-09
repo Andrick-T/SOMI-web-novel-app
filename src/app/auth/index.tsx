@@ -35,7 +35,7 @@ interface AuthContextValue {
       email?: string;
       password?: string;
     },
-  ) => Promise<void>;
+  ) => Promise<AppUser>;
   logout: () => Promise<void>;
   hasRole: (role: AppRole) => boolean;
   error: string | null;
@@ -65,16 +65,36 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     if (!useApi) return;
+
+    const hasStoredAccessToken =
+      typeof window !== "undefined" &&
+      Boolean(window.sessionStorage.getItem("somi_access_token"));
+
+    if (!hasStoredAccessToken) {
+      setUser(null);
+      setIsLoading(false);
+      return;
+    }
+
     const generation = authGeneration.current;
+
     apiAuthRepository
       .me()
       .then((nextUser) => {
-        if (authGeneration.current === generation) setUser(nextUser);
+        if (authGeneration.current === generation) {
+          setUser(nextUser);
+        }
       })
       .catch(() => {
-        if (authGeneration.current === generation) setUser(null);
+        if (authGeneration.current === generation) {
+          setUser(null);
+        }
       })
-      .finally(() => setIsLoading(false));
+      .finally(() => {
+        if (authGeneration.current === generation) {
+          setIsLoading(false);
+        }
+      });
   }, [useApi]);
 
   const login = useCallback(
@@ -84,22 +104,23 @@ export function AuthProvider({ children }: PropsWithChildren) {
         email?: string;
         password?: string;
       },
-    ) => {
+    ): Promise<AppUser> => {
       setIsLoading(true);
       setError(null);
       authGeneration.current += 1;
 
       if (useApi && payload?.email && payload.password) {
         try {
-          setUser(
-            await (payload.name
-              ? apiAuthRepository.register(
-                  payload.email,
-                  payload.password,
-                  payload.name,
-                )
-              : apiAuthRepository.login(payload.email, payload.password)),
-          );
+          const authenticatedUser = await (payload.name
+            ? apiAuthRepository.register(
+                payload.email,
+                payload.password,
+                payload.name,
+              )
+            : apiAuthRepository.login(payload.email, payload.password));
+
+          setUser(authenticatedUser);
+          return authenticatedUser;
         } catch (caught) {
           setError(
             caught instanceof Error ? caught.message : "Unable to sign in.",
@@ -108,23 +129,27 @@ export function AuthProvider({ children }: PropsWithChildren) {
         } finally {
           setIsLoading(false);
         }
-        return;
       }
 
-      window.setTimeout(() => {
-        const nextRole = payload?.role ?? payload?.roles?.[0] ?? "reader";
-        const nextUser: AppUser = {
-          ...mockUserBase,
-          ...payload,
-          role: nextRole,
-          roles: payload?.roles ?? [nextRole],
-          status: payload?.status ?? "active",
-          createdAt: payload?.createdAt ?? mockUserBase.createdAt,
-        };
+      const nextRole = payload?.role ?? payload?.roles?.[0] ?? "reader";
 
-        setUser(nextUser);
-        setIsLoading(false);
-      }, 250);
+      const nextUser: AppUser = {
+        ...mockUserBase,
+        ...payload,
+        role: nextRole,
+        roles: payload?.roles ?? [nextRole],
+        status: payload?.status ?? "active",
+        createdAt: payload?.createdAt ?? mockUserBase.createdAt,
+      };
+
+      await new Promise<void>((resolve) => {
+        window.setTimeout(resolve, 250);
+      });
+
+      setUser(nextUser);
+      setIsLoading(false);
+
+      return nextUser;
     },
     [useApi],
   );

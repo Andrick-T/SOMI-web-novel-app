@@ -32,6 +32,7 @@ describe("writer content repositories", () => {
             content: "Real content",
             createdAt: "2026-01-01T00:00:00.000Z",
             updatedAt: "2026-01-01T00:00:00.000Z",
+            contentVersion: 0,
           },
         };
       },
@@ -85,6 +86,7 @@ describe("writer content repositories", () => {
           status: "DRAFT",
           createdAt: "2026-01-01T00:00:00.000Z",
           updatedAt: "2026-01-01T00:00:00.000Z",
+          contentVersion: 1,
         },
       });
 
@@ -101,6 +103,7 @@ describe("writer content repositories", () => {
       status: "EDITING",
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z",
+      contentVersion: 1,
     });
 
     expect(authorizedRequest).toHaveBeenCalledWith(

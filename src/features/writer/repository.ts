@@ -68,6 +68,7 @@ const makeChapter = (
   status: overrides.status ?? "DRAFT",
   publishedAt: overrides.publishedAt,
   scheduledAt: overrides.scheduledAt,
+  contentVersion: overrides.contentVersion ?? 0,
   createdAt: overrides.createdAt ?? "2024-04-01T00:00:00.000Z",
   updatedAt: overrides.updatedAt ?? "2024-04-01T00:00:00.000Z",
 });
@@ -304,6 +305,7 @@ export const writerRepository = {
       accessType: chapterInput.accessType ?? "FREE",
       price: chapterInput.price ?? 0,
       status: chapterInput.status ?? "DRAFT",
+      contentVersion: chapterInput.contentVersion ?? 0,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };

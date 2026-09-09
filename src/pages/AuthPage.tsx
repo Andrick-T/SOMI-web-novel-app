@@ -53,7 +53,6 @@ export default function AuthPage({ navigate, onLogin }: CommonProps) {
             password,
             name: mode === "register" ? name : undefined,
           });
-          navigate("home");
         } catch (caught) {
           setError(
             caught instanceof Error ? caught.message : "Unable to sign in.",

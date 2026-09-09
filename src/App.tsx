@@ -478,10 +478,22 @@ function AppShell() {
     unlockChapter,
     addCoins,
     onLogin: async (credentials) => {
-      await login(
-        credentials ? { ...credentials, role: "reader" } : { role: "reader" },
+      const authenticatedUser = await login(
+        credentials ? { ...credentials } : undefined,
       );
-      setEnvironment("reader");
+
+      if (authenticatedUser.roles.includes("admin")) {
+        setEnvironment("admin");
+        navigateTo("admin-dashboard");
+      } else if (authenticatedUser.roles.includes("writer")) {
+        setEnvironment("writer");
+        navigateTo("writer-dashboard");
+      } else {
+        setEnvironment("reader");
+        navigateTo("home");
+      }
+
+      return authenticatedUser;
     },
     onLogout: async () => {
       await logout();

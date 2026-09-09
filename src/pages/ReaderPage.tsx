@@ -6,6 +6,7 @@
   useRef,
   useState,
 } from "react";
+import ChapterContent from "../components/reader/ChapterContent";
 import {
   ArrowLeft,
   Bookmark,
@@ -167,14 +168,7 @@ export default function ReaderPage({
       )[fontSize],
     });
   }, [fontFamily, fontSize, theme]);
-  const paragraphs = useMemo(
-    () =>
-      chapter.content
-        .split(/\n{2,}|\n/)
-        .map((paragraph) => paragraph.trim())
-        .filter(Boolean),
-    [chapter.content],
-  );
+
   const chapterProgress = getChapterProgress(
     chapterIndex,
     book.chapters.length,
@@ -809,7 +803,8 @@ export default function ReaderPage({
               />
             </div>
 
-            <div
+            <ChapterContent
+              content={chapter.content || "This chapter is empty."}
               className="reader-copy"
               style={{
                 fontFamily: fontFamilies[fontFamily].css,
@@ -817,20 +812,7 @@ export default function ReaderPage({
                 lineHeight: 1.9,
                 color: tc.text,
               }}
-            >
-              {paragraphs.length === 0 ? (
-                <p>{chapter.content || "This chapter is empty."}</p>
-              ) : (
-                paragraphs.map((paragraph, index) => (
-                  <p
-                    key={`${chapter.id}-${index}`}
-                    className="reader-paragraph"
-                  >
-                    {paragraph}
-                  </p>
-                ))
-              )}
-            </div>
+            />
 
             {nextChapter && (
               <div className="reader-end-of-chapter">
