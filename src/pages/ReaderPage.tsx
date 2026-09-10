@@ -7,7 +7,9 @@
   type KeyboardEvent,
   type ReactNode,
 } from "react";
+import EmojiPicker from "emoji-picker-react";
 import ChapterContent from "../components/reader/ChapterContent";
+import GiphyPicker from "../components/reader/GiphyPicker";
 import {
   ArrowLeft,
   Bookmark,
@@ -35,6 +37,7 @@ import {
   apiCommentsRepository,
   type Book,
   type ChapterComment,
+  type GiphyGif,
 } from "../services/repositories";
 import type { CommonProps } from "../types";
 
@@ -112,6 +115,65 @@ const isInteractiveTarget = (target: EventTarget | null) =>
   target instanceof HTMLElement &&
   Boolean(target.closest("button, a, input, select, textarea"));
 
+/*
+ * ============================================================
+ * COMMENT TREE HELPERS
+ * ============================================================
+ */
+
+/**
+ * Inserts a newly-created comment into the correct place
+ * in the nested comment tree.
+ *
+ * Root comment:
+ *   [comment, ...existing]
+ *
+ * Reply:
+ *   Finds the parent recursively and prepends the reply
+ *   to that parent's replies.
+ */
+const appendCommentToTree = (
+  items: ChapterComment[],
+  comment: ChapterComment,
+): ChapterComment[] => {
+  if (!comment.parentId) {
+    return [comment, ...items];
+  }
+
+  let inserted = false;
+
+  const walk = (nodes: ChapterComment[]): ChapterComment[] =>
+    nodes.map((node) => {
+      if (node.id === comment.parentId) {
+        inserted = true;
+
+        return {
+          ...node,
+          replies: [comment, ...node.replies],
+        };
+      }
+
+      if (node.replies.length > 0) {
+        return {
+          ...node,
+          replies: walk(node.replies),
+        };
+      }
+
+      return node;
+    });
+
+  const next = walk(items);
+
+  /*
+   * This fallback should normally never be needed because
+   * the backend validates parentId, but if a parent cannot
+   * be found locally we still show the new comment instead
+   * of silently losing it.
+   */
+  return inserted ? next : [comment, ...items];
+};
+
 export default function ReaderPage({
   book,
   chapterId,
@@ -147,6 +209,24 @@ export default function ReaderPage({
   const [commentSubmitting, setCommentSubmitting] = useState(false);
   const [commentsError, setCommentsError] = useState<string | null>(null);
 
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showGifPicker, setShowGifPicker] = useState(false);
+  const [selectedGif, setSelectedGif] = useState<GiphyGif | null>(null);
+
+  /*
+   * ============================================================
+   * REPLY STATE
+   * ============================================================
+   *
+   * When replyingTo is set, the composer submits the new
+   * comment with:
+   *
+   * parentId: replyingTo.id
+   *
+   * When null, the comment is a normal root comment.
+   */
+  const [replyingTo, setReplyingTo] = useState<ChapterComment | null>(null);
+
   const [screenState, setScreenState] = useState<"reading" | "locked">(
     "reading",
   );
@@ -158,6 +238,8 @@ export default function ReaderPage({
   const controlsTimer = useRef<number | null>(null);
   const progressTimer = useRef<number | null>(null);
 
+  const commentTextareaRef = useRef<HTMLTextAreaElement>(null);
+
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
 
@@ -167,15 +249,6 @@ export default function ReaderPage({
    * ============================================================
    * READER CONTROL TIMER
    * ============================================================
-   *
-   * The toolbar automatically hides after 8 seconds.
-   *
-   * When Settings, Chapter List, or Comments is open:
-   * - the timer is cleared
-   * - the toolbar remains visible
-   *
-   * When the active panel closes:
-   * - the 8-second timer starts again
    */
 
   const clearControlsTimer = useCallback(() => {
@@ -199,10 +272,6 @@ export default function ReaderPage({
   }, [clearControlsTimer]);
 
   const scheduleControlsHide = useCallback(() => {
-    /*
-     * Never start an auto-hide timer while a reader panel
-     * is actively open.
-     */
     if (showSettings || showComments || showChapterList) {
       clearControlsTimer();
       return;
@@ -222,13 +291,6 @@ export default function ReaderPage({
     setShowChapterList(false);
     setShowComments(false);
 
-    /*
-     * Restart the timer immediately after closing a panel.
-     * We deliberately use startControlsTimer() rather than
-     * scheduleControlsHide(), because React state updates are
-     * asynchronous and the old panel state could still be true
-     * inside the callback closure.
-     */
     if (showControls) {
       startControlsTimer();
     }
@@ -244,9 +306,6 @@ export default function ReaderPage({
         setShowComments(false);
         clearControlsTimer();
       } else {
-        /*
-         * Start the normal toolbar timer.
-         */
         startControlsTimer();
       }
 
@@ -434,11 +493,6 @@ export default function ReaderPage({
    * ============================================================
    * COMMENTS
    * ============================================================
-   *
-   * GET /comments is PUBLIC.
-   *
-   * Guests can read.
-   * Authenticated users can read and post.
    */
 
   useEffect(() => {
@@ -453,10 +507,10 @@ export default function ReaderPage({
       setCommentsError(null);
 
       /*
-       * Clear the previous chapter's comments immediately.
-       * This prevents comments from chapter N being displayed
-       * while chapter N+1 is loading.
+       * Reset reply state when loading a chapter's comments.
        */
+      setReplyingTo(null);
+
       setComments([]);
 
       try {
@@ -494,6 +548,20 @@ export default function ReaderPage({
       cancelled = true;
     };
   }, [book, chapter, showComments]);
+
+  /*
+   * ============================================================
+   * RESET COMMENT COMPOSER WHEN CHAPTER CHANGES
+   * ============================================================
+   */
+
+  useEffect(() => {
+    setCommentText("");
+    setSelectedGif(null);
+    setReplyingTo(null);
+    setShowEmojiPicker(false);
+    setShowGifPicker(false);
+  }, [chapter?.id]);
 
   /*
    * ============================================================
@@ -632,7 +700,61 @@ export default function ReaderPage({
 
   /*
    * ============================================================
-   * CREATE COMMENT
+   * START REPLY
+   * ============================================================
+   */
+
+  const handleReply = useCallback(
+    (comment: ChapterComment) => {
+      if (!isLoggedIn) {
+        navigate("auth");
+        return;
+      }
+
+      setReplyingTo(comment);
+
+      /*
+       * A reply should start with a clean composer state
+       * except for the text/GIF the user may already have
+       * intentionally entered.
+       *
+       * We close auxiliary pickers so the reply composer
+       * gets the focus.
+       */
+      setShowEmojiPicker(false);
+      setShowGifPicker(false);
+
+      clearControlsTimer();
+
+      /*
+       * Focus after React has rendered the reply banner.
+       */
+      window.requestAnimationFrame(() => {
+        commentTextareaRef.current?.focus();
+      });
+    },
+    [clearControlsTimer, isLoggedIn, navigate],
+  );
+
+  /*
+   * ============================================================
+   * CANCEL REPLY
+   * ============================================================
+   */
+
+  const handleCancelReply = useCallback(() => {
+    setReplyingTo(null);
+
+    window.requestAnimationFrame(() => {
+      commentTextareaRef.current?.focus();
+    });
+
+    clearControlsTimer();
+  }, [clearControlsTimer]);
+
+  /*
+   * ============================================================
+   * CREATE COMMENT / REPLY
    * ============================================================
    */
 
@@ -643,7 +765,14 @@ export default function ReaderPage({
 
     const content = commentText.trim();
 
-    if (!content || commentSubmitting) {
+    /*
+     * A valid submission can be:
+     *
+     * 1. Text only
+     * 2. GIF only
+     * 3. Text + GIF
+     */
+    if ((!content && !selectedGif) || commentSubmitting) {
       return;
     }
 
@@ -660,16 +789,36 @@ export default function ReaderPage({
         book.id,
         chapter.id,
         content,
+        {
+          /*
+           * THIS is the important part for nested replies.
+           *
+           * Root comment:
+           *   parentId = null
+           *
+           * Reply:
+           *   parentId = replyingTo.id
+           */
+          parentId: replyingTo?.id ?? null,
+          gifId: selectedGif?.id ?? null,
+          gifUrl: selectedGif?.url ?? null,
+        },
       );
 
       /*
-       * Add the newly-created comment immediately.
-       * This makes the user's own comment visible without
-       * requiring another GET request.
+       * Insert the response into the correct place in the
+       * existing nested comment tree.
        */
-      setComments((current) => [comment, ...current]);
+      setComments((current) => appendCommentToTree(current, comment));
 
+      /*
+       * Reset composer after successful submission.
+       */
       setCommentText("");
+      setSelectedGif(null);
+      setReplyingTo(null);
+      setShowEmojiPicker(false);
+      setShowGifPicker(false);
     } catch (error) {
       console.error("Failed to post chapter comment:", error);
 
@@ -681,7 +830,16 @@ export default function ReaderPage({
     } finally {
       setCommentSubmitting(false);
     }
-  }, [book, chapter, commentText, commentSubmitting, isLoggedIn, navigate]);
+  }, [
+    book,
+    chapter,
+    commentText,
+    commentSubmitting,
+    isLoggedIn,
+    navigate,
+    replyingTo,
+    selectedGif,
+  ]);
 
   /*
    * ============================================================
@@ -957,6 +1115,151 @@ export default function ReaderPage({
 
   /*
    * ============================================================
+   * RECURSIVE COMMENT RENDERER
+   * ============================================================
+   *
+   * This is what makes the nested replies visible.
+   *
+   * Example:
+   *
+   * Comment A
+   *   ↳ Reply A1
+   *      ↳ Reply A1.1
+   *   ↳ Reply A2
+   *
+   * The backend already returns:
+   *
+   * comment.replies[]
+   *
+   * so we recursively render that tree here.
+   */
+  const renderComment = (comment: ChapterComment, depth = 0): ReactNode => {
+    const indentation = Math.min(depth, 4) * 16;
+
+    return (
+      <div
+        key={comment.id}
+        style={{
+          marginLeft: indentation,
+        }}
+      >
+        <article
+          className="rounded-xl p-3"
+          style={{
+            background:
+              depth === 0 ? `${tc.controlText}08` : `${tc.controlText}06`,
+            border: `1px solid ${tc.controlText}08`,
+          }}
+        >
+          <div className="flex items-start gap-3">
+            {/* Avatar */}
+            <div
+              className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center overflow-hidden"
+              style={{
+                background: `${tc.controlText}12`,
+              }}
+            >
+              {comment.author.avatar ? (
+                <img
+                  src={comment.author.avatar}
+                  alt={comment.author.displayName}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <span
+                  className="text-xs font-bold"
+                  style={{
+                    color: tc.controlText,
+                  }}
+                >
+                  {comment.author.displayName?.charAt(0)?.toUpperCase() || "U"}
+                </span>
+              )}
+            </div>
+
+            {/* Comment body */}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-xs font-bold truncate">
+                    {comment.author.displayName}
+                  </p>
+
+                  <p
+                    className="text-[10px] mt-0.5"
+                    style={{
+                      color: `${tc.controlText}55`,
+                    }}
+                  >
+                    {new Date(comment.createdAt).toLocaleDateString(undefined, {
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                    })}
+                  </p>
+                </div>
+              </div>
+
+              {comment.content && (
+                <p
+                  className="mt-2 text-sm leading-relaxed whitespace-pre-wrap break-words"
+                  style={{
+                    color: tc.controlText,
+                  }}
+                >
+                  {comment.content}
+                </p>
+              )}
+
+              {comment.gifUrl && (
+                <div className="mt-3 overflow-hidden rounded-xl">
+                  <img
+                    src={comment.gifUrl}
+                    alt="GIF"
+                    className="block max-h-64 w-full object-contain"
+                    loading="lazy"
+                  />
+                </div>
+              )}
+
+              {/* =================================================
+                  COMMENT ACTIONS
+                  ================================================= */}
+
+              <div className="mt-2 flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    handleReply(comment);
+                  }}
+                  className="text-[10px] font-bold transition-opacity hover:opacity-80 active:scale-95"
+                  style={{
+                    color: "#e8a84c",
+                  }}
+                >
+                  Reply
+                </button>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        {/* =====================================================
+            NESTED REPLIES
+            ===================================================== */}
+
+        {comment.replies.length > 0 && (
+          <div className="mt-2 space-y-2">
+            {comment.replies.map((reply) => renderComment(reply, depth + 1))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  /*
+   * ============================================================
    * READER
    * ============================================================
    */
@@ -970,17 +1273,7 @@ export default function ReaderPage({
       }}
       onKeyDown={handleKeyDown}
       onClick={(event) => {
-        /*
-         * Do not let clicks on interactive controls toggle
-         * the reader toolbar.
-         */
         if (isInteractiveTarget(event.target)) {
-          /*
-           * If no panel is open, normal interaction with the
-           * toolbar resets the 8-second timer.
-           *
-           * If a panel is open, the timer remains paused.
-           */
           if (!showComments && !showSettings && !showChapterList) {
             scheduleControlsHide();
           }
@@ -988,10 +1281,6 @@ export default function ReaderPage({
           return;
         }
 
-        /*
-         * Clicking the reader while a panel is open should
-         * not close/toggle the panel.
-         */
         if (showComments || showSettings || showChapterList) {
           return;
         }
@@ -1084,10 +1373,6 @@ export default function ReaderPage({
         onClick={(event) => {
           event.stopPropagation();
 
-          /*
-           * Do not schedule the timer when an interactive
-           * panel is currently open.
-           */
           if (!showSettings && !showComments && !showChapterList) {
             scheduleControlsHide();
           }
@@ -1146,16 +1431,8 @@ export default function ReaderPage({
                   const next = !value;
 
                   if (next) {
-                    /*
-                     * Opening Settings pauses
-                     * the toolbar timer.
-                     */
                     clearControlsTimer();
                   } else {
-                    /*
-                     * Closing Settings resumes
-                     * the toolbar timer.
-                     */
                     startControlsTimer();
                   }
 
@@ -1179,16 +1456,8 @@ export default function ReaderPage({
                   const next = !value;
 
                   if (next) {
-                    /*
-                     * Opening chapter list pauses
-                     * the toolbar timer.
-                     */
                     clearControlsTimer();
                   } else {
-                    /*
-                     * Closing chapter list resumes
-                     * the toolbar timer.
-                     */
                     startControlsTimer();
                   }
 
@@ -1234,19 +1503,10 @@ export default function ReaderPage({
               onClick={(event) => {
                 event.stopPropagation();
 
-                /*
-                 * Comments are PUBLIC.
-                 *
-                 * Do NOT redirect guests to authentication.
-                 */
                 setShowSettings(false);
                 setShowChapterList(false);
                 setShowComments(true);
 
-                /*
-                 * Keep toolbar/panel alive while comments
-                 * are actively being used.
-                 */
                 clearControlsTimer();
               }}
               className="active:scale-90 transition-transform"
@@ -1494,12 +1754,6 @@ export default function ReaderPage({
 
       {/* =========================================================
           COMMENTS DRAWER
-
-          IMPORTANT:
-          This is deliberately OUTSIDE the top-controls container.
-
-          That gives it the full reader viewport height and allows
-          the comments list to correctly use flex-1 + overflow-y-auto.
           ========================================================= */}
 
       {showComments && (
@@ -1539,11 +1793,8 @@ export default function ReaderPage({
               onClick={(event) => {
                 event.stopPropagation();
 
-                /*
-                 * Close comments and explicitly restart
-                 * the toolbar timer.
-                 */
                 setShowComments(false);
+                setReplyingTo(null);
                 clearControlsTimer();
                 startControlsTimer();
               }}
@@ -1610,100 +1861,12 @@ export default function ReaderPage({
             )}
 
             {/* ===================================================
-                ALL COMMENTS
-
-                There is intentionally NO filtering.
-
-                Every comment returned by the backend is displayed.
+                COMMENT TREE
                 =================================================== */}
 
             {!commentsLoading && !commentsError && comments.length > 0 && (
               <div className="space-y-4">
-                {comments.map((comment) => (
-                  <article
-                    key={comment.id}
-                    className="rounded-xl p-3"
-                    style={{
-                      background: `${tc.controlText}08`,
-                      border: `1px solid ${tc.controlText}08`,
-                    }}
-                  >
-                    <div className="flex items-start gap-3">
-                      {/* Avatar */}
-                      <div
-                        className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center overflow-hidden"
-                        style={{
-                          background: `${tc.controlText}12`,
-                        }}
-                      >
-                        {comment.author.avatar ? (
-                          <img
-                            src={comment.author.avatar}
-                            alt={comment.author.displayName}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <span
-                            className="text-xs font-bold"
-                            style={{
-                              color: tc.controlText,
-                            }}
-                          >
-                            {comment.author.displayName
-                              ?.charAt(0)
-                              ?.toUpperCase() || "U"}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Comment body */}
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <p className="text-xs font-bold truncate">
-                              {comment.author.displayName}
-                            </p>
-
-                            <p
-                              className="text-[10px] mt-0.5"
-                              style={{
-                                color: `${tc.controlText}55`,
-                              }}
-                            >
-                              {new Date(comment.createdAt).toLocaleDateString(
-                                undefined,
-                                {
-                                  year: "numeric",
-                                  month: "short",
-                                  day: "numeric",
-                                },
-                              )}
-                            </p>
-                          </div>
-
-                          {/*
-                           * Delete controls are intentionally
-                           * not shown here yet.
-                           *
-                           * Backend deletion remains available
-                           * through the repository and can be
-                           * wired to proper ownership/admin UI
-                           * later.
-                           */}
-                        </div>
-
-                        <p
-                          className="mt-2 text-sm leading-relaxed whitespace-pre-wrap break-words"
-                          style={{
-                            color: tc.controlText,
-                          }}
-                        >
-                          {comment.content}
-                        </p>
-                      </div>
-                    </div>
-                  </article>
-                ))}
+                {comments.map((comment) => renderComment(comment))}
               </div>
             )}
           </div>
@@ -1722,41 +1885,183 @@ export default function ReaderPage({
           >
             {isLoggedIn ? (
               <>
+                {/* =================================================
+                    REPLYING TO BANNER
+                    ================================================= */}
+
+                {replyingTo && (
+                  <div
+                    className="mb-2 flex items-center justify-between gap-3 rounded-lg px-3 py-2"
+                    style={{
+                      background: `${tc.controlText}08`,
+                      border: `1px solid ${tc.controlText}12`,
+                    }}
+                  >
+                    <div className="min-w-0">
+                      <p
+                        className="text-[9px] uppercase tracking-widest font-bold"
+                        style={{
+                          color: `${tc.controlText}50`,
+                        }}
+                      >
+                        Replying to
+                      </p>
+
+                      <p
+                        className="mt-0.5 text-xs font-semibold truncate"
+                        style={{
+                          color: tc.controlText,
+                        }}
+                      >
+                        {replyingTo.author.displayName}
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        handleCancelReply();
+                      }}
+                      className="shrink-0 text-xs font-bold px-2 py-1 rounded-md active:scale-95"
+                      style={{
+                        color: "#e8a84c",
+                      }}
+                      aria-label="Cancel reply"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+
                 <p
                   className="text-[10px] uppercase tracking-widest font-bold mb-2"
                   style={{
                     color: `${tc.controlText}70`,
                   }}
                 >
-                  Join the conversation
+                  {replyingTo ? "Write your reply" : "Join the conversation"}
                 </p>
 
                 <div
-                  className="rounded-xl overflow-hidden"
+                  className="relative rounded-xl overflow-visible"
                   style={{
                     background: `${tc.controlText}08`,
                     border: `1px solid ${tc.controlText}20`,
                   }}
                 >
+                  {/* =================================================
+                      GIF PICKER
+                      ================================================= */}
+
+                  {showGifPicker && (
+                    <GiphyPicker
+                      onSelect={(gif) => {
+                        setSelectedGif(gif);
+                        setShowGifPicker(false);
+                        setShowEmojiPicker(false);
+                        clearControlsTimer();
+                      }}
+                      onClose={() => {
+                        setShowGifPicker(false);
+                        startControlsTimer();
+                      }}
+                      background={tc.controlBg}
+                      textColor={tc.controlText}
+                    />
+                  )}
+
+                  {/* =================================================
+                      EMOJI PICKER
+                      ================================================= */}
+
+                  {showEmojiPicker && (
+                    <div
+                      className="absolute bottom-full right-0 mb-2 z-[1200]"
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <EmojiPicker
+                        onEmojiClick={(emojiData) => {
+                          setCommentText(
+                            (current) => current + emojiData.emoji,
+                          );
+                          clearControlsTimer();
+                        }}
+                        width={300}
+                        height={360}
+                        previewConfig={{
+                          showPreview: false,
+                        }}
+                        searchDisabled={false}
+                      />
+                    </div>
+                  )}
+
+                  {/* =================================================
+                      SELECTED GIF PREVIEW
+                      ================================================= */}
+
+                  {selectedGif && (
+                    <div
+                      className="relative mx-3 mt-3 overflow-hidden rounded-xl"
+                      style={{
+                        background: `${tc.controlText}08`,
+                      }}
+                    >
+                      <img
+                        src={selectedGif.url}
+                        alt={selectedGif.title || "Selected GIF"}
+                        className="block max-h-48 w-full object-contain"
+                      />
+
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setSelectedGif(null);
+                        }}
+                        className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full text-sm font-bold backdrop-blur-sm"
+                        style={{
+                          background: `${tc.controlBg}dd`,
+                          color: tc.controlText,
+                        }}
+                        aria-label="Remove selected GIF"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  )}
+
+                  {/* =================================================
+                      TEXT AREA
+                      ================================================= */}
+
                   <textarea
+                    ref={commentTextareaRef}
                     value={commentText}
                     onChange={(event) => setCommentText(event.target.value)}
                     onFocus={() => {
-                      /*
-                       * Keep the toolbar alive while the
-                       * user is typing.
-                       */
                       clearControlsTimer();
                     }}
-                    placeholder="Share your thoughts about this chapter…"
+                    placeholder={
+                      replyingTo
+                        ? `Reply to ${replyingTo.author.displayName}…`
+                        : "Share your thoughts about this chapter…"
+                    }
                     maxLength={2000}
                     rows={3}
                     className="w-full resize-none bg-transparent px-3 py-3 text-sm outline-none"
                     style={{
                       color: tc.controlText,
                     }}
-                    aria-label="Write a comment"
+                    aria-label={
+                      replyingTo ? "Write a reply" : "Write a comment"
+                    }
                   />
+
+                  {/* =================================================
+                      COMPOSER ACTIONS
+                      ================================================= */}
 
                   <div
                     className="flex items-center justify-between px-3 py-2 border-t"
@@ -1764,28 +2069,83 @@ export default function ReaderPage({
                       borderColor: `${tc.controlText}12`,
                     }}
                   >
-                    <span
-                      className="text-[10px]"
-                      style={{
-                        color: `${tc.controlText}45`,
-                      }}
-                    >
-                      {commentText.length}/2000
-                    </span>
+                    <div className="flex items-center gap-1">
+                      {/* Emoji */}
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+
+                          setShowEmojiPicker((visible) => !visible);
+                          setShowGifPicker(false);
+                          clearControlsTimer();
+                        }}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg text-base transition-transform active:scale-90"
+                        style={{
+                          background: showEmojiPicker
+                            ? `${tc.controlText}15`
+                            : "transparent",
+                        }}
+                        aria-label="Add emoji"
+                        title="Add emoji"
+                      >
+                        😊
+                      </button>
+
+                      {/* GIF */}
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+
+                          setShowGifPicker((visible) => !visible);
+                          setShowEmojiPicker(false);
+                          clearControlsTimer();
+                        }}
+                        className="flex h-8 items-center justify-center rounded-lg px-2 text-[10px] font-black tracking-wide transition-transform active:scale-90"
+                        style={{
+                          background: showGifPicker
+                            ? `${tc.controlText}15`
+                            : "transparent",
+                          color: tc.controlText,
+                        }}
+                        aria-label="Add GIF"
+                        title="Add GIF"
+                      >
+                        GIF
+                      </button>
+
+                      <span
+                        className="ml-1 text-[10px]"
+                        style={{
+                          color: `${tc.controlText}45`,
+                        }}
+                      >
+                        {commentText.length}/2000
+                      </span>
+                    </div>
 
                     <button
+                      type="button"
                       onClick={(event) => {
                         event.stopPropagation();
                         void handleSubmitComment();
                       }}
-                      disabled={commentSubmitting || !commentText.trim()}
+                      disabled={
+                        commentSubmitting ||
+                        (!commentText.trim() && !selectedGif)
+                      }
                       className="px-4 py-2 rounded-lg text-xs font-bold transition-transform disabled:opacity-40 active:scale-95"
                       style={{
                         background: "#e8a84c",
                         color: "#2C1A0A",
                       }}
                     >
-                      {commentSubmitting ? "Posting…" : "Post comment"}
+                      {commentSubmitting
+                        ? "Posting…"
+                        : replyingTo
+                          ? "Post reply"
+                          : "Post comment"}
                     </button>
                   </div>
                 </div>
@@ -1794,9 +2154,6 @@ export default function ReaderPage({
               /*
                * =================================================
                * GUEST COMPOSER
-               *
-               * Guests can read comments.
-               * Authentication is required only to post.
                * =================================================
                */
 
