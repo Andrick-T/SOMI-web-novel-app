@@ -12,6 +12,7 @@ import { libraryRouter } from "./modules/library/library.routes.js";
 import { commentsRouter } from "./modules/comments/comments.routes.js";
 import { economyRouter } from "./modules/economy/economy.routes.js";
 import { writerRouter } from "./modules/writer/writer.routes.js";
+import { profileRouter } from "./modules/profile/profile.routes.js";
 
 export const createApp = () => {
   const app = express();
@@ -37,7 +38,7 @@ export const createApp = () => {
   app.use("/api/v1", libraryRouter);
   app.use("/api/v1", economyRouter);
   app.use("/api/v1/writer", writerRouter);
-
+  app.use("/api/v1", profileRouter);
   app.use(notFoundHandler);
   app.use(errorHandler);
 
