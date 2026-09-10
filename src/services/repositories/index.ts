@@ -7,3 +7,4 @@ export * from "./authRepository";
 export * from "./libraryApiRepository";
 export * from "./readingProgressApiRepository";
 export * from "./commentsApiRepository";
+export * from "./giphyRepository";
