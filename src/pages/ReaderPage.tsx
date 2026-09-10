@@ -14,16 +14,12 @@ import {
   ChevronLeft,
   ChevronRight,
   Coffee,
-  Heart,
-  List,
   Lock as LockIcon,
+  List,
   MessageSquare,
   Moon,
   Settings,
-  Smile,
   Sun,
-  ThumbsUp,
-  Zap,
 } from "lucide-react";
 import {
   getChapterProgress,
@@ -71,6 +67,7 @@ const themes: Record<Theme, ThemeConfig> = {
     name: "Paper",
     icon: <Sun size={13} />,
   },
+
   sepia: {
     surfaceCls: "reader-surface-sepia",
     text: "#4A2A06",
@@ -80,6 +77,7 @@ const themes: Record<Theme, ThemeConfig> = {
     name: "Sepia",
     icon: <Coffee size={13} />,
   },
+
   dark: {
     surfaceCls: "reader-surface-dark",
     text: "#E8E0CC",
@@ -96,10 +94,12 @@ const fontFamilies: Record<FontFamily, { css: string; name: string }> = {
     css: "'Lora', Georgia, serif",
     name: "Lora",
   },
+
   fraunces: {
     css: "'Fraunces', Georgia, serif",
     name: "Fraunces",
   },
+
   nunito: {
     css: "'Nunito', system-ui, sans-serif",
     name: "Nunito",
@@ -129,6 +129,7 @@ export default function ReaderPage({
 
   const chapter =
     chapterIndex >= 0 ? book.chapters[chapterIndex] : book?.chapters?.[0];
+
   const isBookmarked = libraryBooks.includes(book.id);
 
   const [theme, setTheme] = useState<Theme>("light");
@@ -139,11 +140,13 @@ export default function ReaderPage({
   const [showSettings, setShowSettings] = useState(false);
   const [showChapterList, setShowChapterList] = useState(false);
   const [showComments, setShowComments] = useState(false);
+
   const [comments, setComments] = useState<ChapterComment[]>([]);
   const [commentText, setCommentText] = useState("");
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [commentSubmitting, setCommentSubmitting] = useState(false);
   const [commentsError, setCommentsError] = useState<string | null>(null);
+
   const [screenState, setScreenState] = useState<"reading" | "locked">(
     "reading",
   );
@@ -160,6 +163,21 @@ export default function ReaderPage({
 
   const tc = themes[theme];
 
+  /*
+   * ============================================================
+   * READER CONTROL TIMER
+   * ============================================================
+   *
+   * The toolbar automatically hides after 8 seconds.
+   *
+   * When Settings, Chapter List, or Comments is open:
+   * - the timer is cleared
+   * - the toolbar remains visible
+   *
+   * When the active panel closes:
+   * - the 8-second timer starts again
+   */
+
   const clearControlsTimer = useCallback(() => {
     if (controlsTimer.current !== null) {
       window.clearTimeout(controlsTimer.current);
@@ -167,37 +185,80 @@ export default function ReaderPage({
     }
   }, []);
 
-  const scheduleControlsHide = useCallback(() => {
+  const startControlsTimer = useCallback(() => {
     clearControlsTimer();
 
     controlsTimer.current = window.setTimeout(() => {
       setShowControls(false);
       setShowSettings(false);
       setShowChapterList(false);
+      setShowComments(false);
+
       controlsTimer.current = null;
     }, 8000);
   }, [clearControlsTimer]);
+
+  const scheduleControlsHide = useCallback(() => {
+    /*
+     * Never start an auto-hide timer while a reader panel
+     * is actively open.
+     */
+    if (showSettings || showComments || showChapterList) {
+      clearControlsTimer();
+      return;
+    }
+
+    startControlsTimer();
+  }, [
+    clearControlsTimer,
+    showComments,
+    showChapterList,
+    showSettings,
+    startControlsTimer,
+  ]);
 
   const closePanels = useCallback(() => {
     setShowSettings(false);
     setShowChapterList(false);
     setShowComments(false);
-  }, []);
+
+    /*
+     * Restart the timer immediately after closing a panel.
+     * We deliberately use startControlsTimer() rather than
+     * scheduleControlsHide(), because React state updates are
+     * asynchronous and the old panel state could still be true
+     * inside the callback closure.
+     */
+    if (showControls) {
+      startControlsTimer();
+    }
+  }, [showControls, startControlsTimer]);
 
   const toggleControls = useCallback(() => {
     setShowControls((visible) => {
       const nextVisible = !visible;
 
       if (!nextVisible) {
-        closePanels();
+        setShowSettings(false);
+        setShowChapterList(false);
+        setShowComments(false);
         clearControlsTimer();
       } else {
-        scheduleControlsHide();
+        /*
+         * Start the normal toolbar timer.
+         */
+        startControlsTimer();
       }
 
       return nextVisible;
     });
-  }, [clearControlsTimer, closePanels, scheduleControlsHide]);
+  }, [clearControlsTimer, startControlsTimer]);
+
+  /*
+   * ============================================================
+   * READER PREFERENCES
+   * ============================================================
+   */
 
   useEffect(() => {
     const preferences = readerPreferencesStorage.get();
@@ -230,6 +291,12 @@ export default function ReaderPage({
     });
   }, [fontFamily, fontSize, theme]);
 
+  /*
+   * ============================================================
+   * STATUS BAR TIME
+   * ============================================================
+   */
+
   useEffect(() => {
     const updateTime = () => {
       setCurrentTime(
@@ -247,8 +314,16 @@ export default function ReaderPage({
     return () => window.clearInterval(interval);
   }, []);
 
+  /*
+   * ============================================================
+   * BATTERY
+   * ============================================================
+   */
+
   useEffect(() => {
-    if (!("getBattery" in navigator)) return;
+    if (!("getBattery" in navigator)) {
+      return;
+    }
 
     let batteryManager: {
       level: number;
@@ -269,10 +344,14 @@ export default function ReaderPage({
     )
       .getBattery()
       .then((manager) => {
-        if (!manager) return;
+        if (!manager) {
+          return;
+        }
 
         batteryManager = manager;
+
         updateBattery();
+
         manager.addEventListener("levelchange", updateBattery);
       })
       .catch(() => undefined);
@@ -281,6 +360,12 @@ export default function ReaderPage({
       batteryManager?.removeEventListener("levelchange", updateBattery);
     };
   }, []);
+
+  /*
+   * ============================================================
+   * CLEANUP
+   * ============================================================
+   */
 
   useEffect(() => {
     return () => {
@@ -292,13 +377,27 @@ export default function ReaderPage({
     };
   }, [clearControlsTimer]);
 
+  /*
+   * ============================================================
+   * CHAPTER PROGRESS
+   * ============================================================
+   */
+
   const chapterProgress = getChapterProgress(
     Math.max(0, chapterIndex),
     book?.chapters?.length ?? 0,
   );
 
+  /*
+   * ============================================================
+   * READING PROGRESS HYDRATION
+   * ============================================================
+   */
+
   useEffect(() => {
-    if (!book || !isLoggedIn) return;
+    if (!book || !isLoggedIn) {
+      return;
+    }
 
     void hydrateReadingProgress(book.id)
       .then((entry) => {
@@ -309,8 +408,16 @@ export default function ReaderPage({
       .catch(() => undefined);
   }, [book, isLoggedIn]);
 
+  /*
+   * ============================================================
+   * READING PROGRESS INITIAL SAVE
+   * ============================================================
+   */
+
   useEffect(() => {
-    if (!book || !chapter || !isLoggedIn) return;
+    if (!book || !chapter || !isLoggedIn) {
+      return;
+    }
 
     persistReadingProgress({
       userId: "authenticated-user",
@@ -323,8 +430,21 @@ export default function ReaderPage({
     });
   }, [book, chapter, chapterProgress, isLoggedIn]);
 
+  /*
+   * ============================================================
+   * COMMENTS
+   * ============================================================
+   *
+   * GET /comments is PUBLIC.
+   *
+   * Guests can read.
+   * Authenticated users can read and post.
+   */
+
   useEffect(() => {
-    if (!showComments || !chapter) return;
+    if (!showComments || !book || !chapter) {
+      return;
+    }
 
     let cancelled = false;
 
@@ -332,16 +452,35 @@ export default function ReaderPage({
       setCommentsLoading(true);
       setCommentsError(null);
 
+      /*
+       * Clear the previous chapter's comments immediately.
+       * This prevents comments from chapter N being displayed
+       * while chapter N+1 is loading.
+       */
+      setComments([]);
+
       try {
         const result = await apiCommentsRepository.list(book.id, chapter.id);
 
-        if (!cancelled) {
-          setComments(result);
+        if (cancelled) {
+          return;
         }
-      } catch {
-        if (!cancelled) {
-          setCommentsError("Unable to load comments. Please try again.");
+
+        setComments(result);
+      } catch (error) {
+        if (cancelled) {
+          return;
         }
+
+        console.error("Failed to load chapter comments:", error);
+
+        setComments([]);
+
+        setCommentsError(
+          error instanceof Error
+            ? error.message
+            : "Unable to load comments. Please try again.",
+        );
       } finally {
         if (!cancelled) {
           setCommentsLoading(false);
@@ -354,10 +493,18 @@ export default function ReaderPage({
     return () => {
       cancelled = true;
     };
-  }, [book.id, chapter?.id, showComments]);
+  }, [book, chapter, showComments]);
+
+  /*
+   * ============================================================
+   * PROGRESS SAVE
+   * ============================================================
+   */
 
   const scheduleProgressSave = useCallback(() => {
-    if (!isLoggedIn || !book || !chapter) return;
+    if (!isLoggedIn || !book || !chapter) {
+      return;
+    }
 
     if (progressTimer.current !== null) {
       window.clearTimeout(progressTimer.current);
@@ -366,7 +513,9 @@ export default function ReaderPage({
     progressTimer.current = window.setTimeout(() => {
       const shell = readerShellRef.current;
 
-      if (!shell) return;
+      if (!shell) {
+        return;
+      }
 
       const maxScroll = shell.scrollHeight - shell.clientHeight;
 
@@ -386,9 +535,17 @@ export default function ReaderPage({
     }, 800);
   }, [book, chapter, isLoggedIn]);
 
+  /*
+   * ============================================================
+   * CHAPTER NAVIGATION
+   * ============================================================
+   */
+
   const goToChapter = useCallback(
     (direction: "next" | "prev") => {
-      if (!book || chapterIndex < 0) return;
+      if (!book || chapterIndex < 0) {
+        return;
+      }
 
       const navigation = resolveChapterNavigation(
         chapterIndex,
@@ -396,7 +553,9 @@ export default function ReaderPage({
         direction,
       );
 
-      if (!navigation) return;
+      if (!navigation) {
+        return;
+      }
 
       const targetChapter = book.chapters[navigation.targetIndex];
 
@@ -410,6 +569,7 @@ export default function ReaderPage({
         }
 
         navigate("reader", book.id, targetChapter.id);
+
         setScreenState("locked");
         return;
       }
@@ -421,13 +581,17 @@ export default function ReaderPage({
 
   const selectChapter = useCallback(
     (targetChapterId: string) => {
-      if (!book) return;
+      if (!book) {
+        return;
+      }
 
       const targetChapter = book.chapters.find(
         (entry) => entry.id === targetChapterId,
       );
 
-      if (!targetChapter) return;
+      if (!targetChapter) {
+        return;
+      }
 
       if (
         targetChapter.accessType === "PREMIUM" &&
@@ -439,16 +603,26 @@ export default function ReaderPage({
       }
 
       closePanels();
+
       navigate("reader", book.id, targetChapter.id);
     },
     [book, closePanels, isLoggedIn, navigate, unlockedChapters],
   );
 
+  /*
+   * ============================================================
+   * UNLOCK
+   * ============================================================
+   */
+
   const handleUnlock = useCallback(async () => {
-    if (!chapter) return;
+    if (!chapter) {
+      return;
+    }
 
     if (coins >= chapter.price) {
       await unlockChapter(chapter.id, chapter.price);
+
       setScreenState("reading");
       return;
     }
@@ -456,8 +630,16 @@ export default function ReaderPage({
     navigate("wallet");
   }, [chapter, coins, navigate, unlockChapter]);
 
+  /*
+   * ============================================================
+   * CREATE COMMENT
+   * ============================================================
+   */
+
   const handleSubmitComment = useCallback(async () => {
-    if (!chapter) return;
+    if (!book || !chapter) {
+      return;
+    }
 
     const content = commentText.trim();
 
@@ -480,18 +662,38 @@ export default function ReaderPage({
         content,
       );
 
+      /*
+       * Add the newly-created comment immediately.
+       * This makes the user's own comment visible without
+       * requiring another GET request.
+       */
       setComments((current) => [comment, ...current]);
+
       setCommentText("");
-    } catch {
-      setCommentsError("Unable to post your comment. Please try again.");
+    } catch (error) {
+      console.error("Failed to post chapter comment:", error);
+
+      setCommentsError(
+        error instanceof Error
+          ? error.message
+          : "Unable to post your comment. Please try again.",
+      );
     } finally {
       setCommentSubmitting(false);
     }
-  }, [book.id, chapter, commentText, commentSubmitting, isLoggedIn, navigate]);
+  }, [book, chapter, commentText, commentSubmitting, isLoggedIn, navigate]);
+
+  /*
+   * ============================================================
+   * DELETE COMMENT
+   * ============================================================
+   */
 
   const handleDeleteComment = useCallback(
     async (commentId: string) => {
-      if (!chapter) return;
+      if (!book || !chapter) {
+        return;
+      }
 
       try {
         await apiCommentsRepository.remove(book.id, chapter.id, commentId);
@@ -499,12 +701,24 @@ export default function ReaderPage({
         setComments((current) =>
           current.filter((comment) => comment.id !== commentId),
         );
-      } catch {
-        setCommentsError("Unable to delete the comment. Please try again.");
+      } catch (error) {
+        console.error("Failed to delete chapter comment:", error);
+
+        setCommentsError(
+          error instanceof Error
+            ? error.message
+            : "Unable to delete the comment. Please try again.",
+        );
       }
     },
-    [book.id, chapter],
+    [book, chapter],
   );
+
+  /*
+   * ============================================================
+   * KEYBOARD
+   * ============================================================
+   */
 
   const handleKeyDown = useCallback(
     (event: KeyboardEvent<HTMLDivElement>) => {
@@ -542,6 +756,12 @@ export default function ReaderPage({
     ],
   );
 
+  /*
+   * ============================================================
+   * SWIPE
+   * ============================================================
+   */
+
   const handleSwipe = useCallback(
     (dx: number, dy: number) => {
       if (Math.abs(dx) < 55 || Math.abs(dx) <= Math.abs(dy)) {
@@ -553,8 +773,20 @@ export default function ReaderPage({
     [goToChapter],
   );
 
+  /*
+   * ============================================================
+   * CHAPTER LOCK
+   * ============================================================
+   */
+
   const isChapterLocked =
     chapter?.accessType === "PREMIUM" && !unlockedChapters.includes(chapter.id);
+
+  /*
+   * ============================================================
+   * RESET READER POSITION WHEN CHAPTER CHANGES
+   * ============================================================
+   */
 
   useLayoutEffect(() => {
     const shell = readerShellRef.current;
@@ -567,12 +799,20 @@ export default function ReaderPage({
     shell.scrollLeft = 0;
   }, [chapter?.id, isChapterLocked, screenState]);
 
+  /*
+   * ============================================================
+   * FALLBACK
+   * ============================================================
+   */
+
   if (!book || !chapter) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#100d0b] px-6 text-center">
         <div className="somi-state max-w-md">
           <h2>No chapter available</h2>
+
           <p>The selected story does not have published chapters yet.</p>
+
           <button
             className="somi-quiet-button"
             onClick={() => navigate("discover")}
@@ -583,6 +823,12 @@ export default function ReaderPage({
       </div>
     );
   }
+
+  /*
+   * ============================================================
+   * LOCKED CHAPTER
+   * ============================================================
+   */
 
   if (isChapterLocked || screenState === "locked") {
     return (
@@ -600,7 +846,13 @@ export default function ReaderPage({
             className="flex items-center gap-2 active:scale-90"
           >
             <ArrowLeft size={18} color="#f0ece4" />
-            <span className="text-sm" style={{ color: "#8b7ea8" }}>
+
+            <span
+              className="text-sm"
+              style={{
+                color: "#8b7ea8",
+              }}
+            >
               {book.title}
             </span>
           </button>
@@ -609,19 +861,28 @@ export default function ReaderPage({
         <div className="px-8 pt-4 pb-6 text-center">
           <p
             className="text-[10px] uppercase tracking-[0.3em] font-bold mb-1"
-            style={{ color: "#8b7ea8" }}
+            style={{
+              color: "#8b7ea8",
+            }}
           >
             Chapter {chapter.number}
           </p>
 
           <h2
             className="font-display text-2xl font-bold mb-1"
-            style={{ color: "#f0ece4" }}
+            style={{
+              color: "#f0ece4",
+            }}
           >
             {chapter.title}
           </h2>
 
-          <p className="text-sm" style={{ color: "#8b7ea8" }}>
+          <p
+            className="text-sm"
+            style={{
+              color: "#8b7ea8",
+            }}
+          >
             {chapter.readingTime} min · {chapter.wordCount.toLocaleString()}{" "}
             words
           </p>
@@ -635,18 +896,33 @@ export default function ReaderPage({
               borderBottom: "1px solid #2e2945",
             }}
           >
-            <span className="text-sm" style={{ color: "#8b7ea8" }}>
+            <span
+              className="text-sm"
+              style={{
+                color: "#8b7ea8",
+              }}
+            >
               Unlock this chapter
             </span>
 
-            <span className="font-bold text-base" style={{ color: "#e8a84c" }}>
+            <span
+              className="font-bold text-base"
+              style={{
+                color: "#e8a84c",
+              }}
+            >
               {chapter.price}{" "}
               <span className="text-xs font-normal">Somi Coins</span>
             </span>
           </div>
 
           <div className="flex items-center justify-between py-3 mb-6">
-            <span className="text-sm" style={{ color: "#8b7ea8" }}>
+            <span
+              className="text-sm"
+              style={{
+                color: "#8b7ea8",
+              }}
+            >
               Your balance
             </span>
 
@@ -679,6 +955,12 @@ export default function ReaderPage({
     );
   }
 
+  /*
+   * ============================================================
+   * READER
+   * ============================================================
+   */
+
   return (
     <div
       className={`relative overflow-hidden select-none ${tc.surfaceCls}`}
@@ -688,8 +970,29 @@ export default function ReaderPage({
       }}
       onKeyDown={handleKeyDown}
       onClick={(event) => {
+        /*
+         * Do not let clicks on interactive controls toggle
+         * the reader toolbar.
+         */
         if (isInteractiveTarget(event.target)) {
-          scheduleControlsHide();
+          /*
+           * If no panel is open, normal interaction with the
+           * toolbar resets the 8-second timer.
+           *
+           * If a panel is open, the timer remains paused.
+           */
+          if (!showComments && !showSettings && !showChapterList) {
+            scheduleControlsHide();
+          }
+
+          return;
+        }
+
+        /*
+         * Clicking the reader while a panel is open should
+         * not close/toggle the panel.
+         */
+        if (showComments || showSettings || showChapterList) {
           return;
         }
 
@@ -697,7 +1000,10 @@ export default function ReaderPage({
       }}
       tabIndex={0}
     >
-      {/* Status */}
+      {/* =======================================================
+          STATUS BAR
+          ======================================================= */}
+
       <div
         className="absolute top-0 left-0 right-0 z-[900] flex items-center justify-between px-5"
         style={{
@@ -769,12 +1075,22 @@ export default function ReaderPage({
         )}
       </div>
 
-      {/* Top controls */}
+      {/* =======================================================
+          TOP CONTROLS
+          ======================================================= */}
+
       <div
         className="absolute top-0 left-0 right-0 z-[1000] transition-all duration-200"
         onClick={(event) => {
           event.stopPropagation();
-          scheduleControlsHide();
+
+          /*
+           * Do not schedule the timer when an interactive
+           * panel is currently open.
+           */
+          if (!showSettings && !showComments && !showChapterList) {
+            scheduleControlsHide();
+          }
         }}
         style={{
           opacity: showControls ? 1 : 0,
@@ -790,6 +1106,7 @@ export default function ReaderPage({
             paddingTop: "max(env(safe-area-inset-top, 12px), 20px)",
           }}
         >
+          {/* Book / Back */}
           <button
             onClick={() => navigate("book", book.id)}
             className="flex items-center gap-2.5 active:scale-90"
@@ -799,7 +1116,9 @@ export default function ReaderPage({
             <div>
               <p
                 className="text-[13px] font-bold leading-tight max-w-[160px] truncate"
-                style={{ color: tc.controlText }}
+                style={{
+                  color: tc.controlText,
+                }}
               >
                 {book.title}
               </p>
@@ -816,12 +1135,32 @@ export default function ReaderPage({
           </button>
 
           <div className="flex items-center gap-4">
+            {/* Settings */}
             <button
               onClick={(event) => {
                 event.stopPropagation();
+
                 setShowChapterList(false);
-                setShowSettings((value) => !value);
-                scheduleControlsHide();
+
+                setShowSettings((value) => {
+                  const next = !value;
+
+                  if (next) {
+                    /*
+                     * Opening Settings pauses
+                     * the toolbar timer.
+                     */
+                    clearControlsTimer();
+                  } else {
+                    /*
+                     * Closing Settings resumes
+                     * the toolbar timer.
+                     */
+                    startControlsTimer();
+                  }
+
+                  return next;
+                });
               }}
               className="active:scale-90"
               aria-label="Open reader settings"
@@ -829,12 +1168,32 @@ export default function ReaderPage({
               <Settings size={18} color={tc.controlText} />
             </button>
 
+            {/* Chapter list */}
             <button
               onClick={(event) => {
                 event.stopPropagation();
+
                 setShowSettings(false);
-                setShowChapterList((value) => !value);
-                scheduleControlsHide();
+
+                setShowChapterList((value) => {
+                  const next = !value;
+
+                  if (next) {
+                    /*
+                     * Opening chapter list pauses
+                     * the toolbar timer.
+                     */
+                    clearControlsTimer();
+                  } else {
+                    /*
+                     * Closing chapter list resumes
+                     * the toolbar timer.
+                     */
+                    startControlsTimer();
+                  }
+
+                  return next;
+                });
               }}
               className="active:scale-90"
               aria-label="Open chapter list"
@@ -842,6 +1201,7 @@ export default function ReaderPage({
               <List size={18} color={tc.controlText} />
             </button>
 
+            {/* Bookmark */}
             <button
               onClick={(event) => {
                 event.stopPropagation();
@@ -869,19 +1229,25 @@ export default function ReaderPage({
               />
             </button>
 
+            {/* Comments */}
             <button
               onClick={(event) => {
                 event.stopPropagation();
 
-                if (!isLoggedIn) {
-                  navigate("auth");
-                  return;
-                }
-
+                /*
+                 * Comments are PUBLIC.
+                 *
+                 * Do NOT redirect guests to authentication.
+                 */
                 setShowSettings(false);
                 setShowChapterList(false);
                 setShowComments(true);
-                scheduleControlsHide();
+
+                /*
+                 * Keep toolbar/panel alive while comments
+                 * are actively being used.
+                 */
+                clearControlsTimer();
               }}
               className="active:scale-90 transition-transform"
               aria-label="Open chapter comments"
@@ -892,9 +1258,18 @@ export default function ReaderPage({
           </div>
         </div>
 
-        {/* Settings */}
+        {/* =====================================================
+            SETTINGS
+            ===================================================== */}
+
         {showSettings && (
-          <div className="px-5 py-4" style={{ background: tc.controlBg }}>
+          <div
+            className="px-5 py-4"
+            style={{
+              background: tc.controlBg,
+            }}
+            onClick={(event) => event.stopPropagation()}
+          >
             <p
               className="text-[9px] uppercase tracking-widest font-bold mb-2"
               style={{
@@ -908,7 +1283,11 @@ export default function ReaderPage({
               {(["light", "sepia", "dark"] as Theme[]).map((value) => (
                 <button
                   key={value}
-                  onClick={() => setTheme(value)}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setTheme(value);
+                    clearControlsTimer();
+                  }}
                   className="flex-1 h-9 rounded-xl flex items-center justify-center gap-1.5 text-xs font-bold transition-all active:scale-95"
                   style={{
                     background:
@@ -948,7 +1327,11 @@ export default function ReaderPage({
               {(["lora", "fraunces", "nunito"] as FontFamily[]).map((value) => (
                 <button
                   key={value}
-                  onClick={() => setFontFamily(value)}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setFontFamily(value);
+                    clearControlsTimer();
+                  }}
                   className="flex-1 h-8 rounded-lg text-[11px] font-semibold transition-all"
                   style={{
                     fontFamily: fontFamilies[value].css,
@@ -979,9 +1362,13 @@ export default function ReaderPage({
 
             <div className="flex items-center gap-3">
               <button
-                onClick={() =>
-                  setFontSize((size) => Math.max(14, size - 2) as FontSize)
-                }
+                onClick={(event) => {
+                  event.stopPropagation();
+
+                  setFontSize((size) => Math.max(14, size - 2) as FontSize);
+
+                  clearControlsTimer();
+                }}
                 className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold"
                 style={{
                   background: "rgba(255,255,255,0.08)",
@@ -996,7 +1383,11 @@ export default function ReaderPage({
                 {fontSizes.map((size) => (
                   <button
                     key={size}
-                    onClick={() => setFontSize(size)}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setFontSize(size);
+                      clearControlsTimer();
+                    }}
                     className="flex-1 h-1.5 rounded-full cursor-pointer border-0"
                     style={{
                       background:
@@ -1008,9 +1399,13 @@ export default function ReaderPage({
               </div>
 
               <button
-                onClick={() =>
-                  setFontSize((size) => Math.min(20, size + 2) as FontSize)
-                }
+                onClick={(event) => {
+                  event.stopPropagation();
+
+                  setFontSize((size) => Math.min(20, size + 2) as FontSize);
+
+                  clearControlsTimer();
+                }}
                 className="w-8 h-8 rounded-lg flex items-center justify-center text-xl font-bold"
                 style={{
                   background: "rgba(255,255,255,0.08)",
@@ -1024,183 +1419,16 @@ export default function ReaderPage({
           </div>
         )}
 
-        {showComments && (
+        {/* =====================================================
+            CHAPTER LIST
+            ===================================================== */}
+
+        {showChapterList && (
           <div
-            className="absolute inset-y-0 right-0 z-[1100] w-full max-w-md flex flex-col shadow-2xl"
-            style={{
-              background: tc.controlBg,
-              color: tc.controlText,
-            }}
+            className="reader-chapter-drawer"
+            aria-label="Chapter list"
             onClick={(event) => event.stopPropagation()}
           >
-            <div
-              className="flex items-center justify-between px-5 py-4 border-b"
-              style={{
-                borderColor: `${tc.controlText}20`,
-              }}
-            >
-              <div>
-                <p
-                  className="text-[9px] uppercase tracking-widest font-bold"
-                  style={{ color: `${tc.controlText}66` }}
-                >
-                  Chapter {chapter.number}
-                </p>
-
-                <h2 className="text-base font-bold">Comments</h2>
-              </div>
-
-              <button
-                onClick={() => {
-                  setShowComments(false);
-                  scheduleControlsHide();
-                }}
-                className="w-8 h-8 rounded-full flex items-center justify-center active:scale-90"
-                style={{
-                  background: `${tc.controlText}10`,
-                }}
-                aria-label="Close comments"
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto px-5 py-4">
-              {commentsLoading && (
-                <div
-                  className="py-10 text-center text-sm"
-                  style={{ color: `${tc.controlText}70` }}
-                >
-                  Loading comments…
-                </div>
-              )}
-
-              {!commentsLoading && comments.length === 0 && (
-                <div
-                  className="py-12 text-center"
-                  style={{ color: `${tc.controlText}70` }}
-                >
-                  <MessageSquare
-                    size={28}
-                    className="mx-auto mb-3 opacity-50"
-                  />
-
-                  <p className="text-sm font-semibold">No comments yet</p>
-
-                  <p className="text-xs mt-1">
-                    Be the first to share your thoughts.
-                  </p>
-                </div>
-              )}
-
-              {!commentsLoading && comments.length > 0 && (
-                <div className="space-y-5">
-                  {comments.map((comment) => (
-                    <article
-                      key={comment.id}
-                      className="rounded-xl p-3"
-                      style={{
-                        background: `${tc.controlText}08`,
-                      }}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-xs font-bold">
-                            {comment.author.displayName}
-                          </p>
-
-                          <p
-                            className="text-[10px] mt-0.5"
-                            style={{
-                              color: `${tc.controlText}55`,
-                            }}
-                          >
-                            {new Date(comment.createdAt).toLocaleDateString()}
-                          </p>
-                        </div>
-
-                        {comment.author.id ===
-                          // Replace with the authenticated user's ID
-                          // if it is available through your auth state.
-                          "" && (
-                          <button
-                            className="text-[10px]"
-                            style={{
-                              color: `${tc.controlText}66`,
-                            }}
-                          >
-                            Delete
-                          </button>
-                        )}
-                      </div>
-
-                      <p
-                        className="mt-2 text-sm leading-relaxed whitespace-pre-wrap break-words"
-                        style={{
-                          color: tc.controlText,
-                        }}
-                      >
-                        {comment.content}
-                      </p>
-                    </article>
-                  ))}
-                </div>
-              )}
-
-              {commentsError && (
-                <p className="mt-4 text-xs text-red-400">{commentsError}</p>
-              )}
-            </div>
-
-            <div
-              className="p-4 border-t"
-              style={{
-                borderColor: `${tc.controlText}20`,
-              }}
-            >
-              <textarea
-                value={commentText}
-                onChange={(event) => setCommentText(event.target.value)}
-                placeholder="Write a comment…"
-                maxLength={2000}
-                rows={3}
-                className="w-full resize-none rounded-xl px-3 py-2 text-sm outline-none"
-                style={{
-                  background: `${tc.controlText}0D`,
-                  color: tc.controlText,
-                  border: `1px solid ${tc.controlText}18`,
-                }}
-              />
-
-              <div className="flex items-center justify-between mt-2">
-                <span
-                  className="text-[10px]"
-                  style={{
-                    color: `${tc.controlText}45`,
-                  }}
-                >
-                  {commentText.length}/2000
-                </span>
-
-                <button
-                  onClick={() => void handleSubmitComment()}
-                  disabled={commentSubmitting || !commentText.trim()}
-                  className="px-4 py-2 rounded-lg text-xs font-bold disabled:opacity-40 active:scale-95"
-                  style={{
-                    background: "#e8a84c",
-                    color: "#2C1A0A",
-                  }}
-                >
-                  {commentSubmitting ? "Posting…" : "Post"}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Chapter list */}
-        {showChapterList && (
-          <div className="reader-chapter-drawer" aria-label="Chapter list">
             <div className="flex items-center justify-between gap-4">
               <div>
                 <p
@@ -1264,12 +1492,363 @@ export default function ReaderPage({
         )}
       </div>
 
-      {/* Reader content */}
+      {/* =========================================================
+          COMMENTS DRAWER
+
+          IMPORTANT:
+          This is deliberately OUTSIDE the top-controls container.
+
+          That gives it the full reader viewport height and allows
+          the comments list to correctly use flex-1 + overflow-y-auto.
+          ========================================================= */}
+
+      {showComments && (
+        <div
+          className="absolute top-0 right-0 bottom-0 z-[1100] w-full max-w-md flex flex-col shadow-2xl"
+          style={{
+            background: tc.controlBg,
+            color: tc.controlText,
+          }}
+          onClick={(event) => event.stopPropagation()}
+        >
+          {/* =====================================================
+              COMMENTS HEADER
+              ===================================================== */}
+
+          <div
+            className="shrink-0 flex items-center justify-between px-5 py-4 border-b"
+            style={{
+              borderColor: `${tc.controlText}20`,
+              paddingTop: "max(env(safe-area-inset-top, 12px), 20px)",
+            }}
+          >
+            <div className="min-w-0">
+              <p
+                className="text-[9px] uppercase tracking-widest font-bold"
+                style={{
+                  color: `${tc.controlText}66`,
+                }}
+              >
+                Chapter {chapter.number}
+              </p>
+
+              <h2 className="text-base font-bold truncate">Comments</h2>
+            </div>
+
+            <button
+              onClick={(event) => {
+                event.stopPropagation();
+
+                /*
+                 * Close comments and explicitly restart
+                 * the toolbar timer.
+                 */
+                setShowComments(false);
+                clearControlsTimer();
+                startControlsTimer();
+              }}
+              className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-lg active:scale-90 transition-transform"
+              style={{
+                background: `${tc.controlText}10`,
+                color: tc.controlText,
+              }}
+              aria-label="Close comments"
+            >
+              ×
+            </button>
+          </div>
+
+          {/* =====================================================
+              COMMENTS LIST
+              ===================================================== */}
+
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+            {/* Loading */}
+            {commentsLoading && (
+              <div
+                className="py-10 text-center text-sm"
+                style={{
+                  color: `${tc.controlText}70`,
+                }}
+              >
+                Loading comments…
+              </div>
+            )}
+
+            {/* Error */}
+            {!commentsLoading && commentsError && (
+              <div
+                className="py-10 text-center"
+                style={{
+                  color: `${tc.controlText}70`,
+                }}
+              >
+                <MessageSquare size={28} className="mx-auto mb-3 opacity-50" />
+
+                <p className="text-sm font-semibold">Unable to load comments</p>
+
+                <p className="text-xs mt-1 text-red-400">{commentsError}</p>
+              </div>
+            )}
+
+            {/* Empty */}
+            {!commentsLoading && !commentsError && comments.length === 0 && (
+              <div
+                className="py-12 text-center"
+                style={{
+                  color: `${tc.controlText}70`,
+                }}
+              >
+                <MessageSquare size={28} className="mx-auto mb-3 opacity-50" />
+
+                <p className="text-sm font-semibold">No comments yet</p>
+
+                <p className="text-xs mt-1">
+                  Be the first to share your thoughts.
+                </p>
+              </div>
+            )}
+
+            {/* ===================================================
+                ALL COMMENTS
+
+                There is intentionally NO filtering.
+
+                Every comment returned by the backend is displayed.
+                =================================================== */}
+
+            {!commentsLoading && !commentsError && comments.length > 0 && (
+              <div className="space-y-4">
+                {comments.map((comment) => (
+                  <article
+                    key={comment.id}
+                    className="rounded-xl p-3"
+                    style={{
+                      background: `${tc.controlText}08`,
+                      border: `1px solid ${tc.controlText}08`,
+                    }}
+                  >
+                    <div className="flex items-start gap-3">
+                      {/* Avatar */}
+                      <div
+                        className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center overflow-hidden"
+                        style={{
+                          background: `${tc.controlText}12`,
+                        }}
+                      >
+                        {comment.author.avatar ? (
+                          <img
+                            src={comment.author.avatar}
+                            alt={comment.author.displayName}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <span
+                            className="text-xs font-bold"
+                            style={{
+                              color: tc.controlText,
+                            }}
+                          >
+                            {comment.author.displayName
+                              ?.charAt(0)
+                              ?.toUpperCase() || "U"}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Comment body */}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold truncate">
+                              {comment.author.displayName}
+                            </p>
+
+                            <p
+                              className="text-[10px] mt-0.5"
+                              style={{
+                                color: `${tc.controlText}55`,
+                              }}
+                            >
+                              {new Date(comment.createdAt).toLocaleDateString(
+                                undefined,
+                                {
+                                  year: "numeric",
+                                  month: "short",
+                                  day: "numeric",
+                                },
+                              )}
+                            </p>
+                          </div>
+
+                          {/*
+                           * Delete controls are intentionally
+                           * not shown here yet.
+                           *
+                           * Backend deletion remains available
+                           * through the repository and can be
+                           * wired to proper ownership/admin UI
+                           * later.
+                           */}
+                        </div>
+
+                        <p
+                          className="mt-2 text-sm leading-relaxed whitespace-pre-wrap break-words"
+                          style={{
+                            color: tc.controlText,
+                          }}
+                        >
+                          {comment.content}
+                        </p>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* =====================================================
+              COMMENT COMPOSER
+              ===================================================== */}
+
+          <div
+            className="shrink-0 p-4 border-t"
+            style={{
+              borderColor: `${tc.controlText}20`,
+              background: tc.controlBg,
+              paddingBottom: "max(env(safe-area-inset-bottom, 16px), 16px)",
+            }}
+          >
+            {isLoggedIn ? (
+              <>
+                <p
+                  className="text-[10px] uppercase tracking-widest font-bold mb-2"
+                  style={{
+                    color: `${tc.controlText}70`,
+                  }}
+                >
+                  Join the conversation
+                </p>
+
+                <div
+                  className="rounded-xl overflow-hidden"
+                  style={{
+                    background: `${tc.controlText}08`,
+                    border: `1px solid ${tc.controlText}20`,
+                  }}
+                >
+                  <textarea
+                    value={commentText}
+                    onChange={(event) => setCommentText(event.target.value)}
+                    onFocus={() => {
+                      /*
+                       * Keep the toolbar alive while the
+                       * user is typing.
+                       */
+                      clearControlsTimer();
+                    }}
+                    placeholder="Share your thoughts about this chapter…"
+                    maxLength={2000}
+                    rows={3}
+                    className="w-full resize-none bg-transparent px-3 py-3 text-sm outline-none"
+                    style={{
+                      color: tc.controlText,
+                    }}
+                    aria-label="Write a comment"
+                  />
+
+                  <div
+                    className="flex items-center justify-between px-3 py-2 border-t"
+                    style={{
+                      borderColor: `${tc.controlText}12`,
+                    }}
+                  >
+                    <span
+                      className="text-[10px]"
+                      style={{
+                        color: `${tc.controlText}45`,
+                      }}
+                    >
+                      {commentText.length}/2000
+                    </span>
+
+                    <button
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        void handleSubmitComment();
+                      }}
+                      disabled={commentSubmitting || !commentText.trim()}
+                      className="px-4 py-2 rounded-lg text-xs font-bold transition-transform disabled:opacity-40 active:scale-95"
+                      style={{
+                        background: "#e8a84c",
+                        color: "#2C1A0A",
+                      }}
+                    >
+                      {commentSubmitting ? "Posting…" : "Post comment"}
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              /*
+               * =================================================
+               * GUEST COMPOSER
+               *
+               * Guests can read comments.
+               * Authentication is required only to post.
+               * =================================================
+               */
+
+              <div
+                className="rounded-xl p-4 text-center"
+                style={{
+                  background: `${tc.controlText}08`,
+                  border: `1px solid ${tc.controlText}12`,
+                }}
+              >
+                <MessageSquare size={20} className="mx-auto mb-2 opacity-60" />
+
+                <p className="text-xs font-semibold">Join the conversation</p>
+
+                <p
+                  className="text-[11px] mt-1 leading-relaxed"
+                  style={{
+                    color: `${tc.controlText}60`,
+                  }}
+                >
+                  Sign in to share your thoughts about this chapter.
+                </p>
+
+                <button
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    navigate("auth");
+                  }}
+                  className="mt-3 px-4 py-2 rounded-lg text-xs font-bold active:scale-95 transition-transform"
+                  style={{
+                    background: "#e8a84c",
+                    color: "#2C1A0A",
+                  }}
+                >
+                  Sign in to comment
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================
+          READER CONTENT
+          ========================================================= */}
+
       <div
         className="reader-horizontal-shell"
         ref={readerShellRef}
         onTouchStart={(event) => {
           touchStartX.current = event.touches[0]?.clientX ?? 0;
+
           touchStartY.current = event.touches[0]?.clientY ?? 0;
         }}
         onScroll={scheduleProgressSave}
@@ -1398,12 +1977,18 @@ export default function ReaderPage({
         </div>
       </div>
 
-      {/* Bottom controls */}
+      {/* =========================================================
+          BOTTOM CONTROLS
+          ========================================================= */}
+
       <div
         className="absolute bottom-0 left-0 right-0 z-[1000] transition-all duration-200"
         onClick={(event) => {
           event.stopPropagation();
-          scheduleControlsHide();
+
+          if (!showSettings && !showComments && !showChapterList) {
+            scheduleControlsHide();
+          }
         }}
         style={{
           opacity: showControls ? 1 : 0,

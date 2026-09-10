@@ -47,6 +47,9 @@ commentsRouter.post(
       String(req.params.bookId),
       String(req.params.chapterId),
       req.body.content,
+      req.body.parentId ?? null,
+      req.body.gifId ?? null,
+      req.body.gifUrl ?? null,
     );
 
     res.status(201).json({ comment });

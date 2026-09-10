@@ -128,7 +128,12 @@ model Comment {
   userId    String
   bookId    String
   chapterId String
+  parentId  String?
+
   content   String   @db.Text
+  gifId     String?  @db.VarChar(100)
+  gifUrl    String?  @db.VarChar(1000)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -136,9 +141,13 @@ model Comment {
   book    Book    @relation(fields: [bookId], references: [id], onDelete: Cascade)
   chapter Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
 
+  parent  Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies Comment[] @relation("CommentReplies")
+
   @@index([chapterId, createdAt])
   @@index([bookId, createdAt])
   @@index([userId, createdAt])
+  @@index([parentId, createdAt])
 }
 
 model Genre {

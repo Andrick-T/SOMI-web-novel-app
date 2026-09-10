@@ -3,6 +3,7 @@ export type AppConfig = {
   appUrl: string;
   frontendUrl: string;
   apiBaseUrl: string;
+  giphyApiKey: string;
   useApiEconomy: boolean;
   enablePwa: boolean;
   enableOfflineReading: boolean;
@@ -40,6 +41,9 @@ export const appConfig: AppConfig = {
   appUrl: resolveFrontendUrl(),
   frontendUrl: configuredFrontendUrl,
   apiBaseUrl: readEnv("VITE_API_BASE_URL", defaultApiBaseUrl),
+
+  giphyApiKey: readEnv("VITE_GIPHY_API_KEY", ""),
+
   useApiEconomy: normalizeBoolean(
     readEnv("VITE_USE_API_ECONOMY", "false"),
     false,
@@ -52,7 +56,6 @@ export const appConfig: AppConfig = {
   isDevelopment: import.meta.env.DEV,
   isProduction: import.meta.env.PROD,
 };
-
 export const getPublicOrigin = () => {
   if (typeof window === "undefined") return appConfig.frontendUrl;
   return import.meta.env.DEV && configuredAppUrl.startsWith("http")
