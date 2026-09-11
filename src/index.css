@@ -1087,6 +1087,1850 @@ textarea:focus-visible,
   margin: 0 auto;
   padding: 0 2.5rem 3rem;
 }
+
+/* ─── SOMI AUTHENTICATED APP EDITORIAL SYSTEM ───────── */
+
+/*
+ * Shared visual language for authenticated pages.
+ *
+ * The homepage uses editorial spacing, thin dividers,
+ * restrained surfaces and typography rather than a
+ * collection of rounded cards.
+ *
+ * These classes are intentionally generic so Writer/Admin
+ * can reuse the same structure later.
+ */
+
+.somi-app-page {
+  min-height: 100%;
+  background:
+    radial-gradient(
+      circle at 80% 0%,
+      rgba(151, 92, 44, 0.12),
+      transparent 30rem
+    ),
+    var(--color-background);
+  color: var(--color-text-primary);
+}
+
+.somi-app-inner {
+  width: min(100%, 1320px);
+  margin: 0 auto;
+  padding: 3rem 2.5rem 5rem;
+}
+
+.somi-page-header {
+  padding: 1rem 0 2.5rem;
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.somi-page-eyebrow {
+  margin-bottom: 0.65rem;
+  color: var(--color-accent-primary);
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.somi-page-title {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: clamp(2rem, 4vw, 3.25rem);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.025em;
+  color: var(--color-text-primary);
+}
+
+.somi-page-description {
+  max-width: 42rem;
+  margin-top: 0.75rem;
+  color: var(--color-text-muted);
+  font-size: 0.95rem;
+  line-height: 1.7;
+}
+
+.somi-section {
+  margin-top: 3.5rem;
+}
+
+.somi-section-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.somi-section-title {
+  color: var(--color-text-primary);
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.somi-section-label {
+  color: var(--color-text-muted);
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.somi-divider {
+  width: 100%;
+  height: 1px;
+  background: var(--color-border-default);
+}
+
+/*
+ * Editorial profile identity row.
+ */
+.somi-profile-identity {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 1.5rem 0;
+}
+
+.somi-profile-avatar {
+  width: 76px;
+  height: 76px;
+  flex-shrink: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 50%;
+  background: linear-gradient(
+    135deg,
+    var(--color-accent-primary),
+    var(--color-accent-secondary)
+  );
+}
+
+.somi-profile-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.somi-profile-avatar-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: var(--color-background);
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 1.9rem;
+  font-weight: 700;
+}
+
+.somi-profile-name {
+  overflow: hidden;
+  color: var(--color-text-primary);
+  font-family: "Fraunces", Georgia, serif;
+  font-size: clamp(1.35rem, 2.5vw, 2rem);
+  font-weight: 600;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.somi-profile-handle {
+  margin-top: 0.25rem;
+  color: var(--color-accent-primary);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.somi-profile-email {
+  margin-top: 0.3rem;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.somi-profile-bio {
+  max-width: 52rem;
+  margin: 0.25rem 0 0;
+  color: var(--color-text-secondary);
+  font-family: "Lora", Georgia, serif;
+  font-size: 0.9rem;
+  line-height: 1.7;
+}
+
+.somi-profile-wallet {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.55rem;
+  color: var(--color-accent-primary);
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
+.somi-editorial-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border: 1px solid var(--color-border-strong);
+  padding: 0.7rem 1rem;
+  color: var(--color-accent-primary);
+  font-size: 0.72rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.somi-editorial-button:hover {
+  border-color: var(--color-accent-primary);
+  background: color-mix(in srgb, var(--color-accent-primary) 8%, transparent);
+  transform: translateY(-1px);
+}
+
+.somi-editorial-button:active {
+  transform: translateY(0);
+}
+
+/*
+ * Statistics become an editorial data strip instead
+ * of four independent cards.
+ */
+.somi-data-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-top: 1px solid var(--color-border-default);
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.somi-data-item {
+  min-height: 120px;
+  padding: 1.25rem 1.5rem;
+  border-right: 1px solid var(--color-border-default);
+}
+
+.somi-data-item:first-child {
+  padding-left: 0;
+}
+
+.somi-data-item:last-child {
+  border-right: 0;
+}
+
+.somi-data-icon {
+  margin-bottom: 0.45rem;
+}
+
+.somi-data-value {
+  color: var(--color-text-primary);
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 2rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.somi-data-label {
+  margin-top: 0.45rem;
+  color: var(--color-text-muted);
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+/*
+ * Reading profile.
+ */
+.somi-reading-world {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 240px;
+  gap: 3rem;
+  align-items: start;
+}
+
+.somi-genre-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.somi-genre-row {
+  display: grid;
+  grid-template-columns: 130px minmax(0, 1fr) 48px;
+  align-items: center;
+  gap: 1rem;
+  min-height: 48px;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.somi-genre-row:first-child {
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.somi-genre-name {
+  color: var(--color-text-primary);
+  font-family: "Lora", Georgia, serif;
+  font-size: 0.85rem;
+}
+
+.somi-genre-track {
+  height: 4px;
+  overflow: hidden;
+  background: var(--color-border-default);
+}
+
+.somi-genre-fill {
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    var(--color-accent-primary),
+    var(--color-accent-secondary)
+  );
+}
+
+.somi-genre-pct {
+  color: var(--color-accent-primary);
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-align: right;
+}
+
+.somi-reading-empty {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 100px;
+  border-top: 1px solid var(--color-border-default);
+  border-bottom: 1px solid var(--color-border-default);
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+}
+
+/*
+ * Settings/account rows.
+ *
+ * No cards. Each item is separated by a fine rule,
+ * like the homepage's update/list sections.
+ */
+.somi-settings-list {
+  border-top: 1px solid var(--color-border-default);
+}
+
+.somi-settings-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-height: 68px;
+  border-bottom: 1px solid var(--color-border-default);
+  padding: 0.75rem 0;
+}
+
+.somi-settings-row.is-action {
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    padding 0.2s ease;
+}
+
+.somi-settings-row.is-action:hover {
+  background: color-mix(in srgb, var(--color-accent-primary) 4%, transparent);
+  padding-right: 0.5rem;
+  padding-left: 0.5rem;
+}
+
+.somi-settings-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+}
+
+.somi-settings-content {
+  min-width: 0;
+  flex: 1;
+}
+
+.somi-settings-label {
+  color: var(--color-text-primary);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.somi-settings-value {
+  margin-top: 0.15rem;
+  color: var(--color-text-muted);
+  font-size: 0.68rem;
+}
+
+.somi-settings-control {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.somi-settings-chevron {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+}
+
+/*
+ * Writer / Admin environment switchers.
+ *
+ * Keep their identities, but remove the giant rounded
+ * promotional-card appearance.
+ */
+.somi-environment-list {
+  border-top: 1px solid var(--color-border-default);
+}
+
+.somi-environment-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  min-height: 74px;
+  border-bottom: 1px solid var(--color-border-default);
+  padding: 0.75rem 0;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    padding 0.2s ease;
+}
+
+.somi-environment-item:hover {
+  background: color-mix(in srgb, var(--color-accent-primary) 4%, transparent);
+  padding-right: 0.5rem;
+  padding-left: 0.5rem;
+}
+
+.somi-environment-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+}
+
+.somi-environment-content {
+  min-width: 0;
+  flex: 1;
+}
+
+.somi-environment-title {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.somi-environment-description {
+  margin-top: 0.2rem;
+  color: var(--color-text-muted);
+  font-size: 0.68rem;
+}
+
+/*
+ * Logout is intentionally quiet.
+ */
+.somi-logout {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  color: var(--color-status-danger);
+  font-size: 0.72rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition:
+    color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.somi-logout:hover {
+  color: var(--color-accent-secondary);
+  transform: translateX(2px);
+}
+
+/*
+ * Profile error state.
+ */
+.somi-app-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  border-left: 2px solid var(--color-status-danger);
+  background: color-mix(in srgb, var(--color-status-danger) 7%, transparent);
+  padding: 0.85rem 1rem;
+  color: var(--color-text-secondary);
+  font-size: 0.75rem;
+}
+
+/*
+ * Mobile.
+ */
+@media (max-width: 767px) {
+  .somi-app-inner {
+    padding: 2rem 1rem 5rem;
+  }
+
+  .somi-page-header {
+    padding-top: 0.5rem;
+    padding-bottom: 2rem;
+  }
+
+  .somi-page-title {
+    font-size: 2.35rem;
+  }
+
+  .somi-profile-identity {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 1rem;
+  }
+
+  .somi-profile-avatar {
+    width: 64px;
+    height: 64px;
+  }
+
+  .somi-profile-avatar-fallback {
+    font-size: 1.55rem;
+  }
+
+  .somi-profile-name {
+    font-size: 1.35rem;
+  }
+
+  .somi-profile-identity > .somi-editorial-button {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .somi-data-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .somi-data-item {
+    min-height: 105px;
+    padding: 1rem;
+  }
+
+  .somi-data-item:first-child {
+    padding-left: 1rem;
+  }
+
+  .somi-data-item:nth-child(2) {
+    border-right: 0;
+  }
+
+  .somi-data-item:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--color-border-default);
+  }
+
+  .somi-data-value {
+    font-size: 1.7rem;
+  }
+
+  .somi-reading-world {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+
+  .somi-genre-row {
+    grid-template-columns: 95px minmax(0, 1fr) 42px;
+    gap: 0.7rem;
+  }
+
+  .somi-settings-row,
+  .somi-environment-item {
+    min-height: 64px;
+  }
+}
+/* =========================================================
+   WRITER STUDIO — APPLICATION DESIGN FOUNDATION
+   ========================================================= */
+
+.somi-writer-page {
+  min-height: 100%;
+  background:
+    radial-gradient(
+      circle at 82% 0%,
+      rgba(74, 222, 128, 0.07),
+      transparent 30rem
+    ),
+    var(--color-background);
+  color: var(--color-text-primary);
+}
+
+.somi-writer-inner {
+  width: min(100%, 1320px);
+  margin: 0 auto;
+  padding: 3rem 2.5rem 5rem;
+}
+
+.somi-writer-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 2rem;
+  padding: 0.75rem 0 2rem;
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.somi-writer-eyebrow {
+  margin-bottom: 0.65rem;
+  color: var(--color-accent-primary);
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.somi-writer-title {
+  font-family: "Fraunces", Georgia, serif;
+  color: var(--color-text-primary);
+  font-size: clamp(2rem, 4vw, 3.25rem);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.somi-writer-description {
+  max-width: 44rem;
+  margin-top: 0.75rem;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  line-height: 1.7;
+}
+
+.somi-writer-primary-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+  min-height: 42px;
+  padding: 0.7rem 1rem;
+  border: 1px solid var(--color-accent-primary);
+  border-radius: var(--radius-control);
+  background: var(--color-accent-primary);
+  color: var(--color-background);
+  font-size: 0.8rem;
+  font-weight: 800;
+  transition:
+    transform 0.2s ease,
+    background 0.2s ease;
+}
+
+.somi-writer-primary-action:hover {
+  background: var(--color-accent-hover);
+  transform: translateY(-1px);
+}
+
+.somi-writer-section {
+  margin-top: 3.75rem;
+}
+
+.somi-writer-section-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.somi-writer-section-title {
+  font-family: "Fraunces", Georgia, serif;
+  color: var(--color-text-primary);
+  font-size: 1.35rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+.somi-writer-section-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--color-accent-primary);
+  font-size: 0.72rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.somi-writer-section-link:hover {
+  color: var(--color-accent-hover);
+}
+
+.somi-writer-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-top: 1px solid var(--color-border-default);
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.somi-writer-stat {
+  min-height: 128px;
+  padding: 1.35rem 1.5rem;
+  border-right: 1px solid var(--color-border-default);
+}
+
+.somi-writer-stat:first-child {
+  padding-left: 0;
+}
+
+.somi-writer-stat:last-child {
+  border-right: 0;
+}
+
+.somi-writer-stat-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--color-text-muted);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.somi-writer-stat-value {
+  margin-top: 0.65rem;
+  font-family: "Fraunces", Georgia, serif;
+  color: var(--color-text-primary);
+  font-size: 2rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.somi-writer-stat-sub {
+  margin-top: 0.45rem;
+  color: var(--color-text-muted);
+  font-size: 0.7rem;
+}
+
+.somi-writer-list {
+  border-top: 1px solid var(--color-border-default);
+}
+
+.somi-writer-list-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1.5rem;
+  align-items: center;
+  width: 100%;
+  padding: 1.15rem 0;
+  border-bottom: 1px solid var(--color-border-default);
+  text-align: left;
+  transition:
+    background 0.2s ease,
+    padding 0.2s ease;
+}
+
+.somi-writer-list-item:hover {
+  padding-right: 0.5rem;
+  padding-left: 0.5rem;
+  background: rgba(74, 222, 128, 0.035);
+}
+
+.somi-writer-list-main {
+  min-width: 0;
+}
+
+.somi-writer-list-title {
+  overflow: hidden;
+  color: var(--color-text-primary);
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.somi-writer-list-meta {
+  margin-top: 0.3rem;
+  color: var(--color-text-muted);
+  font-size: 0.7rem;
+}
+
+.somi-writer-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.somi-writer-progress-track {
+  height: 3px;
+  flex: 1;
+  overflow: hidden;
+  background: var(--color-surface-muted);
+}
+
+.somi-writer-progress-fill {
+  height: 100%;
+  background: var(--color-accent-primary);
+}
+
+.somi-writer-progress-value {
+  min-width: 34px;
+  color: var(--color-accent-primary);
+  font-size: 0.65rem;
+  font-weight: 800;
+  text-align: right;
+}
+
+.somi-writer-word-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--color-text-muted);
+  font-size: 0.65rem;
+  white-space: nowrap;
+}
+
+.somi-writer-pipeline {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-top: 1px solid var(--color-border-default);
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.somi-writer-pipeline-item {
+  min-height: 112px;
+  padding: 1.2rem 1.4rem;
+  border-right: 1px solid var(--color-border-default);
+}
+
+.somi-writer-pipeline-item:first-child {
+  padding-left: 0;
+}
+
+.somi-writer-pipeline-item:last-child {
+  border-right: 0;
+}
+
+.somi-writer-pipeline-label {
+  color: var(--color-text-muted);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.somi-writer-pipeline-value {
+  margin-top: 0.45rem;
+  font-family: "Fraunces", Georgia, serif;
+  color: var(--color-text-primary);
+  font-size: 1.8rem;
+  font-weight: 600;
+}
+
+.somi-writer-actions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-top: 1px solid var(--color-border-default);
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.somi-writer-action {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-height: 76px;
+  padding: 1rem 1.25rem;
+  border-right: 1px solid var(--color-border-default);
+  color: var(--color-text-primary);
+  text-align: left;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease;
+}
+
+.somi-writer-action:first-child {
+  padding-left: 0;
+}
+
+.somi-writer-action:last-child {
+  border-right: 0;
+}
+
+.somi-writer-action:hover {
+  background: rgba(74, 222, 128, 0.04);
+  color: var(--color-accent-hover);
+}
+
+.somi-writer-action-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-accent-primary);
+}
+
+.somi-writer-empty {
+  padding: 1.25rem 0;
+  border-bottom: 1px solid var(--color-border-default);
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+}
+
+.somi-writer-notice {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  margin-top: 3.5rem;
+  border-top: 1px solid var(--color-border-default);
+  border-bottom: 1px solid var(--color-border-default);
+  padding: 1.25rem 0;
+}
+
+.somi-writer-notice-icon {
+  flex-shrink: 0;
+  color: var(--color-accent-primary);
+}
+
+.somi-writer-notice-title {
+  color: var(--color-text-primary);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.somi-writer-notice-text {
+  margin-top: 0.2rem;
+  color: var(--color-text-muted);
+  font-size: 0.7rem;
+}
+
+@media (max-width: 900px) {
+  .somi-writer-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .somi-writer-stat:nth-child(2) {
+    border-right: 0;
+  }
+
+  .somi-writer-stat:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--color-border-default);
+  }
+
+  .somi-writer-pipeline {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .somi-writer-pipeline-item:nth-child(2) {
+    border-right: 0;
+  }
+
+  .somi-writer-pipeline-item:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--color-border-default);
+  }
+
+  .somi-writer-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .somi-writer-action:nth-child(2) {
+    border-right: 0;
+  }
+
+  .somi-writer-action:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--color-border-default);
+  }
+}
+
+@media (max-width: 767px) {
+  .somi-writer-inner {
+    padding: 2rem 1rem 5rem;
+  }
+
+  .somi-writer-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+
+  .somi-writer-primary-action {
+    width: 100%;
+  }
+
+  .somi-writer-section {
+    margin-top: 3rem;
+  }
+
+  .somi-writer-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .somi-writer-stat {
+    min-height: 110px;
+    padding: 1rem;
+  }
+
+  .somi-writer-stat:first-child,
+  .somi-writer-stat:nth-child(3) {
+    padding-left: 0;
+  }
+
+  .somi-writer-stat:nth-child(2),
+  .somi-writer-stat:nth-child(4) {
+    padding-right: 0;
+  }
+
+  .somi-writer-pipeline-item {
+    padding: 1rem;
+  }
+
+  .somi-writer-pipeline-item:nth-child(odd) {
+    padding-left: 0;
+  }
+
+  .somi-writer-pipeline-item:nth-child(even) {
+    padding-right: 0;
+  }
+
+  .somi-writer-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .somi-writer-action,
+  .somi-writer-action:first-child {
+    border-right: 0;
+    border-bottom: 1px solid var(--color-border-default);
+    padding-left: 0;
+  }
+
+  .somi-writer-action:last-child {
+    border-bottom: 0;
+  }
+
+  .somi-writer-list-item {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+
+  .somi-writer-word-count {
+    justify-self: start;
+  }
+}
+
+/* =========================================================
+   WRITER BOOKS
+   ========================================================= */
+
+.somi-writer-books-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.somi-writer-search {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  width: min(100%, 420px);
+  min-height: 42px;
+  border-bottom: 1px solid var(--color-border-default);
+  color: var(--color-text-muted);
+}
+
+.somi-writer-search:focus-within {
+  border-bottom-color: var(--color-accent-primary);
+}
+
+.somi-writer-search input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--color-text-primary);
+  font-size: 0.8rem;
+}
+
+.somi-writer-search input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.somi-writer-filters {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.somi-writer-filter {
+  flex-shrink: 0;
+  padding: 0.85rem 1rem;
+  border-bottom: 2px solid transparent;
+  color: var(--color-text-muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  transition:
+    color 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.somi-writer-filter:first-child {
+  padding-left: 0;
+}
+
+.somi-writer-filter:hover {
+  color: var(--color-text-primary);
+}
+
+.somi-writer-filter-active {
+  border-bottom-color: var(--color-accent-primary);
+  color: var(--color-accent-primary);
+}
+
+.somi-writer-books-list {
+  margin-top: 2rem;
+  border-top: 1px solid var(--color-border-default);
+}
+
+.somi-writer-book-row {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1.25rem;
+  min-height: 112px;
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--color-border-default);
+  transition: background 0.2s ease;
+}
+
+.somi-writer-book-row:hover {
+  background: rgba(74, 222, 128, 0.025);
+}
+
+.somi-writer-book-cover {
+  width: 58px;
+  height: 78px;
+  overflow: hidden;
+  background: var(--color-surface-muted);
+}
+
+.somi-writer-book-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.somi-writer-book-main {
+  min-width: 0;
+}
+
+.somi-writer-book-title {
+  color: var(--color-text-primary);
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.somi-writer-book-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+  color: var(--color-text-muted);
+  font-size: 0.68rem;
+}
+
+.somi-writer-book-meta-dot {
+  color: var(--color-border-strong);
+}
+
+.somi-writer-book-updated {
+  margin-top: 0.45rem;
+  color: var(--color-text-muted);
+  font-size: 0.62rem;
+}
+
+.somi-writer-book-stats {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.somi-writer-book-stat {
+  min-width: 55px;
+  text-align: right;
+}
+
+.somi-writer-book-stat-value {
+  color: var(--color-text-primary);
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.somi-writer-book-stat-label {
+  margin-top: 0.15rem;
+  color: var(--color-text-muted);
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.somi-writer-book-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-left: 0.5rem;
+}
+
+.somi-writer-book-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  height: 34px;
+  color: var(--color-text-muted);
+  transition:
+    background 0.2s ease,
+    color 0.2s ease;
+}
+
+.somi-writer-book-action:hover {
+  background: rgba(74, 222, 128, 0.06);
+  color: var(--color-accent-primary);
+}
+
+.somi-writer-book-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.35rem);
+  z-index: 20;
+  width: 170px;
+  overflow: hidden;
+  border: 1px solid var(--color-border-default);
+  background: var(--color-surface-elevated);
+  box-shadow: var(--shadow-surface);
+}
+
+.somi-writer-book-menu button {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.75rem 0.85rem;
+  color: var(--color-text-primary);
+  font-size: 0.72rem;
+  text-align: left;
+}
+
+.somi-writer-book-menu button + button {
+  border-top: 1px solid var(--color-border-default);
+}
+
+.somi-writer-book-menu button:hover {
+  background: var(--color-hover-surface);
+}
+
+.somi-writer-create-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  min-height: 76px;
+  margin-top: 1.5rem;
+  border-top: 1px dashed var(--color-border-strong);
+  border-bottom: 1px dashed var(--color-border-strong);
+  color: var(--color-accent-primary);
+  font-size: 0.78rem;
+  font-weight: 800;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.somi-writer-create-row:hover {
+  background: rgba(74, 222, 128, 0.035);
+  border-color: var(--color-accent-primary);
+}
+
+.somi-writer-books-empty {
+  padding: 4rem 1rem;
+  border-bottom: 1px solid var(--color-border-default);
+  text-align: center;
+}
+
+.somi-writer-books-empty-title {
+  color: var(--color-text-primary);
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 1.35rem;
+  font-weight: 600;
+}
+
+.somi-writer-books-empty-text {
+  max-width: 32rem;
+  margin: 0.6rem auto 1.25rem;
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  line-height: 1.7;
+}
+
+/* =========================================================
+   WRITER CREATE BOOK
+   ========================================================= */
+
+.somi-create-page {
+  min-height: 100%;
+  background:
+    radial-gradient(
+      circle at 80% 0%,
+      rgba(74, 222, 128, 0.06),
+      transparent 30rem
+    ),
+    var(--color-background);
+}
+
+.somi-create-inner {
+  width: min(100%, 1100px);
+  margin: 0 auto;
+  padding: 3rem 2.5rem 5rem;
+}
+
+.somi-create-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 2rem;
+  padding-bottom: 2rem;
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.somi-create-header-main {
+  min-width: 0;
+}
+
+.somi-create-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+  color: var(--color-text-muted);
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
+.somi-create-back:hover {
+  color: var(--color-accent-primary);
+}
+
+.somi-create-eyebrow {
+  margin-bottom: 0.65rem;
+  color: var(--color-accent-primary);
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.somi-create-title {
+  font-family: "Fraunces", Georgia, serif;
+  color: var(--color-text-primary);
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.somi-create-description {
+  max-width: 40rem;
+  margin-top: 0.75rem;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  line-height: 1.7;
+}
+
+.somi-create-form {
+  margin-top: 3rem;
+}
+
+.somi-create-grid {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  gap: 3rem;
+  align-items: start;
+}
+
+.somi-create-cover {
+  position: sticky;
+  top: 2rem;
+}
+
+.somi-create-cover-frame {
+  position: relative;
+  aspect-ratio: 2 / 3;
+  overflow: hidden;
+  border: 1px dashed var(--color-border-strong);
+  background: var(--color-surface-muted);
+}
+
+.somi-create-cover-frame:hover {
+  border-color: var(--color-accent-primary);
+}
+
+.somi-create-cover-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.somi-create-cover-placeholder {
+  display: flex;
+  height: 100%;
+  min-height: 420px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  text-align: center;
+}
+
+.somi-create-cover-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 54px;
+  height: 54px;
+  color: var(--color-accent-primary);
+  background: rgba(74, 222, 128, 0.07);
+}
+
+.somi-create-cover-title {
+  margin-top: 1rem;
+  color: var(--color-text-primary);
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.somi-create-cover-help {
+  margin-top: 0.4rem;
+  color: var(--color-text-muted);
+  font-size: 0.68rem;
+  line-height: 1.6;
+}
+
+.somi-create-cover-button {
+  margin-top: 1rem;
+  color: var(--color-accent-primary);
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
+.somi-create-cover-button:hover {
+  color: var(--color-accent-hover);
+}
+
+.somi-create-cover-name {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  padding: 0.8rem;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.9));
+  color: white;
+  font-size: 0.65rem;
+}
+
+.somi-create-cover-remove {
+  position: absolute;
+  top: 0.7rem;
+  right: 0.7rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  background: rgba(0, 0, 0, 0.65);
+  color: white;
+}
+
+.somi-create-fields {
+  min-width: 0;
+}
+
+.somi-create-field {
+  padding: 1.5rem 0;
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.somi-create-field:first-child {
+  padding-top: 0;
+}
+
+.somi-create-label {
+  display: block;
+  margin-bottom: 0.55rem;
+  color: var(--color-text-primary);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+}
+
+.somi-create-help {
+  margin-top: 0.4rem;
+  color: var(--color-text-muted);
+  font-size: 0.65rem;
+  line-height: 1.6;
+}
+
+.somi-create-input,
+.somi-create-select,
+.somi-create-textarea {
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid var(--color-border-default);
+  outline: 0;
+  background: transparent;
+  color: var(--color-text-primary);
+  font-family: "Nunito", sans-serif;
+  font-size: 0.85rem;
+}
+
+.somi-create-input,
+.somi-create-select {
+  min-height: 44px;
+}
+
+.somi-create-textarea {
+  min-height: 130px;
+  padding: 0.75rem 0;
+  resize: vertical;
+  line-height: 1.7;
+}
+
+.somi-create-input:focus,
+.somi-create-select:focus,
+.somi-create-textarea:focus {
+  border-bottom-color: var(--color-accent-primary);
+}
+
+.somi-create-input::placeholder,
+.somi-create-textarea::placeholder {
+  color: var(--color-text-muted);
+}
+
+.somi-create-select option {
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+}
+
+.somi-create-tags {
+  display: flex;
+  gap: 0.65rem;
+}
+
+.somi-create-tags select {
+  flex: 1;
+}
+
+.somi-create-add-tag {
+  flex-shrink: 0;
+  padding: 0 1rem;
+  border: 1px solid var(--color-border-default);
+  color: var(--color-accent-primary);
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
+.somi-create-add-tag:hover {
+  border-color: var(--color-accent-primary);
+  background: rgba(74, 222, 128, 0.04);
+}
+
+.somi-create-tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.75rem;
+}
+
+.somi-create-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--color-border-default);
+  color: var(--color-text-secondary);
+  font-size: 0.65rem;
+}
+
+.somi-create-error {
+  margin-top: 1.5rem;
+  border-left: 2px solid var(--color-status-danger);
+  padding: 0.8rem 1rem;
+  background: rgba(201, 96, 58, 0.08);
+  color: #f3b6a2;
+  font-size: 0.72rem;
+  line-height: 1.7;
+}
+
+.somi-create-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+}
+
+.somi-create-cancel {
+  padding: 0.75rem 1rem;
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.somi-create-cancel:hover {
+  color: var(--color-text-primary);
+}
+
+.somi-create-submit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 42px;
+  padding: 0.7rem 1.1rem;
+  border: 1px solid var(--color-accent-primary);
+  background: var(--color-accent-primary);
+  color: var(--color-background);
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.somi-create-submit:hover {
+  background: var(--color-accent-hover);
+}
+
+.somi-create-submit:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+@media (max-width: 900px) {
+  .somi-create-grid {
+    grid-template-columns: 220px minmax(0, 1fr);
+    gap: 2rem;
+  }
+}
+
+@media (max-width: 767px) {
+  .somi-writer-books-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .somi-writer-search {
+    width: 100%;
+  }
+
+  .somi-writer-book-row {
+    grid-template-columns: 58px minmax(0, 1fr) auto;
+    gap: 0.8rem;
+  }
+
+  .somi-writer-book-stats {
+    display: none;
+  }
+
+  .somi-writer-book-actions {
+    margin-left: 0;
+  }
+
+  .somi-writer-book-cover {
+    width: 52px;
+    height: 72px;
+  }
+
+  .somi-create-inner {
+    padding: 2rem 1rem 5rem;
+  }
+
+  .somi-create-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .somi-create-grid {
+    display: block;
+  }
+
+  .somi-create-cover {
+    position: static;
+    margin-bottom: 2rem;
+  }
+
+  .somi-create-cover-frame {
+    aspect-ratio: 16 / 9;
+  }
+
+  .somi-create-cover-placeholder {
+    min-height: 240px;
+  }
+
+  .somi-create-footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
+    margin-right: -1rem;
+    margin-left: -1rem;
+    padding: 0.8rem 1rem;
+    border-top: 1px solid var(--color-border-default);
+    background: var(--color-background);
+  }
+
+  .somi-create-submit {
+    flex: 1;
+  }
+}
+
+.somi-writer-page {
+  min-height: 100%;
+  background:
+    radial-gradient(
+      circle at 80% 0%,
+      rgba(74, 222, 128, 0.06),
+      transparent 30rem
+    ),
+    var(--color-background);
+  color: var(--color-text-primary);
+}
+
+.somi-writer-inner {
+  width: min(100%, 1320px);
+  margin: 0 auto;
+  padding: 3rem 2.5rem 5rem;
+}
+
+.somi-writer-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 2rem;
+  padding: 1rem 0 2.5rem;
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.somi-writer-eyebrow {
+  margin-bottom: 0.65rem;
+  color: var(--color-accent-primary);
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.somi-writer-title {
+  color: var(--color-text-primary);
+  font-family: "Fraunces", Georgia, serif;
+  font-size: clamp(2rem, 4vw, 3.25rem);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.025em;
+}
+
+.somi-writer-description {
+  max-width: 42rem;
+  margin-top: 0.75rem;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  line-height: 1.7;
+}
+
+.somi-writer-primary-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 40px;
+  padding: 0.7rem 1rem;
+  border: 1px solid var(--color-accent-primary);
+  background: var(--color-accent-primary);
+  color: var(--color-background);
+  font-size: 0.72rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.somi-writer-primary-action:hover {
+  background: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
+}
+
+.somi-writer-primary-action:active {
+  transform: translateY(1px);
+}
+
+.somi-writer-section {
+  margin-top: 3.5rem;
+}
+
+.somi-writer-notice {
+  margin-top: 1.25rem;
+  border-left: 2px solid var(--color-status-danger);
+  padding: 0.75rem 1rem;
+  background: rgba(201, 96, 58, 0.07);
+}
+
+.somi-writer-notice-title {
+  color: var(--color-text-primary);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.somi-writer-notice-text {
+  margin-top: 0.25rem;
+  color: var(--color-text-muted);
+  font-size: 0.68rem;
+}
+
+@media (max-width: 767px) {
+  .somi-writer-inner {
+    padding: 2rem 1rem 5rem;
+  }
+
+  .somi-writer-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .somi-writer-primary-action {
+    width: 100%;
+  }
+
+  .somi-writer-section {
+    margin-top: 2.75rem;
+  }
+}
+
 .somi-hero {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 310px;

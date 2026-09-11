@@ -57,11 +57,12 @@ export default function WriterSidebar({
             <button
               key={item.page}
               onClick={() => navigate(item.page)}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-left transition-all"
+              className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-left transition-all"
               style={{
-                background: active
-                  ? "var(--color-active-surface)"
-                  : "transparent",
+                background: active ? "rgba(74, 222, 128, 0.06)" : "transparent",
+                borderLeft: active
+                  ? "2px solid var(--color-accent-primary)"
+                  : "2px solid transparent",
                 color: active
                   ? "var(--color-accent-primary)"
                   : "var(--color-text-muted)",
@@ -77,7 +78,7 @@ export default function WriterSidebar({
       {/* Quick write button */}
       <button
         onClick={() => navigate("writer-editor")}
-        className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold mt-4"
+        className="flex items-center gap-2 px-3 py-2.5 text-sm font-bold mt-4"
         style={{
           background: "var(--color-accent-primary)",
           color: "var(--color-background)",
@@ -89,7 +90,7 @@ export default function WriterSidebar({
 
       <button
         onClick={() => navigate("writer-create")}
-        className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold mt-2"
+        className="flex items-center gap-2 px-3 py-2.5 text-sm font-semibold mt-2"
         style={{
           background: "var(--color-active-surface)",
           color: "var(--color-accent-primary)",

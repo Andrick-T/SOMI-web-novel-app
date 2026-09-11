@@ -8,3 +8,4 @@ export * from "./libraryApiRepository";
 export * from "./readingProgressApiRepository";
 export * from "./commentsApiRepository";
 export * from "./giphyRepository";
+export * from "./profileApiRepository";
