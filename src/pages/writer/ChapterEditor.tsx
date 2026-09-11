@@ -9,9 +9,8 @@
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Image from "@tiptap/extension-image";
-import Link from "@tiptap/extension-link";
 import TextAlign from "@tiptap/extension-text-align";
-import Underline from "@tiptap/extension-underline";
+
 import {
   AlignCenter,
   AlignJustify,
@@ -75,12 +74,11 @@ function getInitialContent(rawContent?: string | null) {
   }
 
   /*
-   * New SOMI chapters created with this editor will contain
+   * New SOMI chapters created with this editor contain
    * serialized Tiptap JSON.
    *
    * Existing chapters may still contain Markdown/plain text.
-   * For now we return those strings unchanged. Migration of
-   * existing Markdown will be handled separately.
+   * For now we return those strings unchanged.
    */
   try {
     const parsed = JSON.parse(rawContent);
@@ -155,10 +153,40 @@ export default function ChapterEditor() {
   const [assetError, setAssetError] = useState<string | null>(null);
   const [previewMode, setPreviewMode] = useState(false);
 
+  /*
+   * IMPORTANT:
+   *
+   * isDirty is the only thing that allows autosave to happen.
+   *
+   * React re-renders, chapter updates, editor initialization,
+   * and successful saves do NOT automatically make the chapter
+   * dirty.
+   */
+  const [isDirty, setIsDirty] = useState(false);
+
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const localDraftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const titleRef = useRef(title);
+
+  /*
+   * Prevent the initial editor hydration from being interpreted
+   * as a user edit.
+   */
+  const hydratingEditorRef = useRef(false);
+
+  /*
+   * Tracks edits that happen while a save is already in progress.
+   *
+   * Example:
+   *
+   * edit #1 -> save starts
+   * edit #2 -> user changes content while save is running
+   * save #1 finishes
+   *
+   * We must NOT clear the dirty state belonging to edit #2.
+   */
+  const editVersionRef = useRef(0);
 
   useEffect(() => {
     titleRef.current = title;
@@ -170,21 +198,21 @@ export default function ChapterEditor() {
         heading: {
           levels: [1, 2, 3],
         },
+
+        link: {
+          openOnClick: false,
+          autolink: true,
+          linkOnPaste: true,
+          HTMLAttributes: {
+            class: "somi-editor-link",
+            rel: "noopener noreferrer",
+            target: "_blank",
+          },
+        },
       }),
 
       TextAlign.configure({
         types: ["heading", "paragraph"],
-      }),
-
-      Link.configure({
-        openOnClick: false,
-        autolink: true,
-        linkOnPaste: true,
-        HTMLAttributes: {
-          class: "somi-editor-link",
-          rel: "noopener noreferrer",
-          target: "_blank",
-        },
       }),
 
       Image.configure({
@@ -194,8 +222,6 @@ export default function ChapterEditor() {
           class: "somi-editor-image",
         },
       }),
-
-      Underline,
     ],
 
     content: "",
@@ -212,8 +238,27 @@ export default function ChapterEditor() {
       const text = currentEditor.getText();
 
       setWordCount(getWordCount(text));
+
+      /*
+       * Tiptap can fire onUpdate when we programmatically load
+       * existing content. That must NOT activate autosave.
+       */
+      if (hydratingEditorRef.current) {
+        return;
+      }
+
+      /*
+       * This is a genuine user edit.
+       */
+      editVersionRef.current += 1;
+      setIsDirty(true);
       setSaveState("idle");
 
+      /*
+       * Local recovery draft.
+       *
+       * This is intentionally separate from server autosave.
+       */
       if (localDraftTimer.current) {
         clearTimeout(localDraftTimer.current);
       }
@@ -247,10 +292,19 @@ export default function ChapterEditor() {
         return;
       }
 
+      /*
+       * Capture the edit version at the exact moment this save
+       * starts.
+       */
+      const versionBeingSaved = editVersionRef.current;
+
       setSaveState("saving");
       setError(null);
 
       const content = JSON.stringify(editorInstance.getJSON());
+
+      const text = editorInstance.getText();
+      const currentWordCount = getWordCount(text);
 
       const chapterToSave: WriterChapter = {
         ...chapter,
@@ -258,8 +312,8 @@ export default function ChapterEditor() {
         bookId,
         title: nextTitle,
         content,
-        wordCount: getWordCount(editorInstance.getText()),
-        readingTime: getReadingTime(getWordCount(editorInstance.getText())),
+        wordCount: currentWordCount,
+        readingTime: getReadingTime(currentWordCount),
       };
 
       try {
@@ -270,6 +324,17 @@ export default function ChapterEditor() {
 
         setChapter(result);
 
+        /*
+         * Only clear dirty state if the user has not edited the
+         * chapter since this save started.
+         *
+         * If they did, the newer edit remains dirty and the
+         * autosave effect will save it separately.
+         */
+        if (editVersionRef.current === versionBeingSaved) {
+          setIsDirty(false);
+        }
+
         setSaveState("saved");
 
         window.setTimeout(() => {
@@ -277,28 +342,19 @@ export default function ChapterEditor() {
         }, 1800);
       } catch (err) {
         console.error(err);
+
         setSaveState("error");
+
+        /*
+         * Keep the chapter dirty after a failed save so the
+         * user can retry rather than silently losing the edit.
+         */
+        setIsDirty(true);
+
         setError("Unable to save this chapter. Please try again.");
       }
     },
     [bookId, chapter, chapterId, editor],
-  );
-
-  const scheduleAutosave = useCallback(
-    (nextTitle: string, editorInstance = editor) => {
-      if (!editorInstance || !chapter) {
-        return;
-      }
-
-      if (saveTimer.current) {
-        clearTimeout(saveTimer.current);
-      }
-
-      saveTimer.current = setTimeout(() => {
-        void persistChapter(nextTitle, editorInstance);
-      }, 1200);
-    },
-    [chapter, editor, persistChapter],
   );
 
   /*
@@ -318,6 +374,18 @@ export default function ChapterEditor() {
       try {
         setLoading(true);
         setError(null);
+
+        /*
+         * Make absolutely sure a previous timer cannot save
+         * while a new chapter is being loaded.
+         */
+        if (saveTimer.current) {
+          clearTimeout(saveTimer.current);
+          saveTimer.current = null;
+        }
+
+        setIsDirty(false);
+        editVersionRef.current = 0;
 
         const [books, foundChapter] = await Promise.all([
           apiWriterRepository.getWriterBooks(),
@@ -364,27 +432,42 @@ export default function ChapterEditor() {
         titleRef.current = nextTitle;
 
         if (editor) {
-          if (
-            nextContent &&
-            typeof nextContent === "object" &&
-            "type" in nextContent
-          ) {
-            editor.commands.setContent(
-              nextContent as Parameters<typeof editor.commands.setContent>[0],
-            );
-          } else if (typeof nextContent === "string") {
-            /*
-             * Existing Markdown/plain-text content.
-             *
-             * We deliberately do not treat it as Tiptap
-             * formatting yet. Existing-content migration will
-             * be handled separately.
-             */
-            editor.commands.setContent(nextContent);
-          }
+          /*
+           * Suppress Tiptap's onUpdate while we hydrate the
+           * editor with existing content.
+           */
+          hydratingEditorRef.current = true;
 
-          setWordCount(getWordCount(editor.getText()));
+          try {
+            if (
+              nextContent &&
+              typeof nextContent === "object" &&
+              "type" in nextContent
+            ) {
+              editor.commands.setContent(
+                nextContent as Parameters<typeof editor.commands.setContent>[0],
+              );
+            } else if (typeof nextContent === "string") {
+              /*
+               * Existing Markdown/plain-text content.
+               *
+               * We deliberately do not treat it as Tiptap
+               * formatting yet.
+               */
+              editor.commands.setContent(nextContent);
+            }
+
+            setWordCount(getWordCount(editor.getText()));
+          } finally {
+            hydratingEditorRef.current = false;
+          }
         }
+
+        /*
+         * Loading a chapter must always leave the editor clean.
+         */
+        setIsDirty(false);
+        editVersionRef.current = 0;
       } catch (err) {
         console.error(err);
 
@@ -408,6 +491,57 @@ export default function ChapterEditor() {
   }, [bookId, chapterId, editor]);
 
   /*
+   * ============================================================
+   * AUTOSAVE
+   * ============================================================
+   *
+   * Autosave is driven ONLY by isDirty.
+   *
+   * Crucially, chapter is NOT a dependency here.
+   *
+   * Therefore:
+   *
+   * save -> setChapter(result) -> render
+   *
+   * does NOT cause another autosave.
+   */
+  useEffect(() => {
+    if (!editor || loading || !chapter || !isDirty) {
+      return;
+    }
+
+    /*
+     * Never stack autosave timers.
+     */
+    if (saveTimer.current) {
+      clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+    }
+
+    /*
+     * If a save is currently running, don't start another
+     * concurrent request. The edit version mechanism in
+     * persistChapter() will preserve changes made meanwhile.
+     */
+    if (saveState === "saving") {
+      return;
+    }
+
+    saveTimer.current = setTimeout(() => {
+      saveTimer.current = null;
+
+      void persistChapter(titleRef.current, editor);
+    }, 1200);
+
+    return () => {
+      if (saveTimer.current) {
+        clearTimeout(saveTimer.current);
+        saveTimer.current = null;
+      }
+    };
+  }, [isDirty, editor, loading, chapter, saveState, persistChapter]);
+
+  /*
    * Cleanup timers.
    */
   useEffect(() => {
@@ -422,27 +556,51 @@ export default function ChapterEditor() {
     };
   }, []);
 
-  /*
-   * Autosave when the chapter title changes.
-   */
-  useEffect(() => {
-    if (!editor || loading || !chapter) {
-      return;
-    }
-
-    scheduleAutosave(title, editor);
-  }, [title, editor, loading, chapter, scheduleAutosave]);
+  const markDirty = () => {
+    editVersionRef.current += 1;
+    setIsDirty(true);
+    setSaveState("idle");
+  };
 
   const handleTitleChange = (value: string) => {
     setTitle(value);
     titleRef.current = value;
 
-    if (editor && !loading && chapter) {
-      scheduleAutosave(value, editor);
+    markDirty();
+
+    /*
+     * Local recovery draft also captures title-only edits.
+     */
+    if (localDraftTimer.current) {
+      clearTimeout(localDraftTimer.current);
     }
+
+    localDraftTimer.current = setTimeout(() => {
+      try {
+        localStorage.setItem(
+          `${DRAFT_PREFIX}:${bookId}:${chapterId}`,
+          JSON.stringify({
+            title: value,
+            content: editor?.getJSON() ?? null,
+            updatedAt: new Date().toISOString(),
+          }),
+        );
+      } catch {
+        // Local recovery is best-effort.
+      }
+    }, 500);
   };
 
   const handleManualSave = async () => {
+    /*
+     * Manual save should work even when the chapter is not marked
+     * dirty. It explicitly means "save now".
+     */
+    if (saveTimer.current) {
+      clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+    }
+
     await persistChapter(title, editor);
   };
 
@@ -477,7 +635,10 @@ export default function ChapterEditor() {
       })
       .run();
 
-    scheduleAutosave(title, editor);
+    /*
+     * Tiptap onUpdate will mark the editor dirty.
+     * We do not manually schedule another autosave here.
+     */
   };
 
   /*
@@ -526,7 +687,10 @@ export default function ChapterEditor() {
           })
           .run();
 
-        scheduleAutosave(title, editor);
+        /*
+         * setImage() triggers Tiptap onUpdate, which marks the
+         * chapter dirty automatically.
+         */
       } catch (err) {
         console.error(err);
 
@@ -556,7 +720,9 @@ export default function ChapterEditor() {
       })
       .run();
 
-    scheduleAutosave(title, editor);
+    /*
+     * setImage() triggers Tiptap onUpdate.
+     */
   };
 
   if (loading) {
@@ -603,7 +769,8 @@ export default function ChapterEditor() {
             {saveState === "saving" && "Saving…"}
             {saveState === "saved" && "Saved"}
             {saveState === "error" && "Save failed"}
-            {saveState === "idle" && "Autosave on"}
+            {saveState === "idle" &&
+              (isDirty ? "Unsaved changes" : "Autosave on")}
           </div>
 
           <button
@@ -666,8 +833,6 @@ export default function ChapterEditor() {
                         })
                         .run();
                     }
-
-                    scheduleAutosave(title, editor);
                   }}
                   aria-label="Text style"
                 >
@@ -686,10 +851,6 @@ export default function ChapterEditor() {
                   active={editor?.isActive("bold")}
                   onClick={() => {
                     editor?.chain().focus().toggleBold().run();
-
-                    if (editor) {
-                      scheduleAutosave(title, editor);
-                    }
                   }}
                 >
                   <Bold size={17} />
@@ -700,10 +861,6 @@ export default function ChapterEditor() {
                   active={editor?.isActive("italic")}
                   onClick={() => {
                     editor?.chain().focus().toggleItalic().run();
-
-                    if (editor) {
-                      scheduleAutosave(title, editor);
-                    }
                   }}
                 >
                   <Italic size={17} />
@@ -714,10 +871,6 @@ export default function ChapterEditor() {
                   active={editor?.isActive("underline")}
                   onClick={() => {
                     editor?.chain().focus().toggleUnderline().run();
-
-                    if (editor) {
-                      scheduleAutosave(title, editor);
-                    }
                   }}
                 >
                   <UnderlineIcon size={17} />
@@ -728,10 +881,6 @@ export default function ChapterEditor() {
                   active={editor?.isActive("strike")}
                   onClick={() => {
                     editor?.chain().focus().toggleStrike().run();
-
-                    if (editor) {
-                      scheduleAutosave(title, editor);
-                    }
                   }}
                 >
                   <Strikethrough size={17} />
@@ -748,10 +897,6 @@ export default function ChapterEditor() {
                   })}
                   onClick={() => {
                     editor?.chain().focus().setTextAlign("left").run();
-
-                    if (editor) {
-                      scheduleAutosave(title, editor);
-                    }
                   }}
                 >
                   <AlignLeft size={17} />
@@ -764,10 +909,6 @@ export default function ChapterEditor() {
                   })}
                   onClick={() => {
                     editor?.chain().focus().setTextAlign("center").run();
-
-                    if (editor) {
-                      scheduleAutosave(title, editor);
-                    }
                   }}
                 >
                   <AlignCenter size={17} />
@@ -780,10 +921,6 @@ export default function ChapterEditor() {
                   })}
                   onClick={() => {
                     editor?.chain().focus().setTextAlign("right").run();
-
-                    if (editor) {
-                      scheduleAutosave(title, editor);
-                    }
                   }}
                 >
                   <AlignRight size={17} />
@@ -796,10 +933,6 @@ export default function ChapterEditor() {
                   })}
                   onClick={() => {
                     editor?.chain().focus().setTextAlign("justify").run();
-
-                    if (editor) {
-                      scheduleAutosave(title, editor);
-                    }
                   }}
                 >
                   <AlignJustify size={17} />
@@ -814,10 +947,6 @@ export default function ChapterEditor() {
                   active={editor?.isActive("bulletList")}
                   onClick={() => {
                     editor?.chain().focus().toggleBulletList().run();
-
-                    if (editor) {
-                      scheduleAutosave(title, editor);
-                    }
                   }}
                 >
                   <List size={17} />
@@ -828,10 +957,6 @@ export default function ChapterEditor() {
                   active={editor?.isActive("orderedList")}
                   onClick={() => {
                     editor?.chain().focus().toggleOrderedList().run();
-
-                    if (editor) {
-                      scheduleAutosave(title, editor);
-                    }
                   }}
                 >
                   <ListOrdered size={17} />
@@ -842,10 +967,6 @@ export default function ChapterEditor() {
                   active={editor?.isActive("blockquote")}
                   onClick={() => {
                     editor?.chain().focus().toggleBlockquote().run();
-
-                    if (editor) {
-                      scheduleAutosave(title, editor);
-                    }
                   }}
                 >
                   <Quote size={17} />
@@ -855,10 +976,6 @@ export default function ChapterEditor() {
                   title="Horizontal divider"
                   onClick={() => {
                     editor?.chain().focus().setHorizontalRule().run();
-
-                    if (editor) {
-                      scheduleAutosave(title, editor);
-                    }
                   }}
                 >
                   <Minus size={17} />
@@ -894,7 +1011,9 @@ export default function ChapterEditor() {
                 <ToolbarButton
                   title="Undo"
                   disabled={!editor?.can().undo()}
-                  onClick={() => editor?.chain().focus().undo().run()}
+                  onClick={() => {
+                    editor?.chain().focus().undo().run();
+                  }}
                 >
                   <Undo2 size={17} />
                 </ToolbarButton>
@@ -902,7 +1021,9 @@ export default function ChapterEditor() {
                 <ToolbarButton
                   title="Redo"
                   disabled={!editor?.can().redo()}
-                  onClick={() => editor?.chain().focus().redo().run()}
+                  onClick={() => {
+                    editor?.chain().focus().redo().run();
+                  }}
                 >
                   <Redo2 size={17} />
                 </ToolbarButton>
@@ -931,7 +1052,9 @@ export default function ChapterEditor() {
                 )}
               </div>
             ) : (
-              <EditorContent editor={editor} />
+              <div className="somi-editor-content">
+                <EditorContent editor={editor} />
+              </div>
             )}
 
             {!previewMode && (

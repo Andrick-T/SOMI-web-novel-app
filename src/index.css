@@ -3322,32 +3322,70 @@ textarea:focus-visible,
     margin-top: 4rem;
   }
 }
+/* =========================================================
+   SOMI WRITER — TIPTAP CHAPTER EDITOR
+   ========================================================= */
 
 .somi-editor {
-  min-height: 100%;
+  --editor-bg: #131510;
+  --editor-surface: #191c15;
+  --editor-surface-raised: #20241b;
+  --editor-border: rgba(148, 163, 128, 0.16);
+  --editor-border-strong: rgba(148, 163, 128, 0.25);
+  --editor-text: #e9eadf;
+  --editor-muted: #89927e;
+  --editor-muted-strong: #aab19f;
+  --editor-accent: #4ade80;
+  --editor-accent-soft: rgba(74, 222, 128, 0.1);
+  --editor-accent-strong: #86efac;
+
+  min-height: 100vh;
+  width: 100%;
   background:
     radial-gradient(
-      circle at 82% 0%,
-      rgba(74, 222, 128, 0.035),
-      transparent 28rem
+      circle at 50% -20%,
+      rgba(74, 222, 128, 0.045),
+      transparent 34rem
     ),
-    var(--color-background);
-  color: var(--color-text-primary);
+    var(--editor-bg);
+  color: var(--editor-text);
+  font-family: "Nunito", system-ui, sans-serif;
 }
+
+/* =========================================================
+   LOADING
+   ========================================================= */
+
+.somi-editor-loading {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  color: var(--editor-muted);
+  font-size: 0.9rem;
+}
+
+/* =========================================================
+   HEADER
+   ========================================================= */
 
 .somi-editor-header {
   position: sticky;
   top: 0;
-  z-index: 30;
+  z-index: 50;
+
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1.5rem;
-  min-height: 72px;
+
+  min-height: 68px;
   padding: 0.75rem clamp(1rem, 3vw, 2.5rem);
-  border-bottom: 1px solid var(--color-border-default);
-  background: rgba(19, 21, 16, 0.96);
-  backdrop-filter: blur(16px);
+
+  border-bottom: 1px solid var(--editor-border);
+
+  background: rgba(19, 21, 16, 0.94);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
 }
 
 .somi-editor-header-main {
@@ -3359,20 +3397,31 @@ textarea:focus-visible,
 
 .somi-editor-back {
   display: inline-flex;
-  width: 34px;
-  height: 34px;
+  width: 38px;
+  height: 38px;
   flex-shrink: 0;
+
   align-items: center;
   justify-content: center;
-  color: var(--color-text-muted);
+
+  border: 1px solid var(--editor-border);
+  border-radius: 9px;
+
+  background: transparent;
+  color: var(--editor-muted-strong);
+
+  cursor: pointer;
+
   transition:
-    color 0.2s ease,
-    background 0.2s ease;
+    background 160ms ease,
+    color 160ms ease,
+    border-color 160ms ease;
 }
 
 .somi-editor-back:hover {
-  background: var(--color-hover-surface);
-  color: var(--color-accent-primary);
+  border-color: var(--editor-border-strong);
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--editor-text);
 }
 
 .somi-editor-heading {
@@ -3380,471 +3429,624 @@ textarea:focus-visible,
 }
 
 .somi-editor-eyebrow {
-  color: var(--color-accent-primary);
-  font-size: 0.58rem;
-  font-weight: 800;
-  letter-spacing: 0.16em;
-  line-height: 1.2;
-  text-transform: uppercase;
+  overflow: hidden;
+
+  color: var(--editor-text);
+
+  font-family: "Lora", Georgia, serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .somi-editor-heading-meta {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  margin-top: 0.25rem;
-  color: var(--color-text-muted);
-  font-size: 0.62rem;
+  gap: 0.8rem;
+
+  margin-top: 0.2rem;
+
+  color: var(--editor-muted);
+  font-size: 0.7rem;
 }
 
-.somi-editor-meta-divider {
-  color: var(--color-border-strong);
+.somi-editor-heading-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
 }
 
 .somi-editor-header-actions {
   display: flex;
-  flex-shrink: 0;
   align-items: center;
-  gap: 0.55rem;
+  gap: 0.6rem;
 }
 
 .somi-editor-save-state {
-  min-width: 105px;
+  min-width: 72px;
+
+  color: var(--editor-muted);
+
+  font-size: 0.72rem;
+  font-weight: 600;
   text-align: right;
 }
 
-.somi-editor-save-success,
-.somi-editor-save-saving,
-.somi-editor-save-dirty,
-.somi-editor-save-error {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  font-size: 0.62rem;
-  font-weight: 700;
-}
-
-.somi-editor-save-success {
-  color: var(--color-status-success);
-}
-
 .somi-editor-save-saving {
-  color: var(--color-text-muted);
+  color: #c4cbb9;
 }
 
-.somi-editor-save-dirty {
-  color: var(--color-status-warning);
+.somi-editor-save-saved {
+  color: var(--editor-accent);
 }
 
 .somi-editor-save-error {
-  color: var(--color-status-danger);
-}
-
-.somi-editor-header-button,
-.somi-editor-save-button {
-  display: inline-flex;
-  min-height: 36px;
-  align-items: center;
-  justify-content: center;
-  gap: 0.45rem;
-  padding: 0 0.85rem;
-  border: 1px solid var(--color-border-default);
-  font-size: 0.68rem;
-  font-weight: 800;
-  transition:
-    background 0.2s ease,
-    border-color 0.2s ease,
-    color 0.2s ease;
+  color: #f08b7a;
 }
 
 .somi-editor-header-button {
-  color: var(--color-text-secondary);
+  display: inline-flex;
+  min-height: 36px;
+
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+
+  padding: 0 0.85rem;
+
+  border: 1px solid var(--editor-border);
+  border-radius: 8px;
+
   background: transparent;
+  color: var(--editor-muted-strong);
+
+  font-family: "Nunito", system-ui, sans-serif;
+  font-size: 0.78rem;
+  font-weight: 700;
+
+  cursor: pointer;
+
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease;
 }
 
-.somi-editor-header-button:hover,
-.somi-editor-header-button-active {
-  border-color: var(--color-border-strong);
-  background: var(--color-surface);
-  color: var(--color-accent-primary);
+.somi-editor-header-button:hover:not(:disabled) {
+  border-color: var(--editor-border-strong);
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--editor-text);
 }
 
-.somi-editor-save-button {
-  border-color: var(--color-accent-primary);
-  background: var(--color-accent-primary);
-  color: #0d1208;
+.somi-editor-header-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
-.somi-editor-save-button:hover {
-  background: var(--color-accent-hover);
-  border-color: var(--color-accent-hover);
+.somi-editor-header-button-primary {
+  border-color: rgba(74, 222, 128, 0.28);
+  background: rgba(74, 222, 128, 0.1);
+  color: var(--editor-accent-strong);
 }
+
+.somi-editor-header-button-primary:hover:not(:disabled) {
+  border-color: rgba(74, 222, 128, 0.42);
+  background: rgba(74, 222, 128, 0.15);
+}
+
+/* =========================================================
+   WORKSPACE
+   ========================================================= */
 
 .somi-editor-workspace {
-  width: min(100%, 1100px);
-  margin: 0 auto;
-  padding: 0 2rem 4rem;
+  width: 100%;
+  padding: 1.25rem 1rem 5rem;
 }
+
+.somi-editor-writing-column {
+  width: min(100%, 980px);
+  margin: 0 auto;
+}
+
+/* =========================================================
+   TOOLBAR
+   ========================================================= */
 
 .somi-editor-toolbar {
   position: sticky;
-  top: 72px;
-  z-index: 20;
+  top: 68px;
+  z-index: 40;
+
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
+  gap: 0.45rem;
+
   min-height: 52px;
-  border-bottom: 1px solid var(--color-border-default);
-  background: rgba(19, 21, 16, 0.94);
-  backdrop-filter: blur(12px);
+  margin-bottom: 1.25rem;
+  padding: 0.4rem 0.55rem;
+
+  overflow-x: auto;
+
+  border: 1px solid var(--editor-border);
+  border-radius: 10px;
+
+  background: rgba(25, 28, 21, 0.96);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.16);
+
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 
 .somi-editor-toolbar-group {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
-  gap: 0.25rem;
-}
-
-.somi-editor-tool {
-  display: inline-flex;
-  width: 34px;
-  height: 34px;
-  align-items: center;
-  justify-content: center;
-  color: var(--color-text-muted);
-  transition:
-    background 0.2s ease,
-    color 0.2s ease;
-}
-
-.somi-editor-tool:hover {
-  background: var(--color-hover-surface);
-  color: var(--color-accent-primary);
+  gap: 0.15rem;
 }
 
 .somi-editor-toolbar-divider {
   width: 1px;
-  height: 20px;
-  margin: 0 0.4rem;
-  background: var(--color-border-default);
+  height: 25px;
+  flex-shrink: 0;
+
+  margin: 0 0.25rem;
+
+  background: var(--editor-border);
 }
 
-.somi-editor-toolbar-hint {
-  color: var(--color-text-muted);
-  font-size: 0.58rem;
+.somi-editor-toolbar-spacer {
+  flex: 1 1 auto;
+  min-width: 0.5rem;
 }
+
+.somi-editor-tool {
+  display: inline-flex;
+
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+
+  align-items: center;
+  justify-content: center;
+
+  border: 1px solid transparent;
+  border-radius: 7px;
+
+  background: transparent;
+  color: var(--editor-muted-strong);
+
+  cursor: pointer;
+
+  transition:
+    background 140ms ease,
+    color 140ms ease,
+    border-color 140ms ease;
+}
+
+.somi-editor-tool:hover:not(:disabled) {
+  border-color: var(--editor-border);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--editor-text);
+}
+
+.somi-editor-tool-active {
+  border-color: rgba(74, 222, 128, 0.2);
+  background: var(--editor-accent-soft);
+  color: var(--editor-accent-strong);
+}
+
+.somi-editor-tool:disabled {
+  cursor: not-allowed;
+  opacity: 0.28;
+}
+
+.somi-editor-format-select {
+  height: 34px;
+  min-width: 132px;
+
+  padding: 0 2rem 0 0.65rem;
+
+  border: 1px solid transparent;
+  border-radius: 7px;
+
+  outline: none;
+
+  background-color: transparent;
+  color: var(--editor-muted-strong);
+
+  font-family: "Nunito", system-ui, sans-serif;
+  font-size: 0.76rem;
+  font-weight: 700;
+
+  cursor: pointer;
+}
+
+.somi-editor-format-select:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--editor-text);
+}
+
+.somi-editor-format-select:focus {
+  border-color: rgba(74, 222, 128, 0.3);
+}
+
+.somi-editor-format-select option {
+  background: #20241b;
+  color: #e9eadf;
+}
+
+/* =========================================================
+   WRITING SURFACE
+   ========================================================= */
 
 .somi-editor-writing-area {
-  padding: 3.5rem 0 2rem;
+  width: 100%;
+
+  padding: clamp(2rem, 5vw, 4.5rem) clamp(1.25rem, 7vw, 6.5rem)
+    clamp(3rem, 7vw, 5.5rem);
+
+  border: 1px solid rgba(40, 43, 34, 0.9);
+  border-radius: 12px;
+
+  background: #f5efe3;
+  color: #2d281f;
+
+  box-shadow:
+    0 25px 70px rgba(0, 0, 0, 0.24),
+    0 2px 10px rgba(0, 0, 0, 0.12);
 }
 
-.somi-editor-writing-column {
-  width: min(100%, 760px);
-  margin: 0 auto;
-}
+/* =========================================================
+   CHAPTER TITLE
+   ========================================================= */
 
 .somi-editor-title-input {
+  display: block;
+
   width: 100%;
+  margin: 0 0 2.5rem;
+
+  padding: 0;
+
   border: 0;
-  outline: 0;
+  outline: none;
+
   background: transparent;
-  color: var(--color-text-primary);
+  color: #2b271f;
+
   font-family: "Fraunces", Georgia, serif;
-  font-size: clamp(1.8rem, 4vw, 2.75rem);
-  font-weight: 600;
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 650;
   line-height: 1.12;
+  letter-spacing: -0.025em;
 }
 
 .somi-editor-title-input::placeholder {
-  color: var(--color-text-disabled);
+  color: #aaa293;
 }
 
-.somi-editor-title-rule {
-  width: 3rem;
-  height: 2px;
-  margin: 1.3rem 0 2rem;
-  background: var(--color-accent-primary);
+.somi-editor-title-input:focus {
+  outline: none;
 }
 
-.somi-editor-content {
-  display: block;
-  width: 100%;
-  min-height: 65vh;
-  resize: vertical;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  color: #d8d0b8;
-  caret-color: var(--color-accent-primary);
+/* =========================================================
+   TIPTAP CONTENT
+   ========================================================= */
+
+.somi-editor-writing-area .ProseMirror,
+.somi-editor-preview-content .ProseMirror,
+.somi-editor-prose {
+  min-height: 62vh;
+
+  outline: none;
+
+  color: #352f27;
+
   font-family: "Lora", Georgia, serif;
-  font-size: 1rem;
-  line-height: 1.95;
+  font-size: 1.08rem;
+  line-height: 1.9;
 }
 
-.somi-editor-content::placeholder {
-  color: #596451;
+.somi-editor-writing-area .ProseMirror > *:first-child {
+  margin-top: 0;
 }
 
-.somi-editor-content:focus {
-  outline: 0;
+.somi-editor-writing-area .ProseMirror p {
+  margin: 0 0 1.25em;
 }
+
+.somi-editor-writing-area .ProseMirror p:last-child {
+  margin-bottom: 0;
+}
+
+.somi-editor-writing-area .ProseMirror h1,
+.somi-editor-writing-area .ProseMirror h2,
+.somi-editor-writing-area .ProseMirror h3 {
+  margin-top: 2em;
+  margin-bottom: 0.65em;
+
+  color: #27231d;
+
+  font-family: "Fraunces", Georgia, serif;
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+.somi-editor-writing-area .ProseMirror h1 {
+  font-size: 2rem;
+}
+
+.somi-editor-writing-area .ProseMirror h2 {
+  font-size: 1.55rem;
+}
+
+.somi-editor-writing-area .ProseMirror h3 {
+  font-size: 1.25rem;
+}
+
+.somi-editor-writing-area .ProseMirror strong {
+  font-weight: 750;
+}
+
+.somi-editor-writing-area .ProseMirror em {
+  font-style: italic;
+}
+
+.somi-editor-writing-area .ProseMirror u {
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+.somi-editor-writing-area .ProseMirror s {
+  text-decoration-thickness: 1px;
+}
+
+.somi-editor-writing-area .ProseMirror ul,
+.somi-editor-writing-area .ProseMirror ol {
+  margin: 0 0 1.25em;
+  padding-left: 1.6rem;
+}
+
+.somi-editor-writing-area .ProseMirror li {
+  padding-left: 0.25rem;
+}
+
+.somi-editor-writing-area .ProseMirror li + li {
+  margin-top: 0.35rem;
+}
+
+.somi-editor-writing-area .ProseMirror blockquote {
+  margin: 1.75rem 0;
+
+  padding: 0.8rem 1.25rem;
+
+  border-left: 3px solid #5d8c66;
+
+  background: rgba(93, 140, 102, 0.07);
+
+  color: #625b50;
+
+  font-style: italic;
+}
+
+.somi-editor-writing-area .ProseMirror blockquote p:last-child {
+  margin-bottom: 0;
+}
+
+.somi-editor-writing-area .ProseMirror hr {
+  margin: 2.5rem 0;
+
+  border: 0;
+  border-top: 1px solid rgba(62, 55, 44, 0.2);
+}
+
+.somi-editor-writing-area .ProseMirror a,
+.somi-editor-link {
+  color: #356b48;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.somi-editor-writing-area .ProseMirror a:hover {
+  color: #214d31;
+}
+
+.somi-editor-image {
+  display: block;
+
+  max-width: 100%;
+  height: auto;
+
+  margin: 2rem auto;
+
+  border-radius: 8px;
+
+  box-shadow: 0 12px 30px rgba(40, 31, 20, 0.16);
+}
+
+/* =========================================================
+   EDITOR FOCUS
+   ========================================================= */
+
+.somi-editor-writing-area .ProseMirror:focus {
+  outline: none;
+}
+
+.somi-editor-writing-area .ProseMirror ::selection {
+  background: rgba(74, 222, 128, 0.22);
+}
+
+/* =========================================================
+   FOOTER
+   ========================================================= */
 
 .somi-editor-writing-footer {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  margin-top: 1rem;
-  color: var(--color-text-muted);
-  font-size: 0.6rem;
+  gap: 0.55rem;
+
+  margin-top: 3rem;
+  padding-top: 1rem;
+
+  border-top: 1px solid rgba(62, 55, 44, 0.12);
+
+  color: #958d80;
+
+  font-family: "Nunito", system-ui, sans-serif;
+  font-size: 0.7rem;
 }
 
-.somi-editor-note {
-  display: grid;
-  grid-template-columns: minmax(180px, 0.7fr) minmax(0, 1.3fr);
-  gap: 2rem;
-  width: min(100%, 1100px);
-  margin: 0 auto 2rem;
-  padding: 1.5rem 2rem;
-  border-top: 1px solid var(--color-border-default);
-  border-bottom: 1px solid var(--color-border-default);
-}
-
-.somi-editor-note-eyebrow {
-  margin: 0;
-  color: var(--color-text-secondary);
-  font-size: 0.68rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.somi-editor-note-description {
-  max-width: 280px;
-  margin: 0.35rem 0 0;
-  color: var(--color-text-muted);
-  font-size: 0.62rem;
-  line-height: 1.6;
-}
-
-.somi-editor-note-input {
-  width: 100%;
-  min-height: 70px;
-  resize: vertical;
-  border: 0;
-  border-bottom: 1px solid var(--color-border-default);
-  outline: 0;
-  background: transparent;
-  color: var(--color-text-secondary);
-  font-family: "Lora", Georgia, serif;
-  font-size: 0.78rem;
-  line-height: 1.7;
-}
-
-.somi-editor-note-input:focus {
-  border-bottom-color: var(--color-accent-primary);
-}
-
-.somi-editor-note-input::placeholder {
-  color: var(--color-text-disabled);
-}
-
-.somi-editor-errors {
-  width: min(100%, 1100px);
-  margin: 0 auto 2rem;
-  padding: 0.9rem 2rem;
-  border-left: 2px solid var(--color-status-danger);
-  background: color-mix(in srgb, var(--color-status-danger) 7%, transparent);
-  color: var(--color-status-danger);
-  font-size: 0.68rem;
-  line-height: 1.6;
-}
-
-.somi-editor-errors p {
-  margin: 0;
-}
-
-.somi-editor-state {
-  min-height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--color-background);
-}
-
-.somi-editor-preview {
-  min-height: calc(100vh - 72px);
-  padding: 4.5rem 1.5rem 6rem;
-}
-
-.somi-editor-preview-column {
-  width: min(100%, 720px);
-  margin: 0 auto;
-}
-
-.somi-editor-preview-eyebrow {
-  margin-bottom: 0.75rem;
-  color: var(--color-accent-primary);
-  font-size: 0.62rem;
-  font-weight: 800;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-}
-
-.somi-editor-preview-title {
-  margin: 0;
-  color: var(--color-text-primary);
-  font-family: "Fraunces", Georgia, serif;
-  font-size: clamp(2rem, 5vw, 3.2rem);
-  font-weight: 600;
-  line-height: 1.12;
-}
-
-.somi-editor-preview-rule {
-  width: 3rem;
-  height: 2px;
-  margin: 1.5rem 0 2.5rem;
-  background: var(--color-accent-primary);
-}
+/* =========================================================
+   PREVIEW
+   ========================================================= */
 
 .somi-editor-preview-content {
-  color: #d8d0b8;
-  font-family: "Lora", Georgia, serif;
-  font-size: 1rem;
-  line-height: 2;
-  white-space: pre-wrap;
+  color: #352f27;
+}
+
+.somi-editor-preview-content .ProseMirror {
+  min-height: auto;
 }
 
 .somi-editor-preview-empty {
-  color: var(--color-text-muted);
-  font-style: italic;
-}
-
-.somi-editor-preview-note {
-  margin-top: 3rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid var(--color-border-default);
-}
-
-.somi-editor-preview-note-label {
-  margin: 0 0 0.5rem;
-  color: var(--color-accent-primary);
-  font-size: 0.6rem;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.somi-editor-preview-note p:last-child {
   margin: 0;
-  color: var(--color-text-muted);
+
+  color: #9b9387;
+
   font-family: "Lora", Georgia, serif;
-  font-size: 0.82rem;
+  font-size: 1rem;
   font-style: italic;
-  line-height: 1.7;
 }
 
-@media (max-width: 767px) {
+/* =========================================================
+   ERRORS
+   ========================================================= */
+
+.somi-editor-errors {
+  margin-top: 0.75rem;
+  padding: 0.75rem 1rem;
+
+  border: 1px solid rgba(240, 139, 122, 0.2);
+  border-radius: 8px;
+
+  background: rgba(240, 139, 122, 0.06);
+  color: #e7a092;
+
+  font-size: 0.78rem;
+}
+
+/* =========================================================
+   MOBILE
+   ========================================================= */
+
+@media (max-width: 760px) {
   .somi-editor-header {
-    min-height: 64px;
-    padding: 0.7rem 1rem;
+    min-height: 62px;
+    padding: 0.65rem 0.75rem;
   }
 
   .somi-editor-header-actions {
-    gap: 0.3rem;
+    gap: 0.35rem;
   }
 
   .somi-editor-save-state {
     display: none;
   }
 
-  .somi-editor-header-button,
-  .somi-editor-save-button {
+  .somi-editor-header-button {
     min-height: 34px;
     padding: 0 0.65rem;
   }
 
-  .somi-editor-header-button span,
-  .somi-editor-save-button span {
+  .somi-editor-header-button-primary span {
     display: none;
   }
 
   .somi-editor-workspace {
-    padding: 0 1rem 3rem;
+    padding: 0.75rem 0 3rem;
   }
 
   .somi-editor-toolbar {
-    top: 64px;
-  }
+    top: 62px;
 
-  .somi-editor-toolbar-hint {
-    display: none;
+    margin: 0 0 0.75rem;
+
+    border-right: 0;
+    border-left: 0;
+    border-radius: 0;
+
+    box-shadow: none;
   }
 
   .somi-editor-writing-area {
-    padding-top: 2.5rem;
+    min-height: calc(100vh - 130px);
+
+    padding: 2rem 1.15rem 3rem;
+
+    border-right: 0;
+    border-left: 0;
+    border-radius: 0;
+
+    box-shadow: none;
+  }
+
+  .somi-editor-title-input {
+    margin-bottom: 2rem;
+
+    font-size: 2rem;
+  }
+
+  .somi-editor-writing-area .ProseMirror,
+  .somi-editor-preview-content .ProseMirror,
+  .somi-editor-prose {
+    min-height: 55vh;
+
+    font-size: 1rem;
+    line-height: 1.85;
+  }
+
+  .somi-editor-heading-meta {
+    gap: 0.55rem;
+  }
+
+  .somi-editor-eyebrow {
+    max-width: 42vw;
+    font-size: 0.82rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .somi-editor-back {
+    width: 34px;
+    height: 34px;
+  }
+
+  .somi-editor-header-main {
+    gap: 0.6rem;
+  }
+
+  .somi-editor-heading-meta span:first-child {
+    display: none;
+  }
+
+  .somi-editor-header-button {
+    padding: 0 0.55rem;
+    font-size: 0.72rem;
+  }
+
+  .somi-editor-writing-area {
+    padding-right: 1rem;
+    padding-left: 1rem;
   }
 
   .somi-editor-title-input {
     font-size: 1.75rem;
   }
-
-  .somi-editor-content {
-    min-height: 60vh;
-    font-size: 0.95rem;
-    line-height: 1.85;
-  }
-
-  .somi-editor-note {
-    grid-template-columns: 1fr;
-    gap: 1rem;
-    padding: 1.25rem 1rem;
-  }
-
-  .somi-editor-note-description {
-    max-width: none;
-  }
-
-  .somi-editor-errors {
-    padding: 0.9rem 1rem;
-  }
-
-  .somi-editor-preview {
-    padding: 3rem 1.25rem 5rem;
-  }
-
-  .somi-editor-preview-content {
-    font-size: 0.95rem;
-    line-height: 1.85;
-  }
 }
-
-@media (max-width: 480px) {
-  .somi-editor-heading-meta {
-    gap: 0.25rem;
-    font-size: 0.55rem;
-  }
-
-  .somi-editor-heading-meta .somi-status-badge {
-    display: none;
-  }
-
-  .somi-editor-header-button {
-    width: 34px;
-    padding: 0;
-  }
-
-  .somi-editor-save-button {
-    width: 34px;
-    padding: 0;
-    font-size: 0;
-  }
-
-  .somi-editor-save-button svg {
-    width: 14px;
-  }
-
-  .somi-editor-writing-footer {
-    flex-wrap: wrap;
-  }
+.somi-editor-content {
+  width: 100%;
 }

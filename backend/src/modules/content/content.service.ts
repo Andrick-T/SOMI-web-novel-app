@@ -3,11 +3,13 @@ import { AppError } from "../../common/errors/http-error.js";
 import type { AuthPrincipal } from "../auth/auth.types.js";
 
 const PUBLIC_BOOK_STATUS = "PUBLISHED";
+
 const isOwnerView = (viewer: AuthPrincipal | undefined, ownerId: string) =>
   viewer?.id === ownerId;
 
 const normalizeGenreNames = (items: Array<{ genre: { name: string } }>) =>
   items.map((item) => item.genre.name);
+
 const normalizeTagNames = (items: Array<{ tag: { name: string } }>) =>
   items.map((item) => item.tag.name);
 
@@ -38,8 +40,77 @@ const bookSelectors = {
 
 const chapterSelectors = {
   book: {
-    select: { id: true, title: true, slug: true, status: true, authorId: true },
+    select: {
+      id: true,
+      title: true,
+      slug: true,
+      status: true,
+      authorId: true,
+    },
   },
+};
+
+/**
+ * Extract readable text from a Tiptap JSON document.
+ *
+ * Tiptap stores rich content as JSON such as:
+ *
+ * {
+ *   type: "doc",
+ *   content: [
+ *     {
+ *       type: "paragraph",
+ *       content: [
+ *         { type: "text", text: "Hello world" }
+ *       ]
+ *     }
+ *   ]
+ * }
+ *
+ * This helper also supports legacy plain-text chapters.
+ */
+const extractTextFromRichContent = (content: string): string => {
+  try {
+    const parsed = JSON.parse(content);
+
+    if (parsed?.type !== "doc") {
+      return content;
+    }
+
+    const collectText = (node: any): string => {
+      if (!node) return "";
+
+      if (node.type === "text") {
+        return typeof node.text === "string" ? node.text : "";
+      }
+
+      if (Array.isArray(node.content)) {
+        return node.content.map(collectText).join(" ");
+      }
+
+      return "";
+    };
+
+    return collectText(parsed).trim();
+  } catch {
+    // Preserve compatibility with existing plain-text/legacy chapters.
+    return content;
+  }
+};
+
+/**
+ * Calculate chapter metrics from readable text rather than
+ * the serialized Tiptap JSON string.
+ */
+const calculateChapterMetrics = (content: string) => {
+  const text = extractTextFromRichContent(content);
+
+  const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
+
+  return {
+    wordCount,
+    readingTime: Math.max(1, Math.ceil(wordCount / 200)),
+  };
 };
 
 const mapBook = (book: any, includePrivate = false) => {
@@ -119,9 +190,14 @@ const assertAuthorOrAdmin = (
   viewer: AuthPrincipal | undefined,
   ownerId: string,
 ) => {
-  if (!viewer)
+  if (!viewer) {
     throw new AppError(401, "UNAUTHENTICATED", "Authentication required.");
-  if (viewer.role.toUpperCase() === "ADMIN" || viewer.id === ownerId) return;
+  }
+
+  if (viewer.role.toUpperCase() === "ADMIN" || viewer.id === ownerId) {
+    return;
+  }
+
   throw new AppError(
     403,
     "FORBIDDEN",
@@ -230,7 +306,9 @@ export async function getBookDetail(bookId: string, viewer?: AuthPrincipal) {
     },
   });
 
-  if (!book) throw new AppError(404, "BOOK_NOT_FOUND", "Book not found.");
+  if (!book) {
+    throw new AppError(404, "BOOK_NOT_FOUND", "Book not found.");
+  }
 
   if (viewer && isOwnerView(viewer, book.authorId)) {
     return mapBook(book, true);
@@ -242,6 +320,7 @@ export async function getBookDetail(bookId: string, viewer?: AuthPrincipal) {
 
   return mapBook(book, false);
 }
+
 export async function getGenres() {
   return prisma.genre.findMany({
     orderBy: {
@@ -278,8 +357,10 @@ export async function createBook(
     tags?: string[];
   },
 ) {
-  if (!writer || !writer.id)
+  if (!writer || !writer.id) {
     throw new AppError(401, "UNAUTHENTICATED", "Authentication required.");
+  }
+
   if (
     writer.role.toUpperCase() !== "WRITER" &&
     writer.role.toUpperCase() !== "ADMIN"
@@ -294,14 +375,17 @@ export async function createBook(
   const slugExists = await prisma.book.findUnique({
     where: { slug: input.slug },
   });
-  if (slugExists)
+
+  if (slugExists) {
     throw new AppError(
       409,
       "BOOK_ALREADY_EXISTS",
       "A book with this slug already exists.",
     );
+  }
 
   const genreIds = await resolveAssociationIds(input.genres ?? [], "Genre");
+
   const tagIds = await resolveAssociationIds(input.tags ?? [], "Tag");
 
   const book = await prisma.$transaction(async (tx) => {
@@ -343,13 +427,20 @@ export async function createBook(
 
     if (genreIds.length > 0) {
       await tx.bookGenre.createMany({
-        data: genreIds.map((genreId) => ({ bookId: created.id, genreId })),
+        data: genreIds.map((genreId) => ({
+          bookId: created.id,
+          genreId,
+        })),
         skipDuplicates: true,
       });
     }
+
     if (tagIds.length > 0) {
       await tx.bookTag.createMany({
-        data: tagIds.map((tagId) => ({ bookId: created.id, tagId })),
+        data: tagIds.map((tagId) => ({
+          bookId: created.id,
+          tagId,
+        })),
         skipDuplicates: true,
       });
     }
@@ -381,6 +472,7 @@ export async function createBook(
         },
       },
     });
+
     return refreshed;
   });
 
@@ -405,7 +497,11 @@ export async function updateBook(
     where: { id: bookId },
     include: { author: true, genres: true, tags: true },
   });
-  if (!existing) throw new AppError(404, "BOOK_NOT_FOUND", "Book not found.");
+
+  if (!existing) {
+    throw new AppError(404, "BOOK_NOT_FOUND", "Book not found.");
+  }
+
   assertAuthorOrAdmin(writer, existing.authorId);
 
   if (input.status === "PUBLISHED" && writer?.role.toUpperCase() !== "ADMIN") {
@@ -420,18 +516,21 @@ export async function updateBook(
     const duplicate = await prisma.book.findUnique({
       where: { slug: input.slug },
     });
-    if (duplicate && duplicate.id !== bookId)
+
+    if (duplicate && duplicate.id !== bookId) {
       throw new AppError(
         409,
         "BOOK_ALREADY_EXISTS",
         "A book with this slug already exists.",
       );
+    }
   }
 
   const genreIds =
     input.genres !== undefined
       ? await resolveAssociationIds(input.genres, "Genre")
       : undefined;
+
   const tagIds =
     input.tags !== undefined
       ? await resolveAssociationIds(input.tags, "Tag")
@@ -439,58 +538,48 @@ export async function updateBook(
 
   const updated = await prisma.$transaction(async (tx) => {
     const data: Record<string, unknown> = { ...input };
+
     if (input.status === "PUBLISHED") {
       data.publishedAt = new Date();
     } else if (input.status === "UNPUBLISHED" || input.status === "DRAFT") {
       data.publishedAt = null;
     }
+
     delete data.genres;
     delete data.tags;
 
-    const result = await tx.book.update({
+    await tx.book.update({
       where: { id: bookId },
       data,
-      include: {
-        author: {
-          select: {
-            id: true,
-            email: true,
-            profile: { select: { displayName: true } },
-          },
-        },
-        genres: { include: { genre: true } },
-        tags: { include: { tag: true } },
-        chapters: {
-          orderBy: { number: "asc" },
-          select: {
-            id: true,
-            number: true,
-            title: true,
-            status: true,
-            publishedAt: true,
-            accessType: true,
-            price: true,
-            contentVersion: true,
-          },
-        },
-      },
     });
 
     if (genreIds !== undefined) {
-      await tx.bookGenre.deleteMany({ where: { bookId } });
+      await tx.bookGenre.deleteMany({
+        where: { bookId },
+      });
+
       if (genreIds.length > 0) {
         await tx.bookGenre.createMany({
-          data: genreIds.map((genreId) => ({ bookId, genreId })),
+          data: genreIds.map((genreId) => ({
+            bookId,
+            genreId,
+          })),
           skipDuplicates: true,
         });
       }
     }
 
     if (tagIds !== undefined) {
-      await tx.bookTag.deleteMany({ where: { bookId } });
+      await tx.bookTag.deleteMany({
+        where: { bookId },
+      });
+
       if (tagIds.length > 0) {
         await tx.bookTag.createMany({
-          data: tagIds.map((tagId) => ({ bookId, tagId })),
+          data: tagIds.map((tagId) => ({
+            bookId,
+            tagId,
+          })),
           skipDuplicates: true,
         });
       }
@@ -532,10 +621,19 @@ export async function deleteBook(
   writer: AuthPrincipal | undefined,
   bookId: string,
 ) {
-  const existing = await prisma.book.findUnique({ where: { id: bookId } });
-  if (!existing) throw new AppError(404, "BOOK_NOT_FOUND", "Book not found.");
+  const existing = await prisma.book.findUnique({
+    where: { id: bookId },
+  });
+
+  if (!existing) {
+    throw new AppError(404, "BOOK_NOT_FOUND", "Book not found.");
+  }
+
   assertAuthorOrAdmin(writer, existing.authorId);
-  await prisma.book.delete({ where: { id: bookId } });
+
+  await prisma.book.delete({
+    where: { id: bookId },
+  });
 }
 
 export async function getPublicChapters(bookId: string) {
@@ -598,18 +696,29 @@ export async function getChapterDetail(
   if (chapter.status !== "PUBLISHED") {
     throw new AppError(404, "CHAPTER_NOT_FOUND", "Chapter not found.");
   }
-  if (chapter.accessType !== "PREMIUM") return mapChapter(chapter, "FREE");
+
+  if (chapter.accessType !== "PREMIUM") {
+    return mapChapter(chapter, "FREE");
+  }
+
   if (chapter.book.status !== PUBLIC_BOOK_STATUS) {
     throw new AppError(404, "CHAPTER_NOT_FOUND", "Chapter not found.");
   }
 
   const entitlement = viewer
     ? await prisma.chapterEntitlement.findUnique({
-        where: { userId_chapterId: { userId: viewer.id, chapterId } },
+        where: {
+          userId_chapterId: {
+            userId: viewer.id,
+            chapterId,
+          },
+        },
       })
     : null;
+
   return mapChapter(chapter, entitlement ? "UNLOCKED" : "LOCKED");
 }
+
 export async function createChapter(
   writer: AuthPrincipal | undefined,
   bookId: string,
@@ -621,7 +730,9 @@ export async function createChapter(
     price?: number;
   },
 ) {
-  const book = await prisma.book.findUnique({ where: { id: bookId } });
+  const book = await prisma.book.findUnique({
+    where: { id: bookId },
+  });
 
   if (!book) {
     throw new AppError(404, "BOOK_NOT_FOUND", "Book not found.");
@@ -630,7 +741,12 @@ export async function createChapter(
   assertAuthorOrAdmin(writer, book.authorId);
 
   const duplicate = await prisma.chapter.findUnique({
-    where: { bookId_number: { bookId, number: input.number } },
+    where: {
+      bookId_number: {
+        bookId,
+        number: input.number,
+      },
+    },
   });
 
   if (duplicate) {
@@ -640,6 +756,8 @@ export async function createChapter(
       "A chapter with this number already exists for this book.",
     );
   }
+
+  const metrics = calculateChapterMetrics(input.content);
 
   const chapter = await prisma.$transaction(async (tx) => {
     const created = await tx.chapter.create({
@@ -651,13 +769,8 @@ export async function createChapter(
         status: "DRAFT",
         accessType: input.accessType ?? "FREE",
         price: input.price ?? 0,
-        wordCount: input.content.trim().split(/\s+/).filter(Boolean).length,
-        readingTime: Math.max(
-          1,
-          Math.ceil(
-            input.content.trim().split(/\s+/).filter(Boolean).length / 200,
-          ),
-        ),
+        wordCount: metrics.wordCount,
+        readingTime: metrics.readingTime,
       },
       include: {
         book: {
@@ -674,7 +787,11 @@ export async function createChapter(
 
     await tx.book.update({
       where: { id: bookId },
-      data: { totalChapters: { increment: 1 } },
+      data: {
+        totalChapters: {
+          increment: 1,
+        },
+      },
     });
 
     return created;
@@ -687,8 +804,14 @@ export async function getWriterChapters(
   writer: AuthPrincipal | undefined,
   bookId: string,
 ) {
-  const book = await prisma.book.findUnique({ where: { id: bookId } });
-  if (!book) throw new AppError(404, "BOOK_NOT_FOUND", "Book not found.");
+  const book = await prisma.book.findUnique({
+    where: { id: bookId },
+  });
+
+  if (!book) {
+    throw new AppError(404, "BOOK_NOT_FOUND", "Book not found.");
+  }
+
   assertAuthorOrAdmin(writer, book.authorId);
 
   const chapters = await prisma.chapter.findMany({
@@ -727,8 +850,11 @@ export async function updateChapter(
     where: { id: chapterId },
     include: { book: true },
   });
-  if (!chapter || chapter.bookId !== bookId)
+
+  if (!chapter || chapter.bookId !== bookId) {
     throw new AppError(404, "CHAPTER_NOT_FOUND", "Chapter not found.");
+  }
+
   assertAuthorOrAdmin(writer, chapter.book.authorId);
 
   if (input.status === "PUBLISHED" && writer?.role.toUpperCase() !== "ADMIN") {
@@ -741,21 +867,47 @@ export async function updateChapter(
 
   if (typeof input.number === "number" && input.number !== chapter.number) {
     const duplicate = await prisma.chapter.findUnique({
-      where: { bookId_number: { bookId, number: input.number } },
+      where: {
+        bookId_number: {
+          bookId,
+          number: input.number,
+        },
+      },
     });
-    if (duplicate && duplicate.id !== chapterId)
+
+    if (duplicate && duplicate.id !== chapterId) {
       throw new AppError(
         409,
         "CHAPTER_NUMBER_CONFLICT",
         "A chapter with this number already exists for this book.",
       );
+    }
   }
 
-  const data: Record<string, unknown> = { ...input };
+  const data: Record<string, unknown> = {
+    ...input,
+  };
+
+  /**
+   * Tiptap content is stored as serialized JSON.
+   * Calculate metrics from the actual readable text instead
+   * of counting the JSON syntax itself.
+   */
   if (typeof input.content === "string") {
-    data.wordCount = input.content.trim().split(/\s+/).filter(Boolean).length;
-    data.readingTime = Math.max(1, Math.ceil((data.wordCount as number) / 200));
+    const metrics = calculateChapterMetrics(input.content);
+
+    data.wordCount = metrics.wordCount;
+    data.readingTime = metrics.readingTime;
+
+    /**
+     * Existing contentVersion is used for optimistic/version tracking.
+     * Increment it whenever chapter content is saved.
+     */
+    data.contentVersion = {
+      increment: 1,
+    };
   }
+
   if (input.status === "PUBLISHED") {
     data.publishedAt = new Date();
   } else if (input.status === "UNPUBLISHED" || input.status === "DRAFT") {
@@ -790,33 +942,61 @@ export async function deleteChapter(
     where: { id: chapterId },
     include: { book: true },
   });
-  if (!chapter || chapter.bookId !== bookId)
+
+  if (!chapter || chapter.bookId !== bookId) {
     throw new AppError(404, "CHAPTER_NOT_FOUND", "Chapter not found.");
+  }
+
   assertAuthorOrAdmin(writer, chapter.book.authorId);
-  await prisma.chapter.delete({ where: { id: chapterId } });
+
+  await prisma.chapter.delete({
+    where: { id: chapterId },
+  });
+
   await prisma.book.update({
     where: { id: bookId },
-    data: { totalChapters: { decrement: 1 } },
+    data: {
+      totalChapters: {
+        decrement: 1,
+      },
+    },
   });
 }
 
 async function resolveAssociationIds(ids: string[], model: "Genre" | "Tag") {
   const normalized = [...new Set(ids.map((id) => id.trim()).filter(Boolean))];
-  if (normalized.length === 0) return [];
+
+  if (normalized.length === 0) {
+    return [];
+  }
 
   const records =
     model === "Genre"
       ? await prisma.genre.findMany({
-          where: { id: { in: normalized } },
-          select: { id: true },
+          where: {
+            id: {
+              in: normalized,
+            },
+          },
+          select: {
+            id: true,
+          },
         })
       : await prisma.tag.findMany({
-          where: { id: { in: normalized } },
-          select: { id: true },
+          where: {
+            id: {
+              in: normalized,
+            },
+          },
+          select: {
+            id: true,
+          },
         });
 
   const found = new Set(records.map((record: { id: string }) => record.id));
+
   const missing = normalized.filter((id) => !found.has(id));
+
   if (missing.length > 0) {
     throw new AppError(
       400,
@@ -830,5 +1010,6 @@ async function resolveAssociationIds(ids: string[], model: "Genre" | "Tag") {
       ],
     );
   }
+
   return normalized;
 }

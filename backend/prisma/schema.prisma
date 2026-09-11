@@ -100,7 +100,7 @@ model Chapter {
   bookId         String
   number         Int
   title          String
-  content        String
+  content String @db.LongText
   wordCount      Int       @default(0)
   readingTime    Int       @default(0)
   accessType     String    @default("FREE")
@@ -293,7 +293,7 @@ model ChapterLocalization {
   chapterId      String
   languageCode   String
   title String @db.VarChar(200)
-  content        String
+  content        String   @db.LongText
   contentFormat  String   @default("plain-text")
   status         String   @default("NOT_STARTED")
   sourceVersion  Int      @default(0)
