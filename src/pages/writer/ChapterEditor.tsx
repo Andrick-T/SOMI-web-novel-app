@@ -1,1133 +1,955 @@
-﻿import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, Bold, Clock, Eye, ImagePlus, Italic } from "lucide-react";
-import { useLocation } from "react-router-dom";
-import type { CommonProps } from "../../types";
+﻿import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { EditorContent, useEditor } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
+import Image from "@tiptap/extension-image";
+import Link from "@tiptap/extension-link";
+import TextAlign from "@tiptap/extension-text-align";
+import Underline from "@tiptap/extension-underline";
 import {
-  countWords,
-  createAutosaveState,
-  estimateReadingTime,
-  updateAutosaveState,
-  validateChapter,
-  writerRepository,
-} from "../../features/writer";
-import { ErrorState, StatusBadge } from "../../components/DesignPrimitives";
-import { statusToneFor } from "../../config/designSystem";
-import {
-  apiWriterRepository,
-  useApiWriterContent,
-} from "../../services/repositories/writerRepository";
-import { useAuth } from "../../app/auth";
-import ChapterContent from "../../components/reader/ChapterContent";
+  AlignCenter,
+  AlignJustify,
+  AlignLeft,
+  AlignRight,
+  ArrowLeft,
+  Bold,
+  Clock,
+  ImagePlus,
+  Italic,
+  Link as LinkIcon,
+  List,
+  ListOrdered,
+  Minus,
+  Quote,
+  Redo2,
+  Save,
+  Strikethrough,
+  Underline as UnderlineIcon,
+  Undo2,
+} from "lucide-react";
+import { useNavigate, useParams } from "react-router-dom";
 
-export default function ChapterEditor({ navigate }: CommonProps) {
-  const instanceIdRef = useRef(
-    `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-  );
+import { apiWriterRepository } from "../../services/repositories/writerRepository";
+import type { WriterBook, WriterChapter } from "../../features/writer/types";
 
-  const { pathname } = useLocation();
+const DRAFT_PREFIX = "somi-writer-draft";
 
-  const routeMatch = pathname.match(
+function parseRoute() {
+  const match = window.location.pathname.match(
     /^\/writer\/books\/([^/]+)\/chapters\/([^/]+)\/edit$/,
   );
 
-  const bookId = routeMatch?.[1];
-  const chapterId = routeMatch?.[2];
+  if (!match) {
+    return null;
+  }
 
-  const { isLoading: isAuthLoading } = useAuth();
+  return {
+    bookId: match[1],
+    chapterId: match[2],
+  };
+}
 
-  const textRef = useRef<HTMLTextAreaElement>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
-  const saveTimer = useRef<number | null>(null);
+function getWordCount(text: string) {
+  const normalized = text.replace(/\s+/g, " ").trim();
 
-  /*
-   * ============================================================
-   * AUTOSAVE CONCURRENCY STATE
-   * ============================================================
-   *
-   * Only one server save may exist at a time.
-   *
-   * If another save trigger occurs while a request is running,
-   * it joins the existing promise instead of creating another
-   * PATCH with the same/stale contentVersion.
-   */
-  const saveInFlight = useRef(false);
-  const saveQueued = useRef(false);
-  const savePromiseRef = useRef<Promise<void> | null>(null);
+  if (!normalized) {
+    return 0;
+  }
 
-  /*
-   * ============================================================
-   * AUTHORITATIVE LOCAL EDITOR STATE
-   * ============================================================
-   */
-  const titleRef = useRef("");
-  const contentRef = useRef("");
+  return normalized.split(" ").filter(Boolean).length;
+}
+
+function getReadingTime(wordCount: number) {
+  return Math.max(1, Math.ceil(wordCount / 200));
+}
+
+function getInitialContent(rawContent?: string | null) {
+  if (!rawContent) {
+    return "";
+  }
 
   /*
-   * The currently loaded chapter returned by the server.
+   * New SOMI chapters created with this editor will contain
+   * serialized Tiptap JSON.
+   *
+   * Existing chapters may still contain Markdown/plain text.
+   * For now we return those strings unchanged. Migration of
+   * existing Markdown will be handled separately.
    */
-  const chapterRef = useRef<
-    | Awaited<ReturnType<typeof apiWriterRepository.getChapter>>
-    | ReturnType<typeof writerRepository.getChapter>
-    | null
-  >(null);
+  try {
+    const parsed = JSON.parse(rawContent);
 
-  /*
-   * The server's authoritative optimistic-concurrency version.
-   *
-   * This is the ONLY version that may be sent as clientVersion.
-   */
-  const serverVersionRef = useRef<number | null>(null);
+    if (parsed && typeof parsed === "object" && parsed.type === "doc") {
+      return parsed;
+    }
+  } catch {
+    // Existing non-JSON chapter content.
+  }
 
-  /*
-   * Incremented for every local title/content modification.
-   *
-   * Example:
-   *
-   * editSequence = 7
-   * saveSequence = 7
-   *
-   * means the server save represents the current editor state.
-   */
-  const editSequenceRef = useRef(0);
+  return rawContent;
+}
 
-  /*
-   * The edit sequence that was most recently confirmed as persisted
-   * successfully by the server.
-   *
-   * This is critical for manual Save:
-   *
-   * If editSequenceRef.current === lastPersistedEditSequenceRef.current
-   * then there is nothing to save and the button must NOT issue another
-   * PATCH request.
-   */
-  const lastPersistedEditSequenceRef = useRef<number | null>(null);
+function ToolbarButton({
+  active = false,
+  disabled = false,
+  title,
+  onClick,
+  children,
+}: {
+  active?: boolean;
+  disabled?: boolean;
+  title: string;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      className={`somi-editor-tool ${active ? "somi-editor-tool-active" : ""}`}
+      disabled={disabled}
+      title={title}
+      aria-label={title}
+      onMouseDown={(event) => {
+        event.preventDefault();
+        onClick();
+      }}
+    >
+      {children}
+    </button>
+  );
+}
 
-  /*
-   * Protects the editor against an older asynchronous load applying
-   * after a newer load has already started.
-   */
-  const loadGenerationRef = useRef(0);
+export default function ChapterEditor() {
+  const navigate = useNavigate();
+  const params = useParams();
 
-  const [currentBook, setCurrentBook] = useState<
-    | Awaited<ReturnType<typeof apiWriterRepository.getBook>>
-    | ReturnType<typeof writerRepository.getBook>
-  >();
+  const route = useMemo(() => {
+    const parsed = parseRoute();
 
-  useEffect(() => {
-    console.log(`[ChapterEditor ${instanceIdRef.current}] MOUNT`, {
-      bookId,
-      chapterId,
-    });
-
-    return () => {
-      console.log(`[ChapterEditor ${instanceIdRef.current}] UNMOUNT`, {
-        bookId,
-        chapterId,
-      });
+    return {
+      bookId: params.bookId || parsed?.bookId || "",
+      chapterId: params.chapterId || parsed?.chapterId || "",
     };
-  }, [bookId, chapterId]);
+  }, [params.bookId, params.chapterId]);
 
-  const startingChapter =
-    currentBook && chapterId
-      ? currentBook.chapters.find((entry) => entry.id === chapterId)
-      : currentBook?.chapters[0];
+  const { bookId, chapterId } = route;
 
-  const [chapter, setChapter] = useState(startingChapter ?? null);
-  const [title, setTitle] = useState(startingChapter?.title ?? "");
-  const [content, setContent] = useState(startingChapter?.content ?? "");
-  const [notes, setNotes] = useState("");
-  const [previewMode, setPreviewMode] = useState(false);
-  const [saveState, setSaveState] = useState(createAutosaveState());
-  const [errors, setErrors] = useState<string[]>([]);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [book, setBook] = useState<WriterBook | null>(null);
+  const [chapter, setChapter] = useState<WriterChapter | null>(null);
+
+  const [title, setTitle] = useState("");
+  const [wordCount, setWordCount] = useState(0);
+
+  const [saveState, setSaveState] = useState<
+    "idle" | "saving" | "saved" | "error"
+  >("idle");
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [assetError, setAssetError] = useState<string | null>(null);
+  const [previewMode, setPreviewMode] = useState(false);
 
-  const recoveryKey =
-    bookId && chapterId ? `somi-writer-draft:${bookId}:${chapterId}` : "";
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const localDraftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const titleRef = useRef(title);
+
+  useEffect(() => {
+    titleRef.current = title;
+  }, [title]);
+
+  const editor = useEditor({
+    extensions: [
+      StarterKit.configure({
+        heading: {
+          levels: [1, 2, 3],
+        },
+      }),
+
+      TextAlign.configure({
+        types: ["heading", "paragraph"],
+      }),
+
+      Link.configure({
+        openOnClick: false,
+        autolink: true,
+        linkOnPaste: true,
+        HTMLAttributes: {
+          class: "somi-editor-link",
+          rel: "noopener noreferrer",
+          target: "_blank",
+        },
+      }),
+
+      Image.configure({
+        inline: false,
+        allowBase64: false,
+        HTMLAttributes: {
+          class: "somi-editor-image",
+        },
+      }),
+
+      Underline,
+    ],
+
+    content: "",
+
+    editorProps: {
+      attributes: {
+        class: "somi-editor-prose",
+        spellcheck: "true",
+      },
+    },
+
+    onUpdate: ({ editor: currentEditor }) => {
+      const json = currentEditor.getJSON();
+      const text = currentEditor.getText();
+
+      setWordCount(getWordCount(text));
+      setSaveState("idle");
+
+      if (localDraftTimer.current) {
+        clearTimeout(localDraftTimer.current);
+      }
+
+      localDraftTimer.current = setTimeout(() => {
+        try {
+          localStorage.setItem(
+            `${DRAFT_PREFIX}:${bookId}:${chapterId}`,
+            JSON.stringify({
+              title: titleRef.current,
+              content: json,
+              updatedAt: new Date().toISOString(),
+            }),
+          );
+        } catch {
+          // Local recovery is best-effort.
+        }
+      }, 500);
+    },
+  });
+
+  const readingTime = useMemo(() => getReadingTime(wordCount), [wordCount]);
 
   /*
-   * ============================================================
-   * LOAD CHAPTER
-   * ============================================================
-   *
-   * Every load gets a generation number.
-   *
-   * An older asynchronous load is never allowed to overwrite the
-   * state established by a newer load.
+   * Save the current editor state through the repository's
+   * actual saveChapterDraft contract.
+   */
+  const persistChapter = useCallback(
+    async (nextTitle: string, editorInstance = editor) => {
+      if (!editorInstance || !chapter || !bookId || !chapterId) {
+        return;
+      }
+
+      setSaveState("saving");
+      setError(null);
+
+      const content = JSON.stringify(editorInstance.getJSON());
+
+      const chapterToSave: WriterChapter = {
+        ...chapter,
+        id: chapterId,
+        bookId,
+        title: nextTitle,
+        content,
+        wordCount: getWordCount(editorInstance.getText()),
+        readingTime: getReadingTime(getWordCount(editorInstance.getText())),
+      };
+
+      try {
+        const result = await apiWriterRepository.saveChapterDraft(
+          bookId,
+          chapterToSave,
+        );
+
+        setChapter(result);
+
+        setSaveState("saved");
+
+        window.setTimeout(() => {
+          setSaveState((current) => (current === "saved" ? "idle" : current));
+        }, 1800);
+      } catch (err) {
+        console.error(err);
+        setSaveState("error");
+        setError("Unable to save this chapter. Please try again.");
+      }
+    },
+    [bookId, chapter, chapterId, editor],
+  );
+
+  const scheduleAutosave = useCallback(
+    (nextTitle: string, editorInstance = editor) => {
+      if (!editorInstance || !chapter) {
+        return;
+      }
+
+      if (saveTimer.current) {
+        clearTimeout(saveTimer.current);
+      }
+
+      saveTimer.current = setTimeout(() => {
+        void persistChapter(nextTitle, editorInstance);
+      }, 1200);
+    },
+    [chapter, editor, persistChapter],
+  );
+
+  /*
+   * Load the book and the exact chapter using the actual
+   * repository methods.
    */
   useEffect(() => {
-    if (useApiWriterContent && isAuthLoading) return;
-
-    const loadGeneration = ++loadGenerationRef.current;
     let cancelled = false;
 
-    /*
-     * A new load invalidates a pending debounce timer.
-     *
-     * We deliberately do NOT clear savePromiseRef here.
-     * A load must never silently destroy the save lock.
-     */
-    if (saveTimer.current) {
-      window.clearTimeout(saveTimer.current);
-      saveTimer.current = null;
-    }
+    async function load() {
+      if (!bookId || !chapterId) {
+        setError("Chapter not found.");
+        setLoading(false);
+        return;
+      }
 
-    const load = async () => {
       try {
-        console.log(`[ChapterEditor ${instanceIdRef.current}] LOAD START`, {
-          bookId,
-          chapterId,
-          loadGeneration,
-        });
+        setLoading(true);
+        setError(null);
 
-        const loadedBook = bookId
-          ? useApiWriterContent
-            ? await apiWriterRepository.getBook(bookId)
-            : writerRepository.getBook(bookId)
-          : undefined;
+        const [books, foundChapter] = await Promise.all([
+          apiWriterRepository.getWriterBooks(),
+          apiWriterRepository.getChapter(bookId, chapterId),
+        ]);
 
-        if (cancelled || loadGeneration !== loadGenerationRef.current) {
+        if (cancelled) {
           return;
         }
 
-        setCurrentBook(loadedBook);
+        const foundBook = books.find((item) => item.id === bookId) || null;
 
-        const nextChapter =
-          loadedBook && bookId && chapterId
-            ? useApiWriterContent
-              ? await apiWriterRepository.getChapter(bookId, chapterId)
-              : writerRepository.getChapter(bookId, chapterId)
-            : loadedBook?.chapters[0];
+        setBook(foundBook);
+        setChapter(foundChapter || null);
 
-        if (cancelled || loadGeneration !== loadGenerationRef.current) {
+        if (!foundChapter) {
+          setError("Chapter not found.");
           return;
         }
 
-        const recovered = recoveryKey
-          ? (JSON.parse(window.localStorage.getItem(recoveryKey) ?? "null") as {
-              title?: string;
-              content?: string;
-              updatedAt?: string;
-            } | null)
-          : null;
+        const draftKey = `${DRAFT_PREFIX}:${bookId}:${chapterId}`;
 
-        const useRecovery = Boolean(
-          recovered?.updatedAt &&
-          nextChapter?.updatedAt &&
-          recovered.updatedAt > nextChapter.updatedAt,
-        );
+        const localDraft = localStorage.getItem(draftKey);
 
-        const nextTitle = useRecovery
-          ? (recovered?.title ?? "")
-          : (nextChapter?.title ?? "");
+        let draft: {
+          title?: string;
+          content?: unknown;
+        } | null = null;
 
-        const nextContent = useRecovery
-          ? (recovered?.content ?? "")
-          : (nextChapter?.content ?? "");
+        if (localDraft) {
+          try {
+            draft = JSON.parse(localDraft);
+          } catch {
+            draft = null;
+          }
+        }
 
-        console.log(`[ChapterEditor ${instanceIdRef.current}] LOAD APPLY`, {
-          loadGeneration,
-          loadedVersion: nextChapter?.contentVersion ?? null,
-          currentServerVersion: serverVersionRef.current,
-          saveInFlight: saveInFlight.current,
-          savePromiseExists: Boolean(savePromiseRef.current),
-        });
+        const nextTitle = draft?.title ?? foundChapter.title ?? "";
 
-        chapterRef.current = nextChapter ?? null;
+        const nextContent =
+          draft?.content ?? getInitialContent(foundChapter.content);
 
-        /*
-         * Establish the authoritative server version.
-         */
-        serverVersionRef.current = nextChapter?.contentVersion ?? null;
-
-        titleRef.current = nextTitle;
-        contentRef.current = nextContent;
-
-        editSequenceRef.current = 0;
-
-        /*
-         * The freshly loaded server state is clean.
-         */
-        lastPersistedEditSequenceRef.current = 0;
-
-        /*
-         * Do not reset savePromiseRef here.
-         *
-         * A load must never erase an active save lock.
-         */
-        saveQueued.current = false;
-
-        setChapter(nextChapter ?? null);
         setTitle(nextTitle);
-        setContent(nextContent);
+        titleRef.current = nextTitle;
 
-        setSaveState(createAutosaveState());
-        setErrors([]);
-        setLoadError(null);
+        if (editor) {
+          if (
+            nextContent &&
+            typeof nextContent === "object" &&
+            "type" in nextContent
+          ) {
+            editor.commands.setContent(
+              nextContent as Parameters<typeof editor.commands.setContent>[0],
+            );
+          } else if (typeof nextContent === "string") {
+            /*
+             * Existing Markdown/plain-text content.
+             *
+             * We deliberately do not treat it as Tiptap
+             * formatting yet. Existing-content migration will
+             * be handled separately.
+             */
+            editor.commands.setContent(nextContent);
+          }
 
-        console.log(
-          `[ChapterEditor ${instanceIdRef.current}] VERSION INITIALIZED`,
-          {
-            loadGeneration,
-            serverVersion: serverVersionRef.current,
-          },
-        );
-      } catch (caught) {
-        if (!cancelled && loadGeneration === loadGenerationRef.current) {
-          setLoadError(
-            caught instanceof Error
-              ? caught.message
-              : "Unable to load chapter.",
-          );
+          setWordCount(getWordCount(editor.getText()));
+        }
+      } catch (err) {
+        console.error(err);
+
+        if (!cancelled) {
+          setError("Unable to load this chapter.");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
         }
       }
-    };
+    }
 
-    void load();
+    if (editor) {
+      void load();
+    }
 
     return () => {
       cancelled = true;
-
-      if (saveTimer.current) {
-        window.clearTimeout(saveTimer.current);
-        saveTimer.current = null;
-      }
     };
-  }, [bookId, chapterId, isAuthLoading, pathname, recoveryKey]);
+  }, [bookId, chapterId, editor]);
 
   /*
-   * ============================================================
-   * UNMOUNT CLEANUP
-   * ============================================================
+   * Cleanup timers.
    */
   useEffect(() => {
     return () => {
       if (saveTimer.current) {
-        window.clearTimeout(saveTimer.current);
-        saveTimer.current = null;
+        clearTimeout(saveTimer.current);
+      }
+
+      if (localDraftTimer.current) {
+        clearTimeout(localDraftTimer.current);
       }
     };
   }, []);
 
-  const wordCount = countWords(content);
-  const readTime = estimateReadingTime(wordCount);
+  /*
+   * Autosave when the chapter title changes.
+   */
+  useEffect(() => {
+    if (!editor || loading || !chapter) {
+      return;
+    }
+
+    scheduleAutosave(title, editor);
+  }, [title, editor, loading, chapter, scheduleAutosave]);
+
+  const handleTitleChange = (value: string) => {
+    setTitle(value);
+    titleRef.current = value;
+
+    if (editor && !loading && chapter) {
+      scheduleAutosave(value, editor);
+    }
+  };
+
+  const handleManualSave = async () => {
+    await persistChapter(title, editor);
+  };
+
+  const handleBack = () => {
+    navigate(`/writer/books/${bookId}`);
+  };
+
+  const handleAddLink = () => {
+    if (!editor) {
+      return;
+    }
+
+    const previousUrl = editor.getAttributes("link").href;
+
+    const url = window.prompt("Enter the URL", previousUrl || "https://");
+
+    if (url === null) {
+      return;
+    }
+
+    if (url.trim() === "") {
+      editor.chain().focus().unsetLink().run();
+      return;
+    }
+
+    editor
+      .chain()
+      .focus()
+      .extendMarkRange("link")
+      .setLink({
+        href: url.trim(),
+      })
+      .run();
+
+    scheduleAutosave(title, editor);
+  };
 
   /*
-   * ============================================================
-   * PERSIST CHAPTER
-   * ============================================================
-   *
-   * Rules:
-   *
-   * 1. Never create two simultaneous API saves.
-   * 2. Always use the authoritative serverVersionRef.
-   * 3. Adopt the server's returned contentVersion after success.
-   * 4. If edits occurred during a successful request, preserve them
-   *    and schedule exactly one follow-up save.
-   * 5. A 409 is NOT automatically retried.
-   * 6. Manual Save does NOT send a redundant PATCH if the current
-   *    editor state has already been successfully persisted.
+   * Upload an illustration using the repository's actual
+   * uploadAsset(bookId, chapterId, file, metadata) contract.
    */
-  const persistChapter = async (
-    source: "autosave-timer" | "manual-save",
-  ): Promise<void> => {
-    console.log(`[ChapterEditor ${instanceIdRef.current}] persistChapter`, {
-      source,
-      savePromiseExists: Boolean(savePromiseRef.current),
-      saveInFlight: saveInFlight.current,
-      serverVersion: serverVersionRef.current,
-      editSequence: editSequenceRef.current,
-      lastPersistedEditSequence: lastPersistedEditSequenceRef.current,
-    });
-
-    if (!bookId) return;
-
-    const currentChapter = chapterRef.current;
-
-    if (!currentChapter) return;
-
-    /*
-     * ------------------------------------------------------------
-     * Existing save
-     * ------------------------------------------------------------
-     *
-     * Manual Save or another autosave joins the exact operation.
-     */
-    if (savePromiseRef.current) {
-      saveQueued.current = true;
-
-      console.log(
-        `[ChapterEditor ${instanceIdRef.current}] JOIN EXISTING SAVE`,
-        {
-          source,
-          serverVersion: serverVersionRef.current,
-          editSequence: editSequenceRef.current,
-        },
-      );
-
-      return savePromiseRef.current;
-    }
-
-    /*
-     * ------------------------------------------------------------
-     * Nothing dirty
-     * ------------------------------------------------------------
-     *
-     * This is the critical fix for the Save draft button.
-     *
-     * If the latest editor state has already been confirmed by the
-     * server, do NOT send another PATCH.
-     */
-    if (
-      source === "manual-save" &&
-      lastPersistedEditSequenceRef.current === editSequenceRef.current
-    ) {
-      console.log(
-        `[ChapterEditor ${instanceIdRef.current}] MANUAL SAVE SKIPPED`,
-        {
-          reason: "current editor state already persisted",
-          editSequence: editSequenceRef.current,
-          lastPersistedEditSequence: lastPersistedEditSequenceRef.current,
-          serverVersion: serverVersionRef.current,
-        },
-      );
-
-      setSaveState((current) => updateAutosaveState(current, "SAVED"));
-
+  const handleAddImage = async () => {
+    if (!editor || !bookId || !chapterId) {
       return;
     }
 
-    /*
-     * Cancel any pending debounce because we are saving now.
-     */
-    if (saveTimer.current) {
-      window.clearTimeout(saveTimer.current);
-      saveTimer.current = null;
-    }
+    const input = document.createElement("input");
 
-    const currentTitle = titleRef.current;
-    const currentContent = textRef.current?.value ?? contentRef.current;
+    input.type = "file";
+    input.accept = "image/*";
 
-    const validation = validateChapter({
-      title: currentTitle,
-      content: currentContent,
-      number: currentChapter.number,
-      price: currentChapter.price,
-      accessType: currentChapter.accessType,
-    });
+    input.onchange = async () => {
+      const file = input.files?.[0];
 
-    if (!validation.isValid) {
-      setErrors(validation.errors.map((error) => error.message));
-
-      setSaveState((current) => updateAutosaveState(current, "ERROR"));
-
-      return;
-    }
-
-    const requestVersion = serverVersionRef.current;
-
-    console.log(`[ChapterEditor ${instanceIdRef.current}] SAVE VERSION`, {
-      source,
-      requestVersion,
-      serverVersionRef: serverVersionRef.current,
-      editSequence: editSequenceRef.current,
-      lastPersistedEditSequence: lastPersistedEditSequenceRef.current,
-    });
-
-    /*
-     * Server-backed chapters must always have an authoritative
-     * concurrency version.
-     */
-    if (useApiWriterContent && requestVersion === null) {
-      setErrors([
-        "Unable to determine the chapter version. Please reload the chapter.",
-      ]);
-
-      setSaveState((current) => updateAutosaveState(current, "ERROR"));
-
-      return;
-    }
-
-    const saveSequence = editSequenceRef.current;
-
-    const nextChapter = {
-      ...currentChapter,
-      title: currentTitle.trim() || "Untitled chapter",
-      content: currentContent,
-      wordCount: countWords(currentContent),
-      readingTime: estimateReadingTime(countWords(currentContent)),
-      updatedAt: new Date().toISOString(),
-      status: "EDITING" as const,
-    };
-
-    /*
-     * ============================================================
-     * LOCAL / MOCK MODE
-     * ============================================================
-     */
-    if (!useApiWriterContent) {
-      writerRepository.saveChapterDraft(bookId, nextChapter);
-
-      if (currentBook) {
-        const draft = currentBook.draft ?? {
-          id: `draft-${bookId}`,
-          bookId,
-          writerId: currentBook.writerId,
-          version: 1,
-          title: currentBook.title,
-          synopsis: currentBook.synopsis,
-          genres: currentBook.genres,
-          tags: currentBook.tags,
-          cover: currentBook.cover,
-          updatedAt: new Date().toISOString(),
-          status: "EDITING",
-        };
-
-        writerRepository.updateBookDraft(bookId, {
-          ...draft,
-          title: currentTitle.trim() || currentBook.title,
-          synopsis: currentBook.synopsis,
-          genres: currentBook.genres,
-          tags: currentBook.tags,
-          cover: currentBook.cover,
-          updatedAt: new Date().toISOString(),
-          status: "EDITING",
-        });
+      if (!file) {
+        return;
       }
-
-      lastPersistedEditSequenceRef.current = saveSequence;
-
-      setErrors([]);
-      setChapter(nextChapter);
-      chapterRef.current = nextChapter;
-
-      setSaveState((current) => updateAutosaveState(current, "SAVED"));
-
-      return;
-    }
-
-    /*
-     * ============================================================
-     * API MODE
-     * ============================================================
-     */
-
-    saveInFlight.current = true;
-    saveQueued.current = false;
-
-    setSaveState((current) => updateAutosaveState(current, "SAVING"));
-
-    /*
-     * The promise is stored before any caller can create another
-     * save operation.
-     */
-    const saveOperation = (async () => {
-      let saveSucceeded = false;
 
       try {
-        const requestChapter = {
-          ...nextChapter,
-          contentVersion: requestVersion as number,
-        };
+        setAssetError(null);
 
-        console.log(
-          `[ChapterEditor ${instanceIdRef.current}] API SAVE REQUEST`,
-          {
-            source,
-            clientVersion: requestChapter.contentVersion,
-            saveSequence,
-            currentEditSequence: editSequenceRef.current,
-          },
-        );
-
-        const savedChapter = await apiWriterRepository.autosaveChapter(
+        const result = await apiWriterRepository.uploadAsset(
           bookId,
-          requestChapter,
-        );
-
-        saveSucceeded = true;
-
-        console.log(`[ChapterEditor ${instanceIdRef.current}] SAVE RESPONSE`, {
-          source,
-          requestVersion,
-          responseVersion: savedChapter.contentVersion,
-          editSequenceAtRequest: saveSequence,
-          currentEditSequence: editSequenceRef.current,
-        });
-
-        /*
-         * --------------------------------------------------------
-         * SERVER VERSION
-         * --------------------------------------------------------
-         *
-         * The response is authoritative.
-         */
-        serverVersionRef.current = savedChapter.contentVersion;
-
-        console.log(
-          `[ChapterEditor ${instanceIdRef.current}] VERSION REF UPDATED`,
+          chapterId,
+          file,
           {
-            source,
-            serverVersion: serverVersionRef.current,
+            altText: file.name,
           },
         );
 
-        const hasNewerLocalEdits = editSequenceRef.current !== saveSequence;
-
-        if (hasNewerLocalEdits) {
-          /*
-           * The server now contains saveSequence, but the editor
-           * contains newer local edits.
-           *
-           * Do NOT mark the current editor state as persisted.
-           */
-          chapterRef.current = {
-            ...savedChapter,
-            title: titleRef.current,
-            content: contentRef.current,
-            wordCount: countWords(contentRef.current),
-            readingTime: estimateReadingTime(countWords(contentRef.current)),
-          };
-
-          saveQueued.current = true;
-
-          setSaveState((current) => updateAutosaveState(current, "DIRTY"));
-
-          console.log(
-            `[ChapterEditor ${instanceIdRef.current}] NEWER LOCAL EDITS DETECTED`,
-            {
-              persistedSequence: saveSequence,
-              currentEditSequence: editSequenceRef.current,
-              serverVersion: serverVersionRef.current,
-            },
-          );
-        } else {
-          /*
-           * The server response represents the current editor state.
-           */
-          chapterRef.current = savedChapter;
-
-          titleRef.current = savedChapter.title;
-          contentRef.current = savedChapter.content;
-
-          setChapter(savedChapter);
-          setTitle(savedChapter.title);
-          setContent(savedChapter.content);
-
-          /*
-           * This is the critical state used by manual Save.
-           */
-          lastPersistedEditSequenceRef.current = saveSequence;
-
-          if (recoveryKey) {
-            window.localStorage.removeItem(recoveryKey);
-          }
-
-          setErrors([]);
-
-          setSaveState((current) => updateAutosaveState(current, "SAVED"));
-
-          console.log(
-            `[ChapterEditor ${instanceIdRef.current}] EDITOR STATE PERSISTED`,
-            {
-              persistedEditSequence: lastPersistedEditSequenceRef.current,
-              serverVersion: serverVersionRef.current,
-            },
-          );
+        if (!result?.url) {
+          throw new Error("Image upload did not return a URL.");
         }
-      } catch (caught) {
-        const message =
-          caught instanceof Error ? caught.message : "Unable to save chapter.";
 
-        setErrors([message]);
+        editor
+          .chain()
+          .focus()
+          .setImage({
+            src: result.url,
+            alt: file.name,
+          })
+          .run();
 
-        setSaveState((current) => updateAutosaveState(current, "ERROR"));
+        scheduleAutosave(title, editor);
+      } catch (err) {
+        console.error(err);
 
-        /*
-         * A 409 is deliberately NOT retried.
-         *
-         * The client does not know that its local snapshot is still
-         * safe to overwrite the server with.
-         */
-        saveQueued.current = false;
-
-        console.error(`[ChapterEditor ${instanceIdRef.current}] SAVE FAILED`, {
-          source,
-          requestVersion,
-          serverVersion: serverVersionRef.current,
-          editSequence: editSequenceRef.current,
-          error: message,
-        });
-      } finally {
-        saveInFlight.current = false;
-
-        /*
-         * If newer edits happened while the request was running,
-         * schedule exactly one follow-up save.
-         */
-        if (saveSucceeded && saveQueued.current) {
-          saveQueued.current = false;
-
-          if (saveTimer.current) {
-            window.clearTimeout(saveTimer.current);
-          }
-
-          saveTimer.current = window.setTimeout(() => {
-            saveTimer.current = null;
-
-            void persistChapter("autosave-timer");
-          }, 150);
-        }
+        setAssetError("Unable to upload this image.");
       }
-    })();
+    };
 
-    /*
-     * Publish the active save promise.
-     *
-     * Any subsequent Save draft click or autosave trigger will
-     * join this promise rather than creating another request.
-     */
-    savePromiseRef.current = saveOperation;
-
-    try {
-      await saveOperation;
-    } finally {
-      /*
-       * Only the exact operation that owns this promise may clear it.
-       */
-      if (savePromiseRef.current === saveOperation) {
-        savePromiseRef.current = null;
-      }
-    }
+    input.click();
   };
 
-  /*
-   * ============================================================
-   * SCHEDULE AUTOSAVE
-   * ============================================================
-   */
-  const scheduleAutosave = () => {
-    const latestTitle = titleRef.current;
-
-    const latestContent = textRef.current?.value ?? contentRef.current;
-
-    /*
-     * Every title/content modification creates a new local
-     * editor state.
-     */
-    editSequenceRef.current += 1;
-
-    setSaveState((current) => updateAutosaveState(current, "DIRTY"));
-
-    /*
-     * Recovery storage remains until the corresponding state has
-     * definitely been persisted.
-     */
-    if (recoveryKey) {
-      window.localStorage.setItem(
-        recoveryKey,
-        JSON.stringify({
-          title: latestTitle,
-          content: latestContent,
-          updatedAt: new Date().toISOString(),
-        }),
-      );
-    }
-
-    console.log(`[ChapterEditor ${instanceIdRef.current}] scheduleAutosave`, {
-      saveInFlight: saveInFlight.current,
-      savePromiseExists: Boolean(savePromiseRef.current),
-      serverVersion: serverVersionRef.current,
-      editSequence: editSequenceRef.current,
-      lastPersistedEditSequence: lastPersistedEditSequenceRef.current,
-    });
-
-    /*
-     * If a save is already running, don't start another timer.
-     *
-     * The running save will detect the newer edit and schedule
-     * exactly one follow-up save.
-     */
-    if (saveInFlight.current) {
-      saveQueued.current = true;
+  const handleImageUrl = () => {
+    if (!editor) {
       return;
     }
 
-    if (saveTimer.current) {
-      window.clearTimeout(saveTimer.current);
-    }
+    const url = window.prompt("Image URL");
 
-    saveTimer.current = window.setTimeout(() => {
-      saveTimer.current = null;
-
-      void persistChapter("autosave-timer");
-    }, 850);
-  };
-
-  /*
-   * ============================================================
-   * TEXT FORMATTING
-   * ============================================================
-   */
-  const insertFormat = (prefix: string, suffix = prefix) => {
-    const textarea = textRef.current;
-
-    if (!textarea) return;
-
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-
-    const currentContent = textRef.current?.value ?? contentRef.current;
-
-    const selectedText = currentContent.slice(start, end);
-
-    const nextText = `${currentContent.slice(
-      0,
-      start,
-    )}${prefix}${selectedText}${suffix}${currentContent.slice(end)}`;
-
-    contentRef.current = nextText;
-    setContent(nextText);
-
-    scheduleAutosave();
-  };
-
-  /*
-   * ============================================================
-   * IMAGE UPLOAD
-   * ============================================================
-   */
-  const uploadIllustration = async (file: File) => {
-    if (!bookId || !chapterRef.current || !useApiWriterContent) {
+    if (!url?.trim()) {
       return;
     }
 
-    setAssetError(null);
+    editor
+      .chain()
+      .focus()
+      .setImage({
+        src: url.trim(),
+      })
+      .run();
 
-    try {
-      const uploaded = await apiWriterRepository.uploadAsset(
-        bookId,
-        chapterRef.current.id,
-        file,
-        {
-          altText: file.name.replace(/\.[^.]+$/, "") || "Chapter illustration",
-        },
-      );
-
-      /*
-       * Read the latest editor content only after the upload
-       * has completed.
-       */
-      const currentContent = textRef.current?.value ?? contentRef.current;
-
-      const marker = `![${uploaded.asset.altText}](asset:${uploaded.asset.id})`;
-
-      const nextContent = `${currentContent}${
-        currentContent ? "\n\n" : ""
-      }${marker}`;
-
-      contentRef.current = nextContent;
-      setContent(nextContent);
-
-      /*
-       * The asset marker is a genuine content modification.
-       */
-      scheduleAutosave();
-    } catch (caught) {
-      setAssetError(
-        caught instanceof Error
-          ? caught.message
-          : "Unable to upload illustration.",
-      );
-    }
+    scheduleAutosave(title, editor);
   };
 
-  if (!chapter) {
-    return <ErrorState title={loadError ?? "Chapter not found"} />;
+  if (loading) {
+    return (
+      <div className="somi-editor">
+        <div className="somi-editor-loading">Loading chapter…</div>
+      </div>
+    );
   }
 
   return (
-    <div
-      className="flex flex-col min-h-full"
-      style={{
-        background: "var(--color-background)",
-      }}
-    >
-      <div
-        className="flex items-center gap-3 px-4 pt-10 pb-3 sticky top-0 z-10"
-        style={{
-          background: "var(--color-background)",
-          borderBottom: "1px solid var(--color-border-subtle)",
-        }}
-      >
-        <button
-          onClick={() => navigate("writer-books")}
-          className="p-1.5"
-          aria-label="Back to books"
-        >
-          {" "}
-          <ArrowLeft size={20} color="var(--color-accent-primary)" />{" "}
-        </button>
+    <div className="somi-editor">
+      <header className="somi-editor-header">
+        <div className="somi-editor-header-main">
+          <button
+            type="button"
+            className="somi-editor-back"
+            onClick={handleBack}
+            aria-label="Back to book"
+          >
+            <ArrowLeft size={18} />
+          </button>
 
-        <div className="flex-1 min-w-0">
-          <input
-            value={title}
-            onChange={(event) => {
-              const value = event.target.value;
+          <div className="somi-editor-heading">
+            <div className="somi-editor-eyebrow">
+              {book?.title || "Book"} · Chapter editor
+            </div>
 
-              titleRef.current = value;
-              setTitle(value);
-
-              scheduleAutosave();
-            }}
-            className="w-full bg-transparent text-sm font-display font-semibold outline-none truncate"
-            style={{ color: "#f0ece4" }}
-            placeholder="Chapter title"
-          />
-
-          <div className="flex items-center gap-2 mt-0.5">
-            <span className="text-[9px]" style={{ color: "#4a6540" }}>
-              {wordCount.toLocaleString()} words
-            </span>
-
-            <span style={{ color: "#2a3525" }}>·</span>
-
-            {saveState.status === "SAVED" && (
-              <StatusBadge
-                label="Saved"
-                tone={statusToneFor("SAVED")}
-                compact
-              />
-            )}
-
-            {saveState.status === "SAVING" && (
-              <span
-                className="flex items-center gap-1 text-[9px]"
-                style={{ color: "#6a8060" }}
-              >
-                <Clock size={8} />
-                Saving…
+            <div className="somi-editor-heading-meta">
+              <span>
+                <Clock size={14} />
+                {readingTime} min read
               </span>
-            )}
 
-            {saveState.status === "DIRTY" && (
-              <span className="text-[9px]" style={{ color: "#fbbf24" }}>
-                Unsaved
-              </span>
-            )}
-
-            {saveState.status === "ERROR" && (
-              <span className="text-[9px]" style={{ color: "#fb7185" }}>
-                {saveState.error ?? "Autosave failed"}
-              </span>
-            )}
-
-            <span className="text-[9px]" style={{ color: "#4a6540" }}>
-              {readTime} min read
-            </span>
+              <span>{wordCount.toLocaleString()} words</span>
+            </div>
           </div>
         </div>
 
-        <button
-          onClick={() => setPreviewMode((value) => !value)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold active:scale-95"
-          style={{
-            background: previewMode ? "#4ade80" : "#1e2118",
-            color: previewMode ? "#0d1208" : "#4ade80",
-          }}
-        >
-          <Eye size={12} />
-          {previewMode ? "Edit" : "Preview"}
-        </button>
-      </div>
-
-      {!previewMode ? (
-        <>
+        <div className="somi-editor-header-actions">
           <div
-            className="flex items-center gap-1 px-4 py-2 sticky z-10"
-            style={{
-              top: 77,
-              background: "#131510",
-              borderBottom: "1px solid #1e2118",
-            }}
+            className={`somi-editor-save-state somi-editor-save-${saveState}`}
           >
-            {[
-              {
-                icon: <Bold size={14} />,
-                action: () => insertFormat("**"),
-              },
-              {
-                icon: <Italic size={14} />,
-                action: () => insertFormat("_"),
-              },
-            ].map((item, index) => (
-              <button
-                key={index}
-                onClick={item.action}
-                className="w-9 h-9 flex items-center justify-center rounded-lg active:scale-90 transition-transform"
-                style={{
-                  color: "#4ade80",
-                  background: "#1e2118",
-                }}
-                type="button"
-              >
-                {item.icon}
-              </button>
-            ))}
+            {saveState === "saving" && "Saving…"}
+            {saveState === "saved" && "Saved"}
+            {saveState === "error" && "Save failed"}
+            {saveState === "idle" && "Autosave on"}
+          </div>
 
-            {useApiWriterContent && (
-              <>
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  className="hidden"
+          <button
+            type="button"
+            className="somi-editor-header-button"
+            onClick={() => setPreviewMode((value) => !value)}
+          >
+            <span>{previewMode ? "Edit" : "Preview"}</span>
+          </button>
+
+          <button
+            type="button"
+            className="somi-editor-header-button somi-editor-header-button-primary"
+            onClick={handleManualSave}
+            disabled={saveState === "saving" || !chapter}
+          >
+            <Save size={15} />
+            <span>Save</span>
+          </button>
+        </div>
+      </header>
+
+      <div className="somi-editor-workspace">
+        <div className="somi-editor-writing-column">
+          {!previewMode && (
+            <div className="somi-editor-toolbar">
+              <div className="somi-editor-toolbar-group">
+                <select
+                  className="somi-editor-format-select"
+                  value={
+                    editor?.isActive("heading", {
+                      level: 1,
+                    })
+                      ? "h1"
+                      : editor?.isActive("heading", {
+                            level: 2,
+                          })
+                        ? "h2"
+                        : editor?.isActive("heading", {
+                              level: 3,
+                            })
+                          ? "h3"
+                          : "paragraph"
+                  }
                   onChange={(event) => {
-                    const file = event.target.files?.[0];
-
-                    if (file) {
-                      void uploadIllustration(file);
+                    if (!editor) {
+                      return;
                     }
 
-                    event.target.value = "";
-                  }}
-                />
+                    const value = event.target.value;
 
-                <button
-                  type="button"
-                  aria-label="Insert illustration"
-                  className="w-9 h-9 flex items-center justify-center rounded-lg active:scale-90 transition-transform"
-                  style={{
-                    color: "#4ade80",
-                    background: "#1e2118",
+                    if (value === "paragraph") {
+                      editor.chain().focus().setParagraph().run();
+                    } else {
+                      editor
+                        .chain()
+                        .focus()
+                        .toggleHeading({
+                          level: Number(value.replace("h", "")) as 1 | 2 | 3,
+                        })
+                        .run();
+                    }
+
+                    scheduleAutosave(title, editor);
                   }}
-                  onClick={() => fileRef.current?.click()}
+                  aria-label="Text style"
                 >
-                  <ImagePlus size={14} />
-                </button>
-              </>
+                  <option value="paragraph">Paragraph</option>
+                  <option value="h1">Heading 1</option>
+                  <option value="h2">Heading 2</option>
+                  <option value="h3">Heading 3</option>
+                </select>
+              </div>
+
+              <div className="somi-editor-toolbar-divider" />
+
+              <div className="somi-editor-toolbar-group">
+                <ToolbarButton
+                  title="Bold"
+                  active={editor?.isActive("bold")}
+                  onClick={() => {
+                    editor?.chain().focus().toggleBold().run();
+
+                    if (editor) {
+                      scheduleAutosave(title, editor);
+                    }
+                  }}
+                >
+                  <Bold size={17} />
+                </ToolbarButton>
+
+                <ToolbarButton
+                  title="Italic"
+                  active={editor?.isActive("italic")}
+                  onClick={() => {
+                    editor?.chain().focus().toggleItalic().run();
+
+                    if (editor) {
+                      scheduleAutosave(title, editor);
+                    }
+                  }}
+                >
+                  <Italic size={17} />
+                </ToolbarButton>
+
+                <ToolbarButton
+                  title="Underline"
+                  active={editor?.isActive("underline")}
+                  onClick={() => {
+                    editor?.chain().focus().toggleUnderline().run();
+
+                    if (editor) {
+                      scheduleAutosave(title, editor);
+                    }
+                  }}
+                >
+                  <UnderlineIcon size={17} />
+                </ToolbarButton>
+
+                <ToolbarButton
+                  title="Strikethrough"
+                  active={editor?.isActive("strike")}
+                  onClick={() => {
+                    editor?.chain().focus().toggleStrike().run();
+
+                    if (editor) {
+                      scheduleAutosave(title, editor);
+                    }
+                  }}
+                >
+                  <Strikethrough size={17} />
+                </ToolbarButton>
+              </div>
+
+              <div className="somi-editor-toolbar-divider" />
+
+              <div className="somi-editor-toolbar-group">
+                <ToolbarButton
+                  title="Align left"
+                  active={editor?.isActive({
+                    textAlign: "left",
+                  })}
+                  onClick={() => {
+                    editor?.chain().focus().setTextAlign("left").run();
+
+                    if (editor) {
+                      scheduleAutosave(title, editor);
+                    }
+                  }}
+                >
+                  <AlignLeft size={17} />
+                </ToolbarButton>
+
+                <ToolbarButton
+                  title="Align center"
+                  active={editor?.isActive({
+                    textAlign: "center",
+                  })}
+                  onClick={() => {
+                    editor?.chain().focus().setTextAlign("center").run();
+
+                    if (editor) {
+                      scheduleAutosave(title, editor);
+                    }
+                  }}
+                >
+                  <AlignCenter size={17} />
+                </ToolbarButton>
+
+                <ToolbarButton
+                  title="Align right"
+                  active={editor?.isActive({
+                    textAlign: "right",
+                  })}
+                  onClick={() => {
+                    editor?.chain().focus().setTextAlign("right").run();
+
+                    if (editor) {
+                      scheduleAutosave(title, editor);
+                    }
+                  }}
+                >
+                  <AlignRight size={17} />
+                </ToolbarButton>
+
+                <ToolbarButton
+                  title="Justify"
+                  active={editor?.isActive({
+                    textAlign: "justify",
+                  })}
+                  onClick={() => {
+                    editor?.chain().focus().setTextAlign("justify").run();
+
+                    if (editor) {
+                      scheduleAutosave(title, editor);
+                    }
+                  }}
+                >
+                  <AlignJustify size={17} />
+                </ToolbarButton>
+              </div>
+
+              <div className="somi-editor-toolbar-divider" />
+
+              <div className="somi-editor-toolbar-group">
+                <ToolbarButton
+                  title="Bulleted list"
+                  active={editor?.isActive("bulletList")}
+                  onClick={() => {
+                    editor?.chain().focus().toggleBulletList().run();
+
+                    if (editor) {
+                      scheduleAutosave(title, editor);
+                    }
+                  }}
+                >
+                  <List size={17} />
+                </ToolbarButton>
+
+                <ToolbarButton
+                  title="Numbered list"
+                  active={editor?.isActive("orderedList")}
+                  onClick={() => {
+                    editor?.chain().focus().toggleOrderedList().run();
+
+                    if (editor) {
+                      scheduleAutosave(title, editor);
+                    }
+                  }}
+                >
+                  <ListOrdered size={17} />
+                </ToolbarButton>
+
+                <ToolbarButton
+                  title="Blockquote"
+                  active={editor?.isActive("blockquote")}
+                  onClick={() => {
+                    editor?.chain().focus().toggleBlockquote().run();
+
+                    if (editor) {
+                      scheduleAutosave(title, editor);
+                    }
+                  }}
+                >
+                  <Quote size={17} />
+                </ToolbarButton>
+
+                <ToolbarButton
+                  title="Horizontal divider"
+                  onClick={() => {
+                    editor?.chain().focus().setHorizontalRule().run();
+
+                    if (editor) {
+                      scheduleAutosave(title, editor);
+                    }
+                  }}
+                >
+                  <Minus size={17} />
+                </ToolbarButton>
+              </div>
+
+              <div className="somi-editor-toolbar-divider" />
+
+              <div className="somi-editor-toolbar-group">
+                <ToolbarButton
+                  title="Add link"
+                  active={editor?.isActive("link")}
+                  onClick={handleAddLink}
+                >
+                  <LinkIcon size={17} />
+                </ToolbarButton>
+
+                <ToolbarButton title="Upload image" onClick={handleAddImage}>
+                  <ImagePlus size={17} />
+                </ToolbarButton>
+
+                <ToolbarButton
+                  title="Insert image from URL"
+                  onClick={handleImageUrl}
+                >
+                  <ImagePlus size={17} />
+                </ToolbarButton>
+              </div>
+
+              <div className="somi-editor-toolbar-spacer" />
+
+              <div className="somi-editor-toolbar-group">
+                <ToolbarButton
+                  title="Undo"
+                  disabled={!editor?.can().undo()}
+                  onClick={() => editor?.chain().focus().undo().run()}
+                >
+                  <Undo2 size={17} />
+                </ToolbarButton>
+
+                <ToolbarButton
+                  title="Redo"
+                  disabled={!editor?.can().redo()}
+                  onClick={() => editor?.chain().focus().redo().run()}
+                >
+                  <Redo2 size={17} />
+                </ToolbarButton>
+              </div>
+            </div>
+          )}
+
+          <div className="somi-editor-writing-area">
+            <input
+              type="text"
+              className="somi-editor-title-input"
+              value={title}
+              onChange={(event) => handleTitleChange(event.target.value)}
+              placeholder="Chapter title"
+              disabled={previewMode}
+            />
+
+            {previewMode ? (
+              <div className="somi-editor-preview-content">
+                {editor?.getText().trim() ? (
+                  <EditorContent editor={editor} />
+                ) : (
+                  <p className="somi-editor-preview-empty">
+                    This chapter is currently empty.
+                  </p>
+                )}
+              </div>
+            ) : (
+              <EditorContent editor={editor} />
             )}
 
-            <div className="flex-1" />
+            {!previewMode && (
+              <div className="somi-editor-writing-footer">
+                <span>{wordCount.toLocaleString()} words</span>
 
-            <button
-              type="button"
-              className="px-3 py-1.5 rounded-lg text-xs font-bold active:scale-95"
-              style={{
-                background: "#4ade80",
-                color: "#0d1208",
-              }}
-              onClick={() => {
-                void persistChapter("manual-save");
-              }}
-            >
-              Save draft
-            </button>
+                <span>·</span>
+
+                <span>Approximately {readingTime} min read</span>
+              </div>
+            )}
           </div>
 
-          <div className="flex-1 px-5 pt-4 pb-32">
-            <textarea
-              ref={textRef}
-              value={content}
-              onChange={(event) => {
-                const value = event.target.value;
+          {assetError && <div className="somi-editor-errors">{assetError}</div>}
 
-                contentRef.current = value;
-                setContent(value);
-
-                scheduleAutosave();
-              }}
-              placeholder="Begin your chapter…"
-              className="w-full min-h-[70vh] bg-transparent resize-none outline-none text-base leading-[1.85] font-serif"
-              style={{
-                color: "#d8d0b8",
-                caretColor: "#4ade80",
-              }}
-            />
-          </div>
-
-          <div
-            className="mx-5 mb-8 rounded-xl p-4"
-            style={{
-              background: "#1e2118",
-              border: "1px solid #2a3525",
-            }}
-          >
-            <p
-              className="text-[10px] font-bold uppercase tracking-wider mb-2"
-              style={{ color: "#4a6540" }}
-            >
-              Author note (optional)
-            </p>
-
-            <textarea
-              value={notes}
-              onChange={(event) => setNotes(event.target.value)}
-              placeholder="Leave a note for your readers…"
-              rows={2}
-              className="w-full bg-transparent resize-none outline-none text-xs leading-relaxed"
-              style={{ color: "#8a9880" }}
-            />
-          </div>
-
-          {errors.length > 0 && (
-            <div className="mx-5 mb-5 rounded-xl border border-red-500/50 bg-red-500/10 p-3 text-sm text-red-200">
-              {errors.map((error) => (
-                <p key={error}>{error}</p>
-              ))}
-            </div>
-          )}
-
-          {assetError && (
-            <div className="mx-5 mb-5 rounded-xl border border-red-500/50 bg-red-500/10 p-3 text-sm text-red-200">
-              {assetError}
-            </div>
-          )}
-        </>
-      ) : (
-        <div className="flex-1 px-6 py-6 pb-16">
-          <h2
-            className="font-display text-xl font-semibold mb-1"
-            style={{ color: "#f0ece4" }}
-          >
-            {title || "Untitled chapter"}
-          </h2>
-
-          <div
-            className="w-8 h-0.5 rounded-full mb-6"
-            style={{
-              background: "#4ade80",
-            }}
-          />
-
-          <ChapterContent
-            content={content}
-            className="text-base leading-[1.85] font-serif"
-            style={{ color: "#d8d0b8" }}
-          />
-
-          {notes && (
-            <div
-              className="mt-8 p-4 rounded-xl"
-              style={{
-                background: "#1e2118",
-                border: "1px solid #2a3525",
-              }}
-            >
-              <p
-                className="text-[9px] font-bold uppercase tracking-wider mb-2"
-                style={{ color: "#4a6540" }}
-              >
-                Author note
-              </p>
-
-              <p className="text-sm italic" style={{ color: "#8a9880" }}>
-                {notes}
-              </p>
-            </div>
-          )}
+          {error && <div className="somi-editor-errors">{error}</div>}
         </div>
-      )}
+      </div>
     </div>
   );
 }

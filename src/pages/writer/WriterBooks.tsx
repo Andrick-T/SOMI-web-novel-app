@@ -23,9 +23,13 @@ type StatusFilter =
   | "all"
   | "DRAFT"
   | "EDITING"
+  | "PROOFREADING"
   | "READY_FOR_REVIEW"
+  | "APPROVED"
   | "SCHEDULED"
-  | "PUBLISHED";
+  | "PUBLISHED"
+  | "UNPUBLISHED"
+  | "ARCHIVED";
 
 type BookAnalytics = {
   bookId: string;
@@ -33,6 +37,15 @@ type BookAnalytics = {
   readers: number;
   unlocks: number;
 };
+
+const visibleStatusFilters: StatusFilter[] = [
+  "all",
+  "DRAFT",
+  "EDITING",
+  "READY_FOR_REVIEW",
+  "SCHEDULED",
+  "PUBLISHED",
+];
 
 const formatStatus = (status: string) =>
   status
@@ -77,6 +90,9 @@ export default function WriterBooks({ navigate }: CommonProps) {
   const [query, setQuery] = useState("");
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
 
+  /*
+   * Load the writer's books and the real book-level analytics.
+   */
   useEffect(() => {
     if (!useApiWriterContent) {
       return;
@@ -102,9 +118,7 @@ export default function WriterBooks({ navigate }: CommonProps) {
         }
 
         setLoadError(
-          caught instanceof Error
-            ? caught.message
-            : "Unable to load your books.",
+          caught instanceof Error ? caught.message : "Unable to load books.",
         );
       });
 
@@ -114,13 +128,8 @@ export default function WriterBooks({ navigate }: CommonProps) {
   }, []);
 
   /*
-   * API book covers are private assets.
-   *
-   * The API returns an asset-style URL such as:
-   * /writer/assets/:assetId/public
-   *
-   * We resolve those assets through the authenticated repository
-   * instead of exposing the private asset directly.
+   * API covers may point to private writer assets.
+   * Resolve those assets through the authenticated repository.
    */
   useEffect(() => {
     if (!useApiWriterContent || books.length === 0) {
@@ -185,7 +194,7 @@ export default function WriterBooks({ navigate }: CommonProps) {
   }, [books]);
 
   const filteredBooks = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
+    const search = query.trim().toLowerCase();
 
     return books.filter((book) => {
       const matchesFilter = filter === "all" || book.status === filter;
@@ -194,29 +203,28 @@ export default function WriterBooks({ navigate }: CommonProps) {
         .join(" ")
         .toLowerCase();
 
-      const matchesQuery =
-        !normalizedQuery || searchableText.includes(normalizedQuery);
+      const matchesQuery = !search || searchableText.includes(search);
 
       return matchesFilter && matchesQuery;
     });
   }, [books, filter, query]);
 
-  const handleCreateChapter = async (bookId: string, chapterCount: number) => {
+  const createChapter = async (bookId: string, chapterCount: number) => {
     try {
-      const nextNumber = chapterCount + 1;
+      const nextChapterNumber = chapterCount + 1;
 
       const newChapter = useApiWriterContent
         ? await apiWriterRepository.createChapter(bookId, {
-            title: `Chapter ${nextNumber}`,
-            number: nextNumber,
+            title: `Chapter ${nextChapterNumber}`,
+            number: nextChapterNumber,
             content: "Begin your chapter here.",
-            accessType: "FREE",
           })
         : writerRepository.createChapter(bookId, {
-            title: `Chapter ${nextNumber}`,
+            title: `Chapter ${nextChapterNumber}`,
           });
 
       setMenuOpen(null);
+
       navigate("writer-editor", bookId, newChapter.id);
     } catch (caught) {
       setLoadError(
@@ -224,6 +232,8 @@ export default function WriterBooks({ navigate }: CommonProps) {
           ? caught.message
           : "Unable to create the chapter.",
       );
+
+      setMenuOpen(null);
     }
   };
 
@@ -279,16 +289,7 @@ export default function WriterBooks({ navigate }: CommonProps) {
               className="somi-writer-filters"
               aria-label="Book status filters"
             >
-              {(
-                [
-                  "all",
-                  "DRAFT",
-                  "EDITING",
-                  "READY_FOR_REVIEW",
-                  "SCHEDULED",
-                  "PUBLISHED",
-                ] as StatusFilter[]
-              ).map((status) => (
+              {visibleStatusFilters.map((status) => (
                 <button
                   key={status}
                   type="button"
@@ -315,7 +316,7 @@ export default function WriterBooks({ navigate }: CommonProps) {
 
           {filteredBooks.length === 0 ? (
             <div className="somi-writer-books-empty">
-              <BookOpen size={28} />
+              <BookOpen size={28} color="var(--color-accent-primary)" />
 
               <h2 className="somi-writer-books-empty-title">
                 {books.length === 0
@@ -326,7 +327,7 @@ export default function WriterBooks({ navigate }: CommonProps) {
               <p className="somi-writer-books-empty-text">
                 {books.length === 0
                   ? "Create your first SOMI story to begin writing."
-                  : "Try another search or clear the current filter."}
+                  : "Try a different search or clear the current filter."}
               </p>
 
               <button
@@ -355,11 +356,9 @@ export default function WriterBooks({ navigate }: CommonProps) {
                 );
 
                 /*
-                 * These values come from the real analytics endpoint
-                 * in API mode.
-                 *
-                 * We deliberately do not fabricate numbers when the
-                 * backend has no analytics record yet.
+                 * API mode uses only real analytics returned by
+                 * the backend. No fabricated values are displayed
+                 * when analytics are unavailable.
                  */
                 const readers = useApiWriterContent
                   ? bookAnalytics?.readers
@@ -380,7 +379,11 @@ export default function WriterBooks({ navigate }: CommonProps) {
                         <img src={cover} alt={`${book.title} cover`} />
                       ) : (
                         <div
-                          className="somi-writer-book-cover-placeholder"
+                          className="flex h-full w-full items-center justify-center"
+                          style={{
+                            background: "var(--color-surface-muted)",
+                            color: "var(--color-text-muted)",
+                          }}
                           aria-label={`${book.title} has no cover`}
                         >
                           <BookOpen size={22} />
@@ -389,13 +392,13 @@ export default function WriterBooks({ navigate }: CommonProps) {
                     </div>
 
                     <div className="somi-writer-book-main">
-                      <div className="somi-writer-book-heading">
+                      <div className="flex items-start justify-between gap-4">
                         <div className="min-w-0">
-                          <h2 className="somi-writer-book-title">
+                          <h2 className="somi-writer-book-title truncate">
                             {book.title}
                           </h2>
 
-                          <p className="somi-writer-book-meta">
+                          <div className="somi-writer-book-meta">
                             {book.genres.length > 0
                               ? book.genres.join(" · ")
                               : "No genre assigned"}
@@ -405,143 +408,142 @@ export default function WriterBooks({ navigate }: CommonProps) {
                                 <span className="somi-writer-book-meta-dot">
                                   ·
                                 </span>
-                                {book.tags.length}{" "}
-                                {book.tags.length === 1 ? "tag" : "tags"}
+
+                                <span>
+                                  {book.tags.length}{" "}
+                                  {book.tags.length === 1 ? "tag" : "tags"}
+                                </span>
                               </>
                             )}
-                          </p>
+                          </div>
                         </div>
 
-                        <div className="somi-writer-book-status">
+                        <div className="relative flex shrink-0 items-center gap-2">
                           <StatusBadge
                             label={formatStatus(book.status)}
                             tone={statusToneFor(book.status)}
                             compact
                           />
 
-                          <div className="relative">
-                            <button
-                              type="button"
-                              aria-label={`More actions for ${book.title}`}
-                              aria-expanded={menuOpen === book.id}
-                              onClick={() =>
-                                setMenuOpen(
-                                  menuOpen === book.id ? null : book.id,
-                                )
-                              }
-                              className="somi-writer-book-action"
-                            >
-                              <MoreVertical size={16} />
-                            </button>
+                          <button
+                            type="button"
+                            className="somi-writer-book-action"
+                            aria-label={`More actions for ${book.title}`}
+                            aria-expanded={menuOpen === book.id}
+                            onClick={() =>
+                              setMenuOpen(menuOpen === book.id ? null : book.id)
+                            }
+                          >
+                            <MoreVertical size={16} />
+                          </button>
 
-                            {menuOpen === book.id && (
-                              <div className="somi-writer-book-menu">
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    void handleCreateChapter(
-                                      book.id,
-                                      chapterCount,
-                                    )
-                                  }
-                                >
-                                  <PenLine size={14} />
-                                  Add chapter
-                                </button>
+                          {menuOpen === book.id && (
+                            <div className="somi-writer-book-menu">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void createChapter(book.id, chapterCount)
+                                }
+                              >
+                                <PenLine size={14} />
+                                Add chapter
+                              </button>
 
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setMenuOpen(null);
-                                    navigate(
-                                      "writer-editor",
-                                      book.id,
-                                      book.chapters[0]?.id ?? "",
-                                    );
-                                  }}
-                                >
-                                  <Eye size={14} />
-                                  Open book
-                                </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setMenuOpen(null);
 
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setMenuOpen(null);
-                                    navigate("writer-analytics");
-                                  }}
-                                >
-                                  <ChevronRight size={14} />
-                                  Analytics
-                                </button>
-                              </div>
-                            )}
+                                  navigate(
+                                    "writer-editor",
+                                    book.id,
+                                    book.chapters[0]?.id ?? "",
+                                  );
+                                }}
+                              >
+                                <Eye size={14} />
+                                Open book
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setMenuOpen(null);
+                                  navigate("writer-analytics");
+                                }}
+                              >
+                                <ChevronRight size={14} />
+                                Analytics
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <p className="somi-writer-book-updated">
+                        Updated {formatDate(book.updatedAt)}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <div className="somi-writer-book-stats">
+                        <div className="somi-writer-book-stat">
+                          <strong className="somi-writer-book-stat-value">
+                            {chapterCount}
+                          </strong>
+
+                          <div className="somi-writer-book-stat-label">
+                            Chapters
+                          </div>
+                        </div>
+
+                        <div className="somi-writer-book-stat">
+                          <strong className="somi-writer-book-stat-value">
+                            {formatMetric(readers)}
+                          </strong>
+
+                          <div className="somi-writer-book-stat-label">
+                            Readers
+                          </div>
+                        </div>
+
+                        <div className="somi-writer-book-stat">
+                          <strong className="somi-writer-book-stat-value">
+                            {formatMetric(unlocks)}
+                          </strong>
+
+                          <div className="somi-writer-book-stat-label">
+                            Unlocks
                           </div>
                         </div>
                       </div>
 
-                      <div className="somi-writer-book-stats">
-                        <div className="somi-writer-book-stat">
-                          <span className="somi-writer-book-stat-label">
-                            Chapters
-                          </span>
+                      <div className="somi-writer-book-actions">
+                        <button
+                          type="button"
+                          className="somi-writer-book-action"
+                          aria-label={`Write ${book.title}`}
+                          title="Write"
+                          onClick={() =>
+                            navigate(
+                              "writer-editor",
+                              book.id,
+                              book.chapters[0]?.id ?? "",
+                            )
+                          }
+                        >
+                          <PenLine size={15} />
+                        </button>
 
-                          <strong className="somi-writer-book-stat-value">
-                            {chapterCount}
-                          </strong>
-                        </div>
-
-                        <div className="somi-writer-book-stat">
-                          <span className="somi-writer-book-stat-label">
-                            Readers
-                          </span>
-
-                          <strong className="somi-writer-book-stat-value">
-                            {formatMetric(readers)}
-                          </strong>
-                        </div>
-
-                        <div className="somi-writer-book-stat">
-                          <span className="somi-writer-book-stat-label">
-                            Unlocks
-                          </span>
-
-                          <strong className="somi-writer-book-stat-value">
-                            {formatMetric(unlocks)}
-                          </strong>
-                        </div>
-                      </div>
-
-                      <div className="somi-writer-book-footer">
-                        <span className="somi-writer-book-updated">
-                          Updated {formatDate(book.updatedAt)}
-                        </span>
-
-                        <div className="somi-writer-actions">
-                          <button
-                            type="button"
-                            className="somi-writer-book-inline-action"
-                            onClick={() =>
-                              navigate(
-                                "writer-editor",
-                                book.id,
-                                book.chapters[0]?.id ?? "",
-                              )
-                            }
-                          >
-                            <PenLine size={13} />
-                            Write
-                          </button>
-
-                          <button
-                            type="button"
-                            className="somi-writer-book-inline-action"
-                            onClick={() => navigate("writer-analytics")}
-                          >
-                            <Eye size={13} />
-                            Stats
-                          </button>
-                        </div>
+                        <button
+                          type="button"
+                          className="somi-writer-book-action"
+                          aria-label={`View analytics for ${book.title}`}
+                          title="Analytics"
+                          onClick={() => navigate("writer-analytics")}
+                        >
+                          <Eye size={15} />
+                        </button>
                       </div>
                     </div>
                   </article>
@@ -555,14 +557,9 @@ export default function WriterBooks({ navigate }: CommonProps) {
             className="somi-writer-create-row"
             onClick={() => navigate("writer-create")}
           >
-            <span className="somi-writer-create-icon">
-              <Plus size={17} />
-            </span>
+            <Plus size={17} />
 
-            <span>
-              <strong>Start a new book</strong>
-              <small>Begin your next SOMI story</small>
-            </span>
+            <span>Start a new book</span>
 
             <ChevronRight size={17} />
           </button>
