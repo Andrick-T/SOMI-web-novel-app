@@ -4050,3 +4050,1732 @@ textarea:focus-visible,
 .somi-editor-content {
   width: 100%;
 }
+
+/* ============================================================
+   C5 — WRITER ANALYTICS + EARNINGS
+   ============================================================ */
+
+.somi-writer-secondary-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 40px;
+  padding: 0.7rem 1rem;
+  border: 1px solid var(--color-border-default);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 0.72rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition:
+    color 0.2s ease,
+    border-color 0.2s ease,
+    background 0.2s ease;
+}
+
+.somi-writer-secondary-action:hover {
+  color: var(--color-accent-primary);
+  border-color: var(--color-accent-primary);
+  background: rgba(74, 222, 128, 0.04);
+}
+
+.somi-writer-secondary-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.somi-c5-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border-top: 1px solid var(--color-border-default);
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.somi-c5-kpi {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  min-height: 125px;
+  padding: 1.5rem 1.4rem;
+  border-right: 1px solid var(--color-border-default);
+}
+
+.somi-c5-kpi:first-child {
+  padding-left: 0;
+}
+
+.somi-c5-kpi:last-child {
+  border-right: 0;
+}
+
+.somi-c5-kpi-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(74, 222, 128, 0.2);
+  color: var(--color-accent-primary);
+  background: rgba(74, 222, 128, 0.05);
+}
+
+.somi-c5-kpi-value {
+  color: var(--color-text-primary);
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 1.65rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.somi-c5-kpi-label {
+  margin-top: 0.45rem;
+  color: var(--color-text-muted);
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.somi-c5-section-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 2rem;
+  margin-bottom: 1.4rem;
+}
+
+.somi-c5-section-title {
+  color: var(--color-text-primary);
+  font-family: "Fraunces", Georgia, serif;
+  font-size: clamp(1.35rem, 2vw, 1.8rem);
+  font-weight: 600;
+  line-height: 1.15;
+}
+
+.somi-c5-section-meta {
+  color: var(--color-text-muted);
+  font-size: 0.65rem;
+  white-space: nowrap;
+}
+
+.somi-c5-books {
+  border-top: 1px solid var(--color-border-default);
+}
+
+.somi-c5-book-row {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: 1.25rem;
+  padding: 1.35rem 0;
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.somi-c5-book-rank {
+  color: var(--color-accent-primary);
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.somi-c5-book-main {
+  min-width: 0;
+}
+
+.somi-c5-book-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.5rem;
+}
+
+.somi-c5-book-title {
+  color: var(--color-text-primary);
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.somi-c5-book-subtitle {
+  margin-top: 0.25rem;
+  color: var(--color-text-muted);
+  font-size: 0.67rem;
+}
+
+.somi-c5-book-share {
+  color: var(--color-accent-primary);
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.somi-c5-bar {
+  width: 100%;
+  height: 4px;
+  margin-top: 1rem;
+  overflow: hidden;
+  background: var(--color-surface-muted);
+}
+
+.somi-c5-bar-fill {
+  height: 100%;
+  background: var(--color-accent-primary);
+  transition: width 0.35s ease;
+}
+
+.somi-c5-book-stats {
+  display: flex;
+  gap: 2rem;
+  margin-top: 0.75rem;
+  color: var(--color-text-muted);
+  font-size: 0.65rem;
+}
+
+.somi-c5-book-stats strong {
+  margin-right: 0.3rem;
+  color: var(--color-text-secondary);
+  font-weight: 800;
+}
+
+.somi-c5-empty {
+  display: flex;
+  min-height: 180px;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 0.55rem;
+  border-top: 1px solid var(--color-border-default);
+  border-bottom: 1px solid var(--color-border-default);
+  color: var(--color-text-muted);
+  text-align: center;
+  font-size: 0.75rem;
+}
+
+.somi-c5-empty svg {
+  color: var(--color-accent-primary);
+}
+
+.somi-c5-empty p {
+  color: var(--color-text-secondary);
+  font-weight: 800;
+}
+
+.somi-c5-empty span {
+  max-width: 28rem;
+  line-height: 1.6;
+}
+
+.somi-c5-insight {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.8fr);
+  gap: 3rem;
+  padding: 1.8rem 0;
+  border-top: 1px solid var(--color-border-default);
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.somi-c5-insight > p {
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  line-height: 1.8;
+}
+
+/* Earnings */
+
+.somi-c5-earnings-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr;
+  border-top: 1px solid var(--color-border-default);
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.somi-c5-earnings-primary {
+  position: relative;
+  min-height: 180px;
+  padding: 1.6rem 1.8rem 1.6rem 0;
+  border-right: 1px solid var(--color-border-default);
+}
+
+.somi-c5-earnings-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  margin-bottom: 1.1rem;
+  border: 1px solid rgba(74, 222, 128, 0.25);
+  color: var(--color-accent-primary);
+  background: rgba(74, 222, 128, 0.05);
+}
+
+.somi-c5-earnings-label {
+  color: var(--color-text-muted);
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.somi-c5-earnings-value {
+  margin-top: 0.45rem;
+  color: var(--color-text-primary);
+  font-family: "Fraunces", Georgia, serif;
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 600;
+  line-height: 1;
+}
+
+.somi-c5-earnings-unit {
+  margin-top: 0.35rem;
+  color: var(--color-accent-primary);
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.somi-c5-earnings-item {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  min-height: 180px;
+  padding: 1.5rem;
+  border-right: 1px solid var(--color-border-default);
+  color: var(--color-accent-primary);
+}
+
+.somi-c5-earnings-item:last-child {
+  border-right: 0;
+}
+
+.somi-c5-earnings-item-value {
+  color: var(--color-text-primary);
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.somi-c5-earnings-item-label {
+  margin-top: 0.3rem;
+  color: var(--color-text-muted);
+  font-size: 0.65rem;
+}
+
+.somi-c5-transactions {
+  border-top: 1px solid var(--color-border-default);
+}
+
+.somi-c5-transaction {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2rem;
+  padding: 1.25rem 0;
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.somi-c5-transaction-main {
+  min-width: 0;
+}
+
+.somi-c5-transaction-title {
+  overflow: hidden;
+  color: var(--color-text-primary);
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.somi-c5-transaction-meta {
+  margin-top: 0.3rem;
+  color: var(--color-text-muted);
+  font-size: 0.63rem;
+}
+
+.somi-c5-transaction-side {
+  flex-shrink: 0;
+  text-align: right;
+}
+
+.somi-c5-transaction-coins {
+  color: var(--color-accent-primary);
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
+.somi-c5-transaction-status {
+  display: inline-block;
+  margin-top: 0.25rem;
+  color: var(--color-text-muted);
+  font-size: 0.58rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* Mobile */
+
+@media (max-width: 767px) {
+  .somi-writer-secondary-action {
+    width: 100%;
+  }
+
+  .somi-c5-kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .somi-c5-kpi {
+    min-height: 110px;
+    padding: 1.2rem 1rem;
+    border-bottom: 1px solid var(--color-border-default);
+  }
+
+  .somi-c5-kpi:nth-child(2) {
+    border-right: 0;
+  }
+
+  .somi-c5-kpi:nth-child(3),
+  .somi-c5-kpi:nth-child(4) {
+    border-bottom: 0;
+  }
+
+  .somi-c5-kpi:nth-child(3) {
+    padding-left: 0;
+  }
+
+  .somi-c5-section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .somi-c5-book-row {
+    grid-template-columns: 32px minmax(0, 1fr);
+    gap: 0.8rem;
+  }
+
+  .somi-c5-book-heading {
+    gap: 0.75rem;
+  }
+
+  .somi-c5-book-stats {
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .somi-c5-insight {
+    display: block;
+  }
+
+  .somi-c5-insight > p {
+    margin-top: 1rem;
+  }
+
+  .somi-c5-earnings-grid {
+    display: block;
+  }
+
+  .somi-c5-earnings-primary {
+    min-height: 160px;
+    padding-right: 0;
+    border-right: 0;
+    border-bottom: 1px solid var(--color-border-default);
+  }
+
+  .somi-c5-earnings-item {
+    min-height: 100px;
+    padding: 1.2rem 0;
+    border-right: 0;
+    border-bottom: 1px solid var(--color-border-default);
+  }
+
+  .somi-c5-earnings-item:last-child {
+    border-bottom: 0;
+  }
+
+  .somi-c5-transaction {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+
+  .somi-c5-transaction-side {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    text-align: left;
+  }
+}
+
+/* ============================================================
+   C5 — WRITER ANALYTICS + EARNINGS
+   ============================================================ */
+
+.somi-writer-secondary-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 40px;
+  padding: 0.7rem 1rem;
+  border: 1px solid var(--color-border-default);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 0.72rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition:
+    color 0.2s ease,
+    border-color 0.2s ease,
+    background 0.2s ease;
+}
+
+.somi-writer-secondary-action:hover {
+  color: var(--color-accent-primary);
+  border-color: var(--color-accent-primary);
+  background: rgba(74, 222, 128, 0.04);
+}
+
+.somi-writer-secondary-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.somi-c5-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border-top: 1px solid var(--color-border-default);
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.somi-c5-kpi {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  min-height: 125px;
+  padding: 1.5rem 1.4rem;
+  border-right: 1px solid var(--color-border-default);
+}
+
+.somi-c5-kpi:first-child {
+  padding-left: 0;
+}
+
+.somi-c5-kpi:last-child {
+  border-right: 0;
+}
+
+.somi-c5-kpi-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(74, 222, 128, 0.2);
+  color: var(--color-accent-primary);
+  background: rgba(74, 222, 128, 0.05);
+}
+
+.somi-c5-kpi-value {
+  color: var(--color-text-primary);
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 1.65rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.somi-c5-kpi-label {
+  margin-top: 0.45rem;
+  color: var(--color-text-muted);
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.somi-c5-section-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 2rem;
+  margin-bottom: 1.4rem;
+}
+
+.somi-c5-section-title {
+  color: var(--color-text-primary);
+  font-family: "Fraunces", Georgia, serif;
+  font-size: clamp(1.35rem, 2vw, 1.8rem);
+  font-weight: 600;
+  line-height: 1.15;
+}
+
+.somi-c5-section-meta {
+  color: var(--color-text-muted);
+  font-size: 0.65rem;
+  white-space: nowrap;
+}
+
+.somi-c5-books {
+  border-top: 1px solid var(--color-border-default);
+}
+
+.somi-c5-book-row {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: 1.25rem;
+  padding: 1.35rem 0;
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.somi-c5-book-rank {
+  color: var(--color-accent-primary);
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.somi-c5-book-main {
+  min-width: 0;
+}
+
+.somi-c5-book-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.5rem;
+}
+
+.somi-c5-book-title {
+  color: var(--color-text-primary);
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.somi-c5-book-subtitle {
+  margin-top: 0.25rem;
+  color: var(--color-text-muted);
+  font-size: 0.67rem;
+}
+
+.somi-c5-book-share {
+  color: var(--color-accent-primary);
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.somi-c5-bar {
+  width: 100%;
+  height: 4px;
+  margin-top: 1rem;
+  overflow: hidden;
+  background: var(--color-surface-muted);
+}
+
+.somi-c5-bar-fill {
+  height: 100%;
+  background: var(--color-accent-primary);
+  transition: width 0.35s ease;
+}
+
+.somi-c5-book-stats {
+  display: flex;
+  gap: 2rem;
+  margin-top: 0.75rem;
+  color: var(--color-text-muted);
+  font-size: 0.65rem;
+}
+
+.somi-c5-book-stats strong {
+  margin-right: 0.3rem;
+  color: var(--color-text-secondary);
+  font-weight: 800;
+}
+
+.somi-c5-empty {
+  display: flex;
+  min-height: 180px;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 0.55rem;
+  border-top: 1px solid var(--color-border-default);
+  border-bottom: 1px solid var(--color-border-default);
+  color: var(--color-text-muted);
+  text-align: center;
+  font-size: 0.75rem;
+}
+
+.somi-c5-empty svg {
+  color: var(--color-accent-primary);
+}
+
+.somi-c5-empty p {
+  color: var(--color-text-secondary);
+  font-weight: 800;
+}
+
+.somi-c5-empty span {
+  max-width: 28rem;
+  line-height: 1.6;
+}
+
+.somi-c5-insight {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.8fr);
+  gap: 3rem;
+  padding: 1.8rem 0;
+  border-top: 1px solid var(--color-border-default);
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.somi-c5-insight > p {
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  line-height: 1.8;
+}
+
+/* Earnings */
+
+.somi-c5-earnings-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr;
+  border-top: 1px solid var(--color-border-default);
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.somi-c5-earnings-primary {
+  position: relative;
+  min-height: 180px;
+  padding: 1.6rem 1.8rem 1.6rem 0;
+  border-right: 1px solid var(--color-border-default);
+}
+
+.somi-c5-earnings-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  margin-bottom: 1.1rem;
+  border: 1px solid rgba(74, 222, 128, 0.25);
+  color: var(--color-accent-primary);
+  background: rgba(74, 222, 128, 0.05);
+}
+
+.somi-c5-earnings-label {
+  color: var(--color-text-muted);
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.somi-c5-earnings-value {
+  margin-top: 0.45rem;
+  color: var(--color-text-primary);
+  font-family: "Fraunces", Georgia, serif;
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 600;
+  line-height: 1;
+}
+
+.somi-c5-earnings-unit {
+  margin-top: 0.35rem;
+  color: var(--color-accent-primary);
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.somi-c5-earnings-item {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  min-height: 180px;
+  padding: 1.5rem;
+  border-right: 1px solid var(--color-border-default);
+  color: var(--color-accent-primary);
+}
+
+.somi-c5-earnings-item:last-child {
+  border-right: 0;
+}
+
+.somi-c5-earnings-item-value {
+  color: var(--color-text-primary);
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.somi-c5-earnings-item-label {
+  margin-top: 0.3rem;
+  color: var(--color-text-muted);
+  font-size: 0.65rem;
+}
+
+.somi-c5-transactions {
+  border-top: 1px solid var(--color-border-default);
+}
+
+.somi-c5-transaction {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2rem;
+  padding: 1.25rem 0;
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.somi-c5-transaction-main {
+  min-width: 0;
+}
+
+.somi-c5-transaction-title {
+  overflow: hidden;
+  color: var(--color-text-primary);
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.somi-c5-transaction-meta {
+  margin-top: 0.3rem;
+  color: var(--color-text-muted);
+  font-size: 0.63rem;
+}
+
+.somi-c5-transaction-side {
+  flex-shrink: 0;
+  text-align: right;
+}
+
+.somi-c5-transaction-coins {
+  color: var(--color-accent-primary);
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
+.somi-c5-transaction-status {
+  display: inline-block;
+  margin-top: 0.25rem;
+  color: var(--color-text-muted);
+  font-size: 0.58rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* Mobile */
+
+@media (max-width: 767px) {
+  .somi-writer-secondary-action {
+    width: 100%;
+  }
+
+  .somi-c5-kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .somi-c5-kpi {
+    min-height: 110px;
+    padding: 1.2rem 1rem;
+    border-bottom: 1px solid var(--color-border-default);
+  }
+
+  .somi-c5-kpi:nth-child(2) {
+    border-right: 0;
+  }
+
+  .somi-c5-kpi:nth-child(3),
+  .somi-c5-kpi:nth-child(4) {
+    border-bottom: 0;
+  }
+
+  .somi-c5-kpi:nth-child(3) {
+    padding-left: 0;
+  }
+
+  .somi-c5-section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .somi-c5-book-row {
+    grid-template-columns: 32px minmax(0, 1fr);
+    gap: 0.8rem;
+  }
+
+  .somi-c5-book-heading {
+    gap: 0.75rem;
+  }
+
+  .somi-c5-book-stats {
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .somi-c5-insight {
+    display: block;
+  }
+
+  .somi-c5-insight > p {
+    margin-top: 1rem;
+  }
+
+  .somi-c5-earnings-grid {
+    display: block;
+  }
+
+  .somi-c5-earnings-primary {
+    min-height: 160px;
+    padding-right: 0;
+    border-right: 0;
+    border-bottom: 1px solid var(--color-border-default);
+  }
+
+  .somi-c5-earnings-item {
+    min-height: 100px;
+    padding: 1.2rem 0;
+    border-right: 0;
+    border-bottom: 1px solid var(--color-border-default);
+  }
+
+  .somi-c5-earnings-item:last-child {
+    border-bottom: 0;
+  }
+
+  .somi-c5-transaction {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+
+  .somi-c5-transaction-side {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    text-align: left;
+  }
+}
+
+/* =========================================================
+   SOMI ADMIN — SHARED VISUAL FOUNDATION
+   D1
+   ========================================================= */
+
+[data-environment="admin"] {
+  --admin-bg: #101318;
+  --admin-surface: #171b22;
+  --admin-surface-soft: #1b2028;
+  --admin-border: #29313b;
+  --admin-border-soft: #222933;
+
+  --admin-accent: #60a5fa;
+  --admin-accent-strong: #93c5fd;
+  --admin-accent-soft: rgba(96, 165, 250, 0.12);
+  --admin-accent-hover: rgba(96, 165, 250, 0.18);
+
+  --admin-success: #4ade80;
+  --admin-warning: #fbbf24;
+  --admin-danger: #fb7185;
+  --admin-info: #60a5fa;
+
+  --admin-text: #f4f5f7;
+  --admin-text-secondary: #a8b0bd;
+  --admin-text-muted: #707a88;
+}
+
+/* ---------------------------------------------------------
+   PAGE SHELL
+   --------------------------------------------------------- */
+
+.somi-admin-page {
+  min-height: 100%;
+  background: var(--admin-bg);
+  color: var(--admin-text);
+  padding: 42px 32px 64px;
+}
+
+.somi-admin-inner {
+  width: min(100%, 1320px);
+  margin: 0 auto;
+}
+
+.somi-admin-header {
+  margin-bottom: 34px;
+}
+
+.somi-admin-eyebrow {
+  margin: 0 0 9px;
+  color: var(--admin-accent);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.somi-admin-title {
+  margin: 0;
+  color: var(--admin-text);
+  font-family: "Fraunces", "Lora", serif;
+  font-size: clamp(30px, 3vw, 42px);
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.05;
+}
+
+.somi-admin-description {
+  max-width: 720px;
+  margin: 12px 0 0;
+  color: var(--admin-text-secondary);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.somi-admin-count {
+  margin-top: 8px;
+  color: var(--admin-text-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+/* ---------------------------------------------------------
+   SECTION
+   --------------------------------------------------------- */
+
+.somi-admin-section {
+  margin-top: 38px;
+}
+
+.somi-admin-section-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--admin-border-soft);
+}
+
+.somi-admin-section-title {
+  margin: 0;
+  color: var(--admin-text);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.somi-admin-section-label {
+  color: var(--admin-text-muted);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+/* ---------------------------------------------------------
+   ACTIONS
+   --------------------------------------------------------- */
+
+.somi-admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 28px;
+}
+
+.somi-admin-primary-action,
+.somi-admin-secondary-action,
+.somi-admin-danger-action {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border-radius: 7px;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+.somi-admin-primary-action {
+  background: var(--admin-accent);
+  color: #08111d;
+}
+
+.somi-admin-primary-action:hover {
+  background: var(--admin-accent-strong);
+}
+
+.somi-admin-secondary-action {
+  border-color: var(--admin-border);
+  background: transparent;
+  color: var(--admin-text-secondary);
+}
+
+.somi-admin-secondary-action:hover {
+  border-color: #3b4654;
+  background: var(--admin-surface-soft);
+  color: var(--admin-text);
+}
+
+.somi-admin-danger-action {
+  border-color: rgba(251, 113, 133, 0.25);
+  background: rgba(251, 113, 133, 0.08);
+  color: var(--admin-danger);
+}
+
+.somi-admin-danger-action:hover {
+  background: rgba(251, 113, 133, 0.14);
+}
+
+.somi-admin-primary-action:active,
+.somi-admin-secondary-action:active,
+.somi-admin-danger-action:active {
+  transform: translateY(1px);
+}
+
+/* ---------------------------------------------------------
+   TOOLBAR
+   --------------------------------------------------------- */
+
+.somi-admin-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 22px;
+}
+
+.somi-admin-search {
+  display: flex;
+  min-width: 240px;
+  flex: 1;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 0 13px;
+  border: 1px solid var(--admin-border);
+  border-radius: 7px;
+  background: transparent;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease;
+}
+
+.somi-admin-search:focus-within {
+  border-color: rgba(96, 165, 250, 0.55);
+  background: var(--admin-surface-soft);
+}
+
+.somi-admin-search svg {
+  flex-shrink: 0;
+  color: var(--admin-text-muted);
+}
+
+.somi-admin-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--admin-text);
+  font-size: 12px;
+}
+
+.somi-admin-search input::placeholder {
+  color: var(--admin-text-muted);
+}
+
+.somi-admin-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+}
+
+.somi-admin-filter {
+  min-height: 32px;
+  padding: 0 11px;
+  border: 1px solid var(--admin-border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--admin-text-secondary);
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease;
+}
+
+.somi-admin-filter:hover {
+  background: var(--admin-surface-soft);
+  color: var(--admin-text);
+}
+
+.somi-admin-filter-active {
+  border-color: rgba(96, 165, 250, 0.45);
+  background: var(--admin-accent-soft);
+  color: var(--admin-accent-strong);
+}
+
+/* ---------------------------------------------------------
+   KPI / METRICS
+   --------------------------------------------------------- */
+
+.somi-admin-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+  border-top: 1px solid var(--admin-border);
+  border-bottom: 1px solid var(--admin-border);
+}
+
+.somi-admin-kpi {
+  min-width: 0;
+  padding: 22px 24px;
+  border-right: 1px solid var(--admin-border);
+}
+
+.somi-admin-kpi:last-child {
+  border-right: 0;
+}
+
+.somi-admin-kpi-label {
+  margin: 0;
+  color: var(--admin-text-muted);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.somi-admin-kpi-value {
+  margin: 8px 0 0;
+  color: var(--admin-text);
+  font-family: "Fraunces", "Lora", serif;
+  font-size: 27px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+}
+
+.somi-admin-kpi-meta {
+  margin: 6px 0 0;
+  color: var(--admin-text-secondary);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+/* ---------------------------------------------------------
+   CONTENT SURFACE
+   --------------------------------------------------------- */
+
+.somi-admin-surface {
+  border: 1px solid var(--admin-border);
+  background: var(--admin-surface);
+}
+
+.somi-admin-surface-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--admin-border);
+}
+
+.somi-admin-surface-title {
+  margin: 0;
+  color: var(--admin-text);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.somi-admin-surface-meta {
+  color: var(--admin-text-muted);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+/* ---------------------------------------------------------
+   LISTS / TABLES
+   --------------------------------------------------------- */
+
+.somi-admin-list {
+  border-top: 1px solid var(--admin-border);
+  border-bottom: 1px solid var(--admin-border);
+}
+
+.somi-admin-list-row {
+  display: grid;
+  align-items: center;
+  gap: 16px;
+  min-height: 64px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--admin-border-soft);
+}
+
+.somi-admin-list-row:last-child {
+  border-bottom: 0;
+}
+
+.somi-admin-list-row:hover {
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.somi-admin-list-primary {
+  min-width: 0;
+  color: var(--admin-text);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.somi-admin-list-secondary {
+  margin-top: 3px;
+  color: var(--admin-text-muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.somi-admin-list-value {
+  color: var(--admin-text-secondary);
+  font-size: 11px;
+  font-weight: 650;
+  text-align: right;
+}
+
+/* ---------------------------------------------------------
+   STATUS
+   --------------------------------------------------------- */
+
+.somi-admin-status {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 5px;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1;
+}
+
+.somi-admin-status-success {
+  background: rgba(74, 222, 128, 0.1);
+  color: var(--admin-success);
+}
+
+.somi-admin-status-warning {
+  background: rgba(251, 191, 36, 0.1);
+  color: var(--admin-warning);
+}
+
+.somi-admin-status-danger {
+  background: rgba(251, 113, 133, 0.1);
+  color: var(--admin-danger);
+}
+
+.somi-admin-status-info {
+  background: var(--admin-accent-soft);
+  color: var(--admin-accent-strong);
+}
+
+.somi-admin-status-neutral {
+  background: rgba(148, 163, 184, 0.1);
+  color: var(--admin-text-secondary);
+}
+
+/* ---------------------------------------------------------
+   NOTICE
+   --------------------------------------------------------- */
+
+.somi-admin-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 13px 15px;
+  border: 1px solid var(--admin-border);
+  background: var(--admin-surface-soft);
+  color: var(--admin-text-secondary);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.somi-admin-notice-info {
+  border-color: rgba(96, 165, 250, 0.22);
+  background: rgba(96, 165, 250, 0.06);
+}
+
+.somi-admin-notice-warning {
+  border-color: rgba(251, 191, 36, 0.22);
+  background: rgba(251, 191, 36, 0.06);
+}
+
+.somi-admin-notice-danger {
+  border-color: rgba(251, 113, 133, 0.22);
+  background: rgba(251, 113, 133, 0.06);
+}
+
+/* ---------------------------------------------------------
+   EMPTY / LOADING / ERROR
+   --------------------------------------------------------- */
+
+.somi-admin-state {
+  display: flex;
+  min-height: 180px;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  border-top: 1px solid var(--admin-border);
+  border-bottom: 1px solid var(--admin-border);
+  text-align: center;
+}
+
+.somi-admin-state-title {
+  margin: 0;
+  color: var(--admin-text);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.somi-admin-state-description {
+  max-width: 440px;
+  margin: 7px auto 0;
+  color: var(--admin-text-muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+/* ---------------------------------------------------------
+   SIDEBAR
+   --------------------------------------------------------- */
+
+.somi-admin-sidebar {
+  width: 248px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--admin-border);
+  background: var(--admin-bg);
+  padding: 26px 14px 22px;
+}
+
+.somi-admin-sidebar-back {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 30px;
+  padding: 7px 9px;
+  border: 0;
+  background: transparent;
+  color: var(--admin-text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: color 160ms ease;
+}
+
+.somi-admin-sidebar-back:hover {
+  color: var(--admin-text);
+}
+
+.somi-admin-sidebar-label {
+  margin: 0 10px 9px;
+  color: var(--admin-text-muted);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.somi-admin-sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.somi-admin-sidebar-link {
+  display: flex;
+  width: 100%;
+  min-height: 40px;
+  align-items: center;
+  gap: 11px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--admin-text-muted);
+  font-size: 11px;
+  font-weight: 650;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease;
+}
+
+.somi-admin-sidebar-link:hover {
+  background: var(--admin-surface-soft);
+  color: var(--admin-text-secondary);
+}
+
+.somi-admin-sidebar-link-active {
+  border-color: rgba(96, 165, 250, 0.14);
+  background: var(--admin-accent-soft);
+  color: var(--admin-accent-strong);
+}
+
+.somi-admin-sidebar-link svg {
+  flex-shrink: 0;
+}
+
+.somi-admin-sidebar-badge {
+  display: inline-flex;
+  min-width: 19px;
+  height: 19px;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgba(251, 113, 133, 0.12);
+  color: var(--admin-danger);
+  font-size: 8px;
+  font-weight: 800;
+}
+
+.somi-admin-sidebar-alert {
+  margin-top: auto;
+  padding: 13px;
+  border: 1px solid rgba(251, 113, 133, 0.18);
+  background: rgba(251, 113, 133, 0.05);
+}
+
+.somi-admin-sidebar-alert-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--admin-danger);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.somi-admin-sidebar-alert-text {
+  margin: 6px 0 0;
+  color: var(--admin-text-muted);
+  font-size: 9px;
+  line-height: 1.6;
+}
+
+.somi-admin-sidebar-alert-action {
+  margin-top: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--admin-danger);
+  font-size: 9px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+/* ---------------------------------------------------------
+   MOBILE ADMIN NAV
+   --------------------------------------------------------- */
+
+.somi-admin-mobile-nav {
+  border-top: 1px solid var(--admin-border);
+  background: var(--admin-bg);
+}
+
+.somi-admin-mobile-nav-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  gap: 2px;
+  padding: 8px 4px 17px;
+}
+
+.somi-admin-mobile-nav-item {
+  display: flex;
+  min-width: 52px;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 3px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--admin-text-muted);
+  font-size: 8px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.somi-admin-mobile-nav-item-active {
+  color: var(--admin-accent-strong);
+  background: var(--admin-accent-soft);
+}
+
+.somi-admin-mobile-more {
+  position: absolute;
+  right: 8px;
+  bottom: 70px;
+  min-width: 170px;
+  padding: 7px;
+  border: 1px solid var(--admin-border);
+  background: var(--admin-surface);
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.35);
+  z-index: 50;
+}
+
+.somi-admin-mobile-more-item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--admin-text-secondary);
+  font-size: 10px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.somi-admin-mobile-more-item:hover {
+  background: var(--admin-surface-soft);
+  color: var(--admin-text);
+}
+
+/* ---------------------------------------------------------
+   RESPONSIVE
+   --------------------------------------------------------- */
+
+@media (max-width: 1023px) {
+  .somi-admin-page {
+    padding: 34px 24px 52px;
+  }
+
+  .somi-admin-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .somi-admin-kpi:nth-child(2n) {
+    border-right: 0;
+  }
+
+  .somi-admin-kpi:nth-child(n + 3) {
+    border-top: 1px solid var(--admin-border);
+  }
+}
+
+@media (max-width: 767px) {
+  .somi-admin-page {
+    padding: 28px 16px 42px;
+  }
+
+  .somi-admin-header {
+    margin-bottom: 27px;
+  }
+
+  .somi-admin-title {
+    font-size: 30px;
+  }
+
+  .somi-admin-description {
+    font-size: 13px;
+  }
+
+  .somi-admin-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .somi-admin-search {
+    min-width: 0;
+  }
+
+  .somi-admin-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .somi-admin-kpi {
+    padding: 17px 15px;
+  }
+
+  .somi-admin-kpi-value {
+    font-size: 23px;
+  }
+
+  .somi-admin-kpi-label {
+    font-size: 8px;
+  }
+
+  .somi-admin-section-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 7px;
+  }
+
+  .somi-admin-actions {
+    width: 100%;
+  }
+
+  .somi-admin-primary-action,
+  .somi-admin-secondary-action,
+  .somi-admin-danger-action {
+    min-height: 36px;
+  }
+}
+
+@media (max-width: 479px) {
+  .somi-admin-kpi-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .somi-admin-kpi {
+    border-right: 0;
+    border-bottom: 1px solid var(--admin-border);
+  }
+
+  .somi-admin-kpi:last-child {
+    border-bottom: 0;
+  }
+
+  .somi-admin-kpi:nth-child(n + 3) {
+    border-top: 0;
+  }
+
+  .somi-admin-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .somi-admin-primary-action,
+  .somi-admin-secondary-action,
+  .somi-admin-danger-action {
+    width: 100%;
+  }
+}

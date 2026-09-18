@@ -1,292 +1,306 @@
-import { TrendingUp, Users, Coins, BookOpen } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { BookOpen, Eye, LockKeyhole, RefreshCw, Users } from "lucide-react";
 import type { CommonProps } from "../../types";
 import { writerRepository } from "../../features/writer";
-import MiniBarChart from "../../components/MiniBarChart";
-import { statusToneFor } from "../../config/designSystem";
-import { StatusBadge } from "../../components/DesignPrimitives";
-import { useApiWriterContent } from "../../services/repositories/writerRepository";
+import type { WriterAnalytics } from "../../features/writer/types";
+import {
+  apiWriterRepository,
+  useApiWriterContent,
+} from "../../services/repositories/writerRepository";
 
-const weekData = [42, 60, 38, 85, 72, 55, 90];
-const dayLabels = ["M", "T", "W", "T", "F", "S", "S"];
+type ApiAnalytics = {
+  bookId: string;
+  views: number;
+  readers: number;
+  unlocks: number;
+};
+
+const formatNumber = (value: number) =>
+  new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: 0,
+  }).format(value);
+
+const formatPercent = (value: number) =>
+  `${Math.round(Math.max(0, Math.min(100, value)))}%`;
 
 export default function WriterAnalytics({}: CommonProps) {
-  if (useApiWriterContent) {
-    return (
-      <div
-        className="flex min-h-full flex-col px-5 pt-12"
-        style={{ background: "var(--color-background)" }}
-      >
-        <p
-          className="text-xs uppercase tracking-widest font-bold mb-0.5"
-          style={{ color: "var(--color-accent-primary)" }}
-        >
-          Writer Studio
-        </p>
-        <h1
-          className="font-display text-2xl font-bold"
-          style={{ color: "var(--color-text-primary)" }}
-        >
-          Analytics
-        </h1>
-        <p className="mt-6 text-sm" style={{ color: "#6a8060" }}>
-          Analytics data is not available from the Writer API yet.
-        </p>
-      </div>
-    );
-  }
-  const analytics = writerRepository.getAnalytics();
-  const earnings = writerRepository.getEarnings();
-  const chapterStats = analytics.map((item) => ({
-    bookId: item.bookId,
-    title: writerRepository.getBook(item.bookId)?.title ?? "Untitled",
-    views: item.views,
-    readers: item.uniqueReaders,
-    completion: item.completionRate,
-    earnings: item.earnings,
-  }));
+  const [analytics, setAnalytics] = useState<ApiAnalytics[]>([]);
+  const [loading, setLoading] = useState(useApiWriterContent);
+  const [loadError, setLoadError] = useState("");
+
+  useEffect(() => {
+    if (!useApiWriterContent) return;
+
+    let cancelled = false;
+
+    setLoading(true);
+    setLoadError("");
+
+    apiWriterRepository
+      .getBookAnalytics()
+      .then((result) => {
+        if (cancelled) return;
+        setAnalytics(result.analytics ?? []);
+      })
+      .catch((caught) => {
+        if (cancelled) return;
+
+        setLoadError(
+          caught instanceof Error
+            ? caught.message
+            : "Unable to load analytics.",
+        );
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const mockAnalytics = useMemo(() => writerRepository.getAnalytics(), []);
+
+  const books = useMemo(() => {
+    if (useApiWriterContent) {
+      return analytics.map((item) => ({
+        bookId: item.bookId,
+        title: writerRepository.getBook(item.bookId)?.title ?? "Untitled book",
+        views: item.views,
+        readers: item.readers,
+        unlocks: item.unlocks,
+      }));
+    }
+
+    return mockAnalytics.map((item: WriterAnalytics) => ({
+      bookId: item.bookId,
+      title: writerRepository.getBook(item.bookId)?.title ?? "Untitled book",
+      views: item.views,
+      readers: item.uniqueReaders,
+      unlocks: item.chapterReads,
+    }));
+  }, [analytics, mockAnalytics]);
+
+  const totals = useMemo(
+    () =>
+      books.reduce(
+        (summary, book) => ({
+          views: summary.views + book.views,
+          readers: summary.readers + book.readers,
+          unlocks: summary.unlocks + book.unlocks,
+        }),
+        {
+          views: 0,
+          readers: 0,
+          unlocks: 0,
+        },
+      ),
+    [books],
+  );
+
+  const maxViews = Math.max(...books.map((book) => book.views), 1);
 
   return (
-    <div
-      className="flex flex-col min-h-full"
-      style={{ background: "var(--color-background)" }}
-    >
-      <div className="px-5 pt-12 pb-5">
-        <p
-          className="text-xs uppercase tracking-widest font-bold mb-0.5"
-          style={{ color: "var(--color-accent-primary)" }}
-        >
-          Writer Studio
-        </p>
-        <h1
-          className="font-display text-2xl font-bold"
-          style={{ color: "var(--color-text-primary)" }}
-        >
-          Analytics
-        </h1>
-      </div>
+    <div className="somi-writer-page">
+      <div className="somi-writer-inner">
+        <header className="somi-writer-header">
+          <div>
+            <p className="somi-writer-eyebrow">Writer Studio</p>
 
-      <div className="flex gap-2 px-5 mb-5">
-        {["7 days", "30 days", "All time"].map((p, i) => (
-          <button
-            key={p}
-            className="px-3 py-1.5 rounded-lg text-xs font-semibold"
-            style={{
-              background:
-                i === 0
-                  ? "var(--color-accent-primary)"
-                  : "var(--color-surface)",
-              color:
-                i === 0 ? "var(--color-background)" : "var(--color-text-muted)",
-            }}
-          >
-            {p}
-          </button>
-        ))}
-      </div>
+            <h1 className="somi-writer-title">Analytics</h1>
 
-      <div className="px-5 mb-5">
-        <div className="grid grid-cols-2 gap-3">
-          {[
-            {
-              label: "Total readers",
-              value: `${(analytics.reduce((sum, item) => sum + item.uniqueReaders, 0) / 1000).toFixed(1)}k`,
-              delta: "+18%",
-              icon: <Users size={16} color="#4ade80" />,
-            },
-            {
-              label: "Chapter unlocks",
-              value: `${(analytics.reduce((sum, item) => sum + item.chapterReads, 0) / 1000).toFixed(1)}k`,
-              delta: "+12%",
-              icon: <Coins size={16} color="#e8a84c" />,
-            },
-            {
-              label: "Chapters live",
-              value: String(analytics.length * 2),
-              delta: "+5",
-              icon: <BookOpen size={16} color="#60a5fa" />,
-            },
-            {
-              label: "Retention",
-              value: `${Math.round(analytics.reduce((sum, item) => sum + item.completionRate, 0) / analytics.length)}%`,
-              delta: "+3pt",
-              icon: <TrendingUp size={16} color="#fb7185" />,
-            },
-          ].map((kpi) => (
-            <div
-              key={kpi.label}
-              className="p-4 rounded-xl"
-              style={{
-                background: "#1e2118",
-                border: "1px solid rgba(74,222,128,0.1)",
-              }}
-            >
-              <div className="flex items-center justify-between mb-2">
-                {kpi.icon}
-                <span
-                  className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
-                  style={{
-                    background: "rgba(74,222,128,0.12)",
-                    color: "#4ade80",
-                  }}
-                >
-                  {kpi.delta}
-                </span>
-              </div>
-              <p
-                className="font-display text-2xl font-bold"
-                style={{ color: "#f0ece4" }}
-              >
-                {kpi.value}
-              </p>
-              <p className="text-[9px] mt-0.5" style={{ color: "#4a6540" }}>
-                {kpi.label}
-              </p>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div
-        className="mx-5 mb-5 p-4 rounded-xl"
-        style={{ background: "#1e2118", border: "1px solid #2a3525" }}
-      >
-        <div className="flex items-center justify-between mb-4">
-          <p className="text-sm font-semibold" style={{ color: "#f0ece4" }}>
-            Readers this week
-          </p>
-          <span className="text-xs font-bold" style={{ color: "#4ade80" }}>
-            +18%
-          </span>
-        </div>
-        <MiniBarChart
-          values={weekData}
-          labels={dayLabels}
-          color="#4ade80"
-          labelColor="#4a6540"
-        />
-      </div>
-
-      <div className="px-5 mb-8">
-        <h3
-          className="font-display text-base font-semibold mb-3"
-          style={{ color: "#f0ece4" }}
-        >
-          Top books
-        </h3>
-        <div className="flex flex-col gap-3">
-          {chapterStats.map((book, i) => (
-            <div
-              key={book.bookId}
-              className="p-4 rounded-xl"
-              style={{ background: "#1e2118", border: "1px solid #2a3525" }}
-            >
-              <div className="flex items-start justify-between mb-3">
-                <div>
-                  <p
-                    className="text-sm font-semibold"
-                    style={{ color: "#f0ece4" }}
-                  >
-                    {book.title}
-                  </p>
-                  <p
-                    className="text-[10px] mt-0.5"
-                    style={{ color: "#4a6540" }}
-                  >
-                    Chapters live
-                  </p>
-                </div>
-                <StatusBadge
-                  label={`#${i + 1}`}
-                  tone={statusToneFor("APPROVED")}
-                  compact
-                />
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                {[
-                  { label: "Views", value: book.views, color: "#e8a84c" },
-                  { label: "Readers", value: book.readers, color: "#4ade80" },
-                  {
-                    label: "Earnings",
-                    value: `$${book.earnings}`,
-                    color: "#60a5fa",
-                  },
-                ].map((stat) => (
-                  <div key={stat.label} className="text-center">
-                    <p
-                      className="text-sm font-bold"
-                      style={{ color: stat.color }}
-                    >
-                      {stat.value}
-                    </p>
-                    <p className="text-[9px]" style={{ color: "#4a6540" }}>
-                      {stat.label}
-                    </p>
-                  </div>
-                ))}
-              </div>
-              <div className="mt-3">
-                <div className="flex justify-between mb-1">
-                  <span className="text-[9px]" style={{ color: "#4a6540" }}>
-                    Completion
-                  </span>
-                  <span
-                    className="text-[9px] font-bold"
-                    style={{ color: "#4ade80" }}
-                  >
-                    {book.completion}%
-                  </span>
-                </div>
-                <div
-                  className="h-1 rounded-full overflow-hidden"
-                  style={{ background: "#2a3525" }}
-                >
-                  <div
-                    className="h-full rounded-full"
-                    style={{
-                      width: `${book.completion}%`,
-                      background: "linear-gradient(90deg, #4ade80, #22c55e)",
-                    }}
-                  />
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="px-5 pb-8">
-        <div
-          className="rounded-xl p-4"
-          style={{ background: "#1e2118", border: "1px solid #2a3525" }}
-        >
-          <p
-            className="text-[10px] uppercase tracking-wider"
-            style={{ color: "#4a6540" }}
-          >
-            Writer earnings
-          </p>
-          <div className="mt-3 flex justify-between">
-            <div>
-              <p
-                className="font-display text-2xl font-bold"
-                style={{ color: "#f0ece4" }}
-              >
-                $ {earnings.netEarnings.toLocaleString()}
-              </p>
-              <p className="text-[10px]" style={{ color: "#6a8060" }}>
-                Net earnings
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-sm font-bold" style={{ color: "#4ade80" }}>
-                $ {earnings.available.toLocaleString()}
-              </p>
-              <p className="text-[10px]" style={{ color: "#6a8060" }}>
-                Available
-              </p>
-            </div>
+            <p className="somi-writer-description">
+              Understand how readers are discovering your books and where your
+              published work is gaining traction.
+            </p>
           </div>
-        </div>
+
+          <button
+            type="button"
+            className="somi-writer-secondary-action"
+            onClick={() => window.location.reload()}
+            disabled={loading}
+          >
+            <RefreshCw size={14} />
+            Refresh
+          </button>
+        </header>
+
+        {loadError && (
+          <div className="somi-writer-notice">
+            <p className="somi-writer-notice-title">
+              Analytics could not be loaded
+            </p>
+
+            <p className="somi-writer-notice-text">{loadError}</p>
+          </div>
+        )}
+
+        <section className="somi-writer-section">
+          <div className="somi-c5-kpi-grid">
+            <article className="somi-c5-kpi">
+              <div className="somi-c5-kpi-icon">
+                <Eye size={17} />
+              </div>
+
+              <div>
+                <p className="somi-c5-kpi-value">
+                  {formatNumber(totals.views)}
+                </p>
+
+                <p className="somi-c5-kpi-label">Total views</p>
+              </div>
+            </article>
+
+            <article className="somi-c5-kpi">
+              <div className="somi-c5-kpi-icon">
+                <Users size={17} />
+              </div>
+
+              <div>
+                <p className="somi-c5-kpi-value">
+                  {formatNumber(totals.readers)}
+                </p>
+
+                <p className="somi-c5-kpi-label">Unique readers</p>
+              </div>
+            </article>
+
+            <article className="somi-c5-kpi">
+              <div className="somi-c5-kpi-icon">
+                <LockKeyhole size={17} />
+              </div>
+
+              <div>
+                <p className="somi-c5-kpi-value">
+                  {formatNumber(totals.unlocks)}
+                </p>
+
+                <p className="somi-c5-kpi-label">Chapter unlocks</p>
+              </div>
+            </article>
+
+            <article className="somi-c5-kpi">
+              <div className="somi-c5-kpi-icon">
+                <BookOpen size={17} />
+              </div>
+
+              <div>
+                <p className="somi-c5-kpi-value">
+                  {formatNumber(books.length)}
+                </p>
+
+                <p className="somi-c5-kpi-label">Books tracked</p>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section className="somi-writer-section">
+          <div className="somi-c5-section-heading">
+            <div>
+              <p className="somi-writer-eyebrow">Performance</p>
+
+              <h2 className="somi-c5-section-title">Book performance</h2>
+            </div>
+
+            <span className="somi-c5-section-meta">
+              {useApiWriterContent ? "Live platform data" : "Demo data"}
+            </span>
+          </div>
+
+          {loading ? (
+            <div className="somi-c5-empty">Loading analytics…</div>
+          ) : books.length === 0 ? (
+            <div className="somi-c5-empty">
+              <BookOpen size={20} />
+              <p>No analytics available yet.</p>
+              <span>
+                Once readers interact with your books, their performance will
+                appear here.
+              </span>
+            </div>
+          ) : (
+            <div className="somi-c5-books">
+              {books
+                .slice()
+                .sort((a, b) => b.views - a.views)
+                .map((book, index) => {
+                  const viewShare =
+                    totals.views > 0 ? (book.views / totals.views) * 100 : 0;
+
+                  const reachWidth = (book.views / maxViews) * 100;
+
+                  return (
+                    <article key={book.bookId} className="somi-c5-book-row">
+                      <div className="somi-c5-book-rank">
+                        {String(index + 1).padStart(2, "0")}
+                      </div>
+
+                      <div className="somi-c5-book-main">
+                        <div className="somi-c5-book-heading">
+                          <div>
+                            <h3 className="somi-c5-book-title">{book.title}</h3>
+
+                            <p className="somi-c5-book-subtitle">
+                              {formatNumber(book.views)} views
+                            </p>
+                          </div>
+
+                          <span className="somi-c5-book-share">
+                            {formatPercent(viewShare)}
+                          </span>
+                        </div>
+
+                        <div className="somi-c5-bar">
+                          <div
+                            className="somi-c5-bar-fill"
+                            style={{
+                              width: `${reachWidth}%`,
+                            }}
+                          />
+                        </div>
+
+                        <div className="somi-c5-book-stats">
+                          <span>
+                            <strong>{formatNumber(book.readers)}</strong>
+                            readers
+                          </span>
+
+                          <span>
+                            <strong>{formatNumber(book.unlocks)}</strong>
+                            unlocks
+                          </span>
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })}
+            </div>
+          )}
+        </section>
+
+        <section className="somi-writer-section">
+          <div className="somi-c5-insight">
+            <div>
+              <p className="somi-writer-eyebrow">Reading the numbers</p>
+
+              <h2 className="somi-c5-section-title">
+                Use analytics to guide your next chapter.
+              </h2>
+            </div>
+
+            <p>
+              Views show reach, unique readers show audience size, and unlocks
+              indicate how often readers continue into premium chapters. These
+              figures are reported directly from the platform when API mode is
+              enabled.
+            </p>
+          </div>
+        </section>
       </div>
     </div>
   );

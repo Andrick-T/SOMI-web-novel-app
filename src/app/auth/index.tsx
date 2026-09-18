@@ -43,11 +43,11 @@ interface AuthContextValue {
 }
 
 const mockUserBase: AppUser = {
-  id: "user-reader-01",
+  id: "user-admin-01",
   name: "Kemi Nwosu",
   email: "kemi@somi.app",
-  role: "reader",
-  roles: ["reader"],
+  role: "admin",
+  roles: ["admin"],
   status: "active",
   createdAt: "2024-01-10T00:00:00.000Z",
 };
@@ -131,11 +131,23 @@ export function AuthProvider({ children }: PropsWithChildren) {
         }
       }
 
-      const nextRole = payload?.role ?? payload?.roles?.[0] ?? "reader";
+      const isAdminDemoLogin =
+        payload?.email?.toLowerCase() === "admin@somi.app" &&
+        payload?.password === "admin123";
+      const nextRole = isAdminDemoLogin
+        ? "admin"
+        : (payload?.role ?? payload?.roles?.[0] ?? "reader");
 
       const nextUser: AppUser = {
         ...mockUserBase,
         ...payload,
+        id: isAdminDemoLogin ? "admin-01" : (payload?.id ?? mockUserBase.id),
+        name: isAdminDemoLogin
+          ? "SOMI Admin"
+          : (payload?.name ?? mockUserBase.name),
+        email: isAdminDemoLogin
+          ? "admin@somi.app"
+          : (payload?.email ?? mockUserBase.email),
         role: nextRole,
         roles: payload?.roles ?? [nextRole],
         status: payload?.status ?? "active",

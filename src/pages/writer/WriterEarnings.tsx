@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  ArrowUpRight,
   CircleDollarSign,
-  TrendingUp,
+  Clock3,
+  Coins,
+  RefreshCw,
   Wallet,
-  ReceiptText,
 } from "lucide-react";
 import type { CommonProps } from "../../types";
 import { writerRepository } from "../../features/writer";
@@ -12,280 +12,306 @@ import {
   apiWriterRepository,
   useApiWriterContent,
 } from "../../services/repositories/writerRepository";
-import MiniBarChart from "../../components/MiniBarChart";
+
+type EarningsSummary = {
+  totalCoins: number;
+  pendingCoins: number;
+  availableCoins: number;
+};
 
 type EarningTransaction = {
   id: string;
   bookId: string;
   chapterId: string;
-  sourceTransactionId: string;
   coins: number;
   status: string;
   createdAt: string;
 };
 
+const formatCoins = (value: number) =>
+  new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: 0,
+  }).format(value);
+
+const formatDate = (value: string) => {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Unknown date";
+  }
+
+  return new Intl.DateTimeFormat("en", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(date);
+};
+
+const statusLabel = (status: string) =>
+  status
+    .toLowerCase()
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+
 export default function WriterEarnings({}: CommonProps) {
   const mockEarnings = writerRepository.getEarnings();
 
-  const [earnings, setEarnings] = useState({
-    grossEarnings: useApiWriterContent ? 0 : mockEarnings.grossEarnings,
-    pending: useApiWriterContent ? 0 : mockEarnings.pending,
-    available: useApiWriterContent ? 0 : mockEarnings.available,
-    netEarnings: useApiWriterContent ? 0 : mockEarnings.netEarnings,
+  const [summary, setSummary] = useState<EarningsSummary>({
+    totalCoins: mockEarnings.grossEarnings,
+    pendingCoins: mockEarnings.pending,
+    availableCoins: mockEarnings.available,
   });
 
-  const [transactions, setTransactions] = useState<EarningTransaction[]>(
-    useApiWriterContent
-      ? []
-      : [
-          {
-            id: "mock-1",
-            bookId: "mock-book-1",
-            chapterId: "mock-chapter-1",
-            sourceTransactionId: "mock-transaction-1",
-            coins: 620,
-            status: "COMPLETED",
-            createdAt: new Date().toISOString(),
-          },
-          {
-            id: "mock-2",
-            bookId: "mock-book-2",
-            chapterId: "mock-chapter-2",
-            sourceTransactionId: "mock-transaction-2",
-            coins: 470,
-            status: "COMPLETED",
-            createdAt: new Date().toISOString(),
-          },
-          {
-            id: "mock-3",
-            bookId: "mock-book-3",
-            chapterId: "mock-chapter-3",
-            sourceTransactionId: "mock-transaction-3",
-            coins: 310,
-            status: "COMPLETED",
-            createdAt: new Date().toISOString(),
-          },
-        ],
-  );
+  const [transactions, setTransactions] = useState<EarningTransaction[]>([]);
 
+  const [books, setBooks] = useState<Array<{ id: string; title: string }>>([]);
+
+  const [loading, setLoading] = useState(useApiWriterContent);
   const [loadError, setLoadError] = useState("");
 
   useEffect(() => {
-    if (!useApiWriterContent) return;
+    if (!useApiWriterContent) {
+      const mockBooks = writerRepository.getWriterBooks().map((book) => ({
+        id: book.id,
+        title: book.title,
+      }));
+
+      setBooks(mockBooks);
+
+      return;
+    }
+
+    let cancelled = false;
+
+    setLoading(true);
+    setLoadError("");
 
     Promise.all([
       apiWriterRepository.getEarnings(),
       apiWriterRepository.getEarningTransactions(),
+      apiWriterRepository.getWriterBooks(),
     ])
-      .then(([summary, result]) => {
-        setEarnings({
-          grossEarnings: summary.totalCoins,
-          pending: summary.pendingCoins,
-          available: summary.availableCoins,
-          netEarnings: summary.availableCoins,
-        });
+      .then(([earnings, transactionResult, writerBooks]) => {
+        if (cancelled) return;
 
-        setTransactions(
-          result.transactions.map((transaction) => ({
-            ...transaction,
-            sourceTransactionId: transaction.id,
+        setSummary(earnings);
+        setTransactions(transactionResult.transactions ?? []);
+
+        setBooks(
+          writerBooks.map((book) => ({
+            id: book.id,
+            title: book.title,
           })),
         );
       })
       .catch((caught) => {
+        if (cancelled) return;
+
         setLoadError(
           caught instanceof Error ? caught.message : "Unable to load earnings.",
         );
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+        }
       });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const revenueTrend = useMemo(() => {
-    const now = new Date();
+  const bookTitles = useMemo(
+    () => new Map(books.map((book) => [book.id, book.title])),
+    [books],
+  );
 
-    const days = Array.from({ length: 7 }, (_, index) => {
-      const day = new Date(now);
-      day.setHours(0, 0, 0, 0);
-      day.setDate(day.getDate() - (6 - index));
-      return day;
-    });
+  const mockTransactions = useMemo(
+    () => [
+      {
+        id: "mock-1",
+        bookId: "baobab-kingdom",
+        chapterId: "baobab-kingdom-ch-3",
+        coins: 620,
+        status: "COMPLETED",
+        createdAt: "2024-06-20T00:00:00.000Z",
+      },
+      {
+        id: "mock-2",
+        bookId: "echoes-of-kongo",
+        chapterId: "echoes-of-kongo-ch-2",
+        coins: 470,
+        status: "PENDING",
+        createdAt: "2024-06-18T00:00:00.000Z",
+      },
+      {
+        id: "mock-3",
+        bookId: "baobab-kingdom",
+        chapterId: "baobab-kingdom-ch-3",
+        coins: 310,
+        status: "COMPLETED",
+        createdAt: "2024-06-15T00:00:00.000Z",
+      },
+    ],
+    [],
+  );
 
-    return days.map((day) => {
-      const nextDay = new Date(day);
-      nextDay.setDate(nextDay.getDate() + 1);
-
-      const total = transactions
-        .filter((transaction) => {
-          const createdAt = new Date(transaction.createdAt);
-
-          return createdAt >= day && createdAt < nextDay;
-        })
-        .reduce((sum, transaction) => sum + transaction.coins, 0);
-
-      return {
-        value: total,
-        label: day
-          .toLocaleDateString(undefined, { weekday: "short" })
-          .slice(0, 1),
-      };
-    });
-  }, [transactions]);
-
-  const hasRevenueActivity = revenueTrend.some((day) => day.value > 0);
+  const visibleTransactions = useApiWriterContent
+    ? transactions
+    : mockTransactions;
 
   return (
-    <div
-      className="flex flex-col min-h-full"
-      style={{ background: "var(--color-background)" }}
-    >
-      <div className="px-5 pt-12 pb-5">
-        <p
-          className="text-xs uppercase tracking-widest font-bold mb-0.5"
-          style={{ color: "var(--color-accent-primary)" }}
-        >
-          Writer Studio
-        </p>
+    <div className="somi-writer-page">
+      <div className="somi-writer-inner">
+        <header className="somi-writer-header">
+          <div>
+            <p className="somi-writer-eyebrow">Writer Studio</p>
 
-        <h1
-          className="font-display text-2xl font-bold"
-          style={{ color: "var(--color-text-primary)" }}
-        >
-          Earnings
-        </h1>
-      </div>
+            <h1 className="somi-writer-title">Earnings</h1>
 
-      {loadError && (
-        <p className="px-5 pb-4 text-sm" style={{ color: "#fb7185" }}>
-          {loadError}
-        </p>
-      )}
-
-      <div className="px-5 mb-5 grid grid-cols-2 gap-3">
-        {[
-          {
-            label: "Gross",
-            value: `${earnings.grossEarnings.toLocaleString()} coins`,
-            icon: <CircleDollarSign size={16} color="#4ade80" />,
-          },
-          {
-            label: "Pending",
-            value: `${earnings.pending.toLocaleString()} coins`,
-            icon: <ReceiptText size={16} color="#e8a84c" />,
-          },
-          {
-            label: "Available",
-            value: `${earnings.available.toLocaleString()} coins`,
-            icon: <Wallet size={16} color="#60a5fa" />,
-          },
-          {
-            label: "Net",
-            value: `${earnings.netEarnings.toLocaleString()} coins`,
-            icon: <TrendingUp size={16} color="#fb7185" />,
-          },
-        ].map((item) => (
-          <div
-            key={item.label}
-            className="somi-surface rounded-xl p-4"
-            style={{ background: "var(--color-surface)" }}
-          >
-            <div className="flex items-center justify-between mb-2">
-              {item.icon}
-
-              <span
-                className="text-[9px] uppercase tracking-wider"
-                style={{ color: "#4a6540" }}
-              >
-                {item.label}
-              </span>
-            </div>
-
-            <p
-              className="font-display text-2xl font-bold"
-              style={{ color: "#f0ece4" }}
-            >
-              {item.value}
+            <p className="somi-writer-description">
+              Track the coins generated by your stories and monitor what is
+              pending or currently available.
             </p>
           </div>
-        ))}
-      </div>
 
-      <div className="px-5 mb-5">
-        <div
-          className="rounded-xl p-4"
-          style={{ background: "#1e2118", border: "1px solid #2a3525" }}
-        >
-          <p
-            className="text-[10px] uppercase tracking-wider mb-3"
-            style={{ color: "#4a6540" }}
+          <button
+            type="button"
+            className="somi-writer-secondary-action"
+            onClick={() => window.location.reload()}
+            disabled={loading}
           >
-            Revenue trend
-          </p>
+            <RefreshCw size={14} />
+            Refresh
+          </button>
+        </header>
 
-          {hasRevenueActivity ? (
-            <MiniBarChart
-              values={revenueTrend.map((day) => day.value)}
-              labels={revenueTrend.map((day) => day.label)}
-              color="#4ade80"
-              labelColor="#4a6540"
-              height={64}
-            />
-          ) : (
-            <div
-              className="h-16 flex items-center justify-center text-xs"
-              style={{ color: "#6a8060" }}
-            >
-              No earnings activity in the last 7 days.
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="px-5 pb-8">
-        <h3
-          className="font-display text-base font-semibold mb-3"
-          style={{ color: "#f0ece4" }}
-        >
-          Recent payouts
-        </h3>
-
-        <div className="flex flex-col gap-3">
-          {transactions.length === 0 && (
-            <p className="text-sm" style={{ color: "#6a8060" }}>
-              No earnings transactions yet.
+        {loadError && (
+          <div className="somi-writer-notice">
+            <p className="somi-writer-notice-title">
+              Earnings could not be loaded
             </p>
-          )}
 
-          {transactions.map((item) => (
-            <div
-              key={item.id}
-              className="rounded-xl p-4 flex items-center justify-between"
-              style={{ background: "#1e2118", border: "1px solid #2a3525" }}
-            >
+            <p className="somi-writer-notice-text">{loadError}</p>
+          </div>
+        )}
+
+        <section className="somi-writer-section">
+          <div className="somi-c5-earnings-grid">
+            <article className="somi-c5-earnings-primary">
+              <div className="somi-c5-earnings-icon">
+                <Coins size={19} />
+              </div>
+
+              <p className="somi-c5-earnings-label">Total earnings</p>
+
+              <p className="somi-c5-earnings-value">
+                {formatCoins(summary.totalCoins)}
+              </p>
+
+              <p className="somi-c5-earnings-unit">coins</p>
+            </article>
+
+            <article className="somi-c5-earnings-item">
+              <Clock3 size={17} />
+
               <div>
-                <p
-                  className="text-sm font-semibold"
-                  style={{ color: "#f0ece4" }}
-                >
-                  Chapter {item.chapterId}
+                <p className="somi-c5-earnings-item-value">
+                  {formatCoins(summary.pendingCoins)}
                 </p>
 
-                <p className="text-[10px] mt-0.5" style={{ color: "#6a8060" }}>
-                  {item.status}
+                <p className="somi-c5-earnings-item-label">Pending coins</p>
+              </div>
+            </article>
+
+            <article className="somi-c5-earnings-item">
+              <Wallet size={17} />
+
+              <div>
+                <p className="somi-c5-earnings-item-value">
+                  {formatCoins(summary.availableCoins)}
                 </p>
-              </div>
 
-              <div className="flex items-center gap-2">
-                <span
-                  className="text-sm font-bold"
-                  style={{ color: "#4ade80" }}
-                >
-                  {item.coins.toLocaleString()} coins
-                </span>
-
-                <ArrowUpRight size={14} color="#4ade80" />
+                <p className="somi-c5-earnings-item-label">Available coins</p>
               </div>
+            </article>
+          </div>
+        </section>
+
+        <section className="somi-writer-section">
+          <div className="somi-c5-section-heading">
+            <div>
+              <p className="somi-writer-eyebrow">Earnings activity</p>
+
+              <h2 className="somi-c5-section-title">Recent earnings</h2>
             </div>
-          ))}
-        </div>
+
+            <span className="somi-c5-section-meta">
+              {useApiWriterContent ? "Live platform data" : "Demo data"}
+            </span>
+          </div>
+
+          {loading ? (
+            <div className="somi-c5-empty">Loading earnings…</div>
+          ) : visibleTransactions.length === 0 ? (
+            <div className="somi-c5-empty">
+              <CircleDollarSign size={20} />
+
+              <p>No earnings yet.</p>
+
+              <span>
+                Earnings from eligible chapter activity will appear here.
+              </span>
+            </div>
+          ) : (
+            <div className="somi-c5-transactions">
+              {visibleTransactions.map((transaction) => (
+                <article key={transaction.id} className="somi-c5-transaction">
+                  <div className="somi-c5-transaction-main">
+                    <p className="somi-c5-transaction-title">
+                      {bookTitles.get(transaction.bookId) ?? transaction.bookId}
+                    </p>
+
+                    <p className="somi-c5-transaction-meta">
+                      Chapter {transaction.chapterId}
+                      {" · "}
+                      {formatDate(transaction.createdAt)}
+                    </p>
+                  </div>
+
+                  <div className="somi-c5-transaction-side">
+                    <p className="somi-c5-transaction-coins">
+                      +{formatCoins(transaction.coins)}
+                    </p>
+
+                    <span className="somi-c5-transaction-status">
+                      {statusLabel(transaction.status)}
+                    </span>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="somi-writer-section">
+          <div className="somi-c5-insight">
+            <div>
+              <p className="somi-writer-eyebrow">SOMI economy</p>
+
+              <h2 className="somi-c5-section-title">
+                Your earnings are measured in SOMI coins.
+              </h2>
+            </div>
+
+            <p>
+              Pending coins represent earnings that have not yet become
+              available. Available coins are the portion currently available to
+              the writer according to the platform ledger.
+            </p>
+          </div>
+        </section>
       </div>
     </div>
   );
