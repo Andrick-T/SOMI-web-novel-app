@@ -1,7 +1,8 @@
 import {
-  AlertTriangle,
+  ArrowRight,
   BookOpen,
   Coins,
+  FileWarning,
   ShieldAlert,
   TrendingUp,
   Users,
@@ -11,228 +12,330 @@ import type { CommonProps } from "../../types";
 
 export default function AdminDashboard({ navigate }: CommonProps) {
   const summary = mockAdminRepository.getDashboardSummary();
-  const attentionItems = summary.needsAttention;
 
   const kpis = [
     {
       label: "Active readers",
       value: summary.activeReaders.toLocaleString(),
-      icon: <Users size={16} color="var(--color-accent-primary)" />,
+      icon: Users,
+      tone: "default",
     },
     {
       label: "Active writers",
-      value: summary.activeWriters.toString(),
-      icon: <BookOpen size={16} color="var(--color-accent-primary)" />,
+      value: summary.activeWriters.toLocaleString(),
+      icon: BookOpen,
+      tone: "default",
     },
     {
       label: "Published books",
       value: summary.publishedBooks.toLocaleString(),
-      icon: <BookOpen size={16} color="var(--color-status-info)" />,
+      icon: BookOpen,
+      tone: "info",
     },
     {
       label: "Pending moderation",
-      value: summary.pendingModeration.toString(),
-      icon: <ShieldAlert size={16} color="var(--color-status-warning)" />,
+      value: summary.pendingModeration.toLocaleString(),
+      icon: ShieldAlert,
+      tone: "warning",
     },
     {
       label: "Transactions today",
-      value: summary.transactionsToday.toString(),
-      icon: <Coins size={16} color="var(--color-status-warning)" />,
+      value: summary.transactionsToday.toLocaleString(),
+      icon: Coins,
+      tone: "warning",
     },
     {
       label: "Revenue today",
       value: `$${summary.revenueToday.toLocaleString()}`,
-      icon: <TrendingUp size={16} color="var(--color-status-success)" />,
+      icon: TrendingUp,
+      tone: "success",
+    },
+  ];
+
+  const contentHealth = [
+    {
+      label: "Books published this week",
+      value: summary.contentHealth.booksPublishedThisWeek,
+    },
+    {
+      label: "Chapters published this week",
+      value: summary.contentHealth.chaptersPublishedThisWeek,
+    },
+    {
+      label: "Pending submissions",
+      value: summary.contentHealth.pendingSubmissions,
+    },
+    {
+      label: "Rejected content",
+      value: summary.contentHealth.rejectedContent,
+    },
+  ];
+
+  const economyHealth = [
+    {
+      label: "Coins purchased",
+      value: summary.economyHealth.coinsPurchased.toLocaleString(),
+    },
+    {
+      label: "Coins spent",
+      value: summary.economyHealth.coinsSpent.toLocaleString(),
+    },
+    {
+      label: "Revenue",
+      value: `$${summary.economyHealth.revenue.toLocaleString()}`,
+    },
+    {
+      label: "Refunds",
+      value: summary.economyHealth.refunds.toLocaleString(),
+    },
+    {
+      label: "Failed transactions",
+      value: summary.economyHealth.failedTransactions.toLocaleString(),
     },
   ];
 
   return (
-    <div className="flex min-h-full flex-col bg-[var(--color-background)] px-5 py-8 text-[var(--color-text-primary)]">
-      <div className="mb-6">
-        <p className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--color-text-muted)]">
-          Admin Console
-        </p>
-        <h1 className="mt-2 text-2xl font-bold text-[var(--color-text-primary)]">
-          Admin Overview
-        </h1>
-        <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
-          Monitor the health of SOMI and resolve platform issues.
-        </p>
-      </div>
+    <main className="somi-admin-page">
+      <div className="somi-admin-inner">
+        {/* Header */}
+        <header className="somi-admin-header">
+          <div>
+            <p className="somi-admin-eyebrow">Admin Console</p>
 
-      <div className="mb-6 flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => navigate("admin-content")}
-          className="somi-control rounded-lg bg-[rgba(96,165,250,0.12)] px-3 py-2 text-xs font-semibold text-[var(--color-accent-primary)]"
-        >
-          Review moderation
-        </button>
-        <button
-          type="button"
-          onClick={() => navigate("admin-reports")}
-          className="somi-control rounded-lg bg-[rgba(96,165,250,0.12)] px-3 py-2 text-xs font-semibold text-[var(--color-accent-primary)]"
-        >
-          View reports
-        </button>
-        <button
-          type="button"
-          onClick={() => navigate("admin-economy")}
-          className="somi-control rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface)] px-3 py-2 text-xs font-semibold text-[var(--color-text-secondary)]"
-        >
-          Review economy
-        </button>
-      </div>
+            <h1 className="somi-admin-title">Platform overview</h1>
 
-      <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {kpis.map((kpi) => (
-          <div
-            key={kpi.label}
-            className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface)] p-4"
-          >
-            <div className="flex items-center justify-between">
-              {kpi.icon}
-              <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-[var(--color-accent-primary)]">
-                Live
+            <p className="somi-admin-description">
+              Monitor SOMI activity, content moderation, users, and the platform
+              economy.
+            </p>
+          </div>
+
+          <div className="somi-admin-header-actions">
+            <button
+              type="button"
+              onClick={() => navigate("admin-content")}
+              className="somi-admin-button somi-admin-button-primary"
+            >
+              Review moderation
+              <ArrowRight size={14} />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navigate("admin-reports")}
+              className="somi-admin-button somi-admin-button-secondary"
+            >
+              Reports
+            </button>
+          </div>
+        </header>
+
+        {/* KPI strip */}
+        <section className="somi-admin-kpi-grid" aria-label="Platform metrics">
+          {kpis.map((kpi) => {
+            const Icon = kpi.icon;
+
+            return (
+              <div
+                key={kpi.label}
+                className={`somi-admin-kpi somi-admin-kpi-${kpi.tone}`}
+              >
+                <div className="somi-admin-kpi-top">
+                  <span className="somi-admin-kpi-icon">
+                    <Icon size={16} />
+                  </span>
+
+                  <span className="somi-admin-kpi-status">Current</span>
+                </div>
+
+                <p className="somi-admin-kpi-value">{kpi.value}</p>
+
+                <p className="somi-admin-kpi-label">{kpi.label}</p>
+              </div>
+            );
+          })}
+        </section>
+
+        {/* Main operational area */}
+        <section className="somi-admin-dashboard-grid">
+          {/* Needs attention */}
+          <section className="somi-admin-section somi-admin-attention">
+            <div className="somi-admin-section-heading">
+              <div>
+                <p className="somi-admin-section-eyebrow">Operational queue</p>
+
+                <h2 className="somi-admin-section-title">Needs attention</h2>
+              </div>
+
+              <span className="somi-admin-section-count">
+                {summary.needsAttention.length}
               </span>
             </div>
-            <p className="mt-4 text-2xl font-bold text-[var(--color-text-primary)]">
-              {kpi.value}
-            </p>
-            <p className="mt-1 text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-muted)]">
-              {kpi.label}
-            </p>
-          </div>
-        ))}
-      </div>
 
-      <div className="mb-6 grid gap-5 xl:grid-cols-[1.2fr,0.8fr]">
-        <section className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface)] p-4">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">
-              Needs attention
-            </h2>
-            <span className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-accent-primary)]">
-              Operational queue
-            </span>
-          </div>
-          <div className="space-y-2">
-            {attentionItems.length === 0 ? (
-              <div className="rounded-xl bg-[var(--color-background)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">
-                No immediate operational issues detected.
-              </div>
-            ) : (
-              attentionItems.map((item) => (
-                <button
-                  type="button"
-                  key={item.id}
-                  onClick={() => navigate(item.path as any)}
-                  className="flex w-full items-center justify-between rounded-xl bg-[var(--color-background)] px-3 py-2.5 text-left transition-colors hover:bg-[var(--color-hover-surface)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-primary)]"
-                >
-                  <div>
-                    <p className="text-sm font-medium text-[var(--color-text-primary)]">
-                      {item.label}
-                    </p>
-                    <p className="text-xs text-[var(--color-text-muted)]">
-                      Action required
-                    </p>
-                  </div>
-                  <span className="rounded-full bg-[rgba(251,113,133,0.18)] px-2 py-1 text-xs font-bold text-[var(--color-status-danger)]">
-                    {item.count}
-                  </span>
-                </button>
-              ))
-            )}
-          </div>
-        </section>
-
-        <section className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface)] p-4">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">
-              Platform activity
-            </h2>
-          </div>
-          <div className="space-y-3">
-            {summary.activity.map((entry) => (
-              <div
-                key={entry.id}
-                className="flex gap-2 rounded-xl bg-[var(--color-background)] p-3"
-              >
-                <span className="mt-1 h-2.5 w-2.5 rounded-full bg-[var(--color-accent-primary)]" />
-                <div className="flex-1">
-                  <p className="text-sm text-[var(--color-text-secondary)]">
-                    {entry.text}
-                  </p>
-                  <p className="mt-1 text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-muted)]">
-                    {entry.time}
-                  </p>
+            <div className="somi-admin-attention-list">
+              {summary.needsAttention.length === 0 ? (
+                <div className="somi-admin-empty">
+                  <p>No immediate operational issues detected.</p>
                 </div>
+              ) : (
+                summary.needsAttention.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => navigate(item.path as any)}
+                    className="somi-admin-attention-item"
+                  >
+                    <span
+                      className={`somi-admin-attention-marker severity-${item.severity.toLowerCase()}`}
+                    />
+
+                    <span className="somi-admin-attention-copy">
+                      <strong>{item.label}</strong>
+                      <small>Action required</small>
+                    </span>
+
+                    <span className="somi-admin-attention-count">
+                      {item.count}
+                    </span>
+
+                    <ArrowRight
+                      size={14}
+                      className="somi-admin-attention-arrow"
+                    />
+                  </button>
+                ))
+              )}
+            </div>
+          </section>
+
+          {/* Activity */}
+          <section className="somi-admin-section">
+            <div className="somi-admin-section-heading">
+              <div>
+                <p className="somi-admin-section-eyebrow">Recent events</p>
+
+                <h2 className="somi-admin-section-title">Platform activity</h2>
               </div>
-            ))}
+            </div>
+
+            <div className="somi-admin-activity-list">
+              {summary.activity.map((entry) => (
+                <div key={entry.id} className="somi-admin-activity-item">
+                  <span
+                    className={`somi-admin-activity-dot activity-${entry.type}`}
+                  />
+
+                  <div className="somi-admin-activity-copy">
+                    <p>{entry.text}</p>
+
+                    <span>{entry.time}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        </section>
+
+        {/* Health overview */}
+        <section className="somi-admin-health-grid">
+          <section className="somi-admin-section">
+            <div className="somi-admin-section-heading">
+              <div>
+                <p className="somi-admin-section-eyebrow">Publishing</p>
+
+                <h2 className="somi-admin-section-title">Content health</h2>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => navigate("admin-content")}
+                className="somi-admin-inline-link"
+              >
+                Manage content
+                <ArrowRight size={13} />
+              </button>
+            </div>
+
+            <div className="somi-admin-health-list">
+              {contentHealth.map((item) => (
+                <div key={item.label} className="somi-admin-health-row">
+                  <span>{item.label}</span>
+                  <strong>{item.value.toLocaleString()}</strong>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="somi-admin-section">
+            <div className="somi-admin-section-heading">
+              <div>
+                <p className="somi-admin-section-eyebrow">Transactions</p>
+
+                <h2 className="somi-admin-section-title">Economy health</h2>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => navigate("admin-economy")}
+                className="somi-admin-inline-link"
+              >
+                Open economy
+                <ArrowRight size={13} />
+              </button>
+            </div>
+
+            <div className="somi-admin-health-list">
+              {economyHealth.map((item) => (
+                <div key={item.label} className="somi-admin-health-row">
+                  <span>{item.label}</span>
+                  <strong>{item.value}</strong>
+                </div>
+              ))}
+            </div>
+          </section>
+        </section>
+
+        {/* Bottom shortcuts */}
+        <section className="somi-admin-dashboard-footer">
+          <div>
+            <p className="somi-admin-section-eyebrow">Administration</p>
+
+            <h2 className="somi-admin-section-title">Quick access</h2>
+          </div>
+
+          <div className="somi-admin-quick-links">
+            <button
+              type="button"
+              onClick={() => navigate("admin-users")}
+              className="somi-admin-quick-link"
+            >
+              <Users size={16} />
+              Users & writers
+              <ArrowRight size={13} />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navigate("admin-reports")}
+              className="somi-admin-quick-link"
+            >
+              <FileWarning size={16} />
+              Reports
+              <ArrowRight size={13} />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navigate("admin-transactions")}
+              className="somi-admin-quick-link"
+            >
+              <Coins size={16} />
+              Transactions
+              <ArrowRight size={13} />
+            </button>
           </div>
         </section>
       </div>
-
-      <div className="grid gap-5 xl:grid-cols-2">
-        <section className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface)] p-4">
-          <h2 className="mb-3 text-sm font-semibold text-[var(--color-text-primary)]">
-            Content health
-          </h2>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {[
-              [
-                "Books published this week",
-                summary.contentHealth.booksPublishedThisWeek,
-              ],
-              [
-                "Chapters published this week",
-                summary.contentHealth.chaptersPublishedThisWeek,
-              ],
-              ["Pending submissions", summary.contentHealth.pendingSubmissions],
-              ["Rejected content", summary.contentHealth.rejectedContent],
-            ].map(([label, value]) => (
-              <div
-                key={label}
-                className="rounded-xl bg-[var(--color-background)] p-3"
-              >
-                <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-muted)]">
-                  {label}
-                </p>
-                <p className="mt-2 text-xl font-bold text-[var(--color-text-primary)]">
-                  {String(value)}
-                </p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface)] p-4">
-          <h2 className="mb-3 text-sm font-semibold text-[var(--color-text-primary)]">
-            Economy health
-          </h2>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {[
-              ["Coins purchased", summary.economyHealth.coinsPurchased],
-              ["Coins spent", summary.economyHealth.coinsSpent],
-              ["Revenue", `$${summary.economyHealth.revenue.toLocaleString()}`],
-              ["Refunds", summary.economyHealth.refunds],
-              ["Failed transactions", summary.economyHealth.failedTransactions],
-            ].map(([label, value]) => (
-              <div
-                key={label}
-                className="rounded-xl bg-[var(--color-background)] p-3"
-              >
-                <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-muted)]">
-                  {label}
-                </p>
-                <p className="mt-2 text-xl font-bold text-[var(--color-text-primary)]">
-                  {String(value)}
-                </p>
-              </div>
-            ))}
-          </div>
-        </section>
-      </div>
-    </div>
+    </main>
   );
 }

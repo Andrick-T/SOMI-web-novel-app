@@ -1,175 +1,226 @@
 import { useMemo, useState } from "react";
-import { BookOpen, Search, TrendingUp, Users } from "lucide-react";
+import { ArrowRight, BookOpen, Search } from "lucide-react";
 import { mockAdminRepository } from "../../features/admin";
-import { StatusBadge } from "../../components/DesignPrimitives";
 import type { CommonProps } from "../../types";
 
-const writerStatusColors: Record<
-  string,
-  { tone: "success" | "warning" | "danger" | "info" | "neutral"; label: string }
-> = {
-  ACTIVE: { tone: "success", label: "Active" },
-  PENDING: { tone: "warning", label: "Pending" },
-  SUSPENDED: { tone: "danger", label: "Suspended" },
+const writerStatusMeta: Record<string, { label: string; className: string }> = {
+  ACTIVE: {
+    label: "Active",
+    className: "somi-admin-status-active",
+  },
+  PENDING: {
+    label: "Pending",
+    className: "somi-admin-status-warning",
+  },
+  SUSPENDED: {
+    label: "Suspended",
+    className: "somi-admin-status-danger",
+  },
 };
 
 export default function AdminWriters({ navigate }: CommonProps) {
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("ALL");
 
+  const allWriters = useMemo(
+    () =>
+      mockAdminRepository.getUsers().filter((user) => user.role === "WRITER"),
+    [],
+  );
+
   const writers = useMemo(() => {
-    const all = mockAdminRepository
-      .getUsers()
-      .filter((user) => user.role === "WRITER");
-    return all.filter((writer) => {
+    return allWriters.filter((writer) => {
+      const normalizedQuery = query.trim().toLowerCase();
+
       const matchesQuery =
-        !query ||
+        !normalizedQuery ||
         `${writer.name} ${writer.email}`
           .toLowerCase()
-          .includes(query.toLowerCase());
+          .includes(normalizedQuery);
+
       const matchesStatus = status === "ALL" || writer.status === status;
+
       return matchesQuery && matchesStatus;
     });
-  }, [query, status]);
+  }, [allWriters, query, status]);
+
+  const writerStats = useMemo(
+    () => ({
+      total: allWriters.length,
+      active: allWriters.filter((writer) => writer.status === "ACTIVE").length,
+      pending: allWriters.filter((writer) => writer.status === "PENDING")
+        .length,
+      suspended: allWriters.filter((writer) => writer.status === "SUSPENDED")
+        .length,
+    }),
+    [allWriters],
+  );
 
   return (
-    <div className="min-h-full bg-[var(--color-background)] px-5 py-8 text-[var(--color-text-primary)]">
-      <div className="mb-5">
-        <p className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--color-text-muted)]">
-          Admin Console
-        </p>
-        <h1 className="mt-2 text-2xl font-bold text-[var(--color-text-primary)]">
-          Writers
-        </h1>
-      </div>
+    <main className="somi-admin-page">
+      <div className="somi-admin-inner">
+        <header className="somi-admin-header">
+          <div>
+            <p className="somi-admin-eyebrow">Administration</p>
 
-      <div className="mb-4 flex items-center gap-3 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface)] px-4 py-3">
-        <Search size={15} color="var(--color-text-muted)" />
-        <input
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search writers by name or email"
-          className="w-full bg-transparent text-sm text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-muted)]"
-        />
-      </div>
+            <h1 className="somi-admin-title">Writers</h1>
 
-      <div className="mb-5 flex flex-wrap gap-2">
-        {(["ALL", "ACTIVE", "PENDING", "SUSPENDED"] as const).map((value) => (
-          <button
-            key={value}
-            type="button"
-            onClick={() => setStatus(value)}
-            className="somi-control rounded-lg px-3 py-1.5 text-xs font-semibold"
-            style={{
-              background:
-                status === value
-                  ? "var(--color-accent-primary)"
-                  : "var(--color-surface)",
-              color:
-                status === value
-                  ? "var(--color-background)"
-                  : "var(--color-text-secondary)",
-            }}
-          >
-            {value}
-          </button>
-        ))}
-      </div>
-
-      <div className="space-y-3 pb-8">
-        {writers.length === 0 ? (
-          <div className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface)] p-6 text-center text-[var(--color-text-secondary)]">
-            No writers match the current filters.
+            <p className="somi-admin-description">
+              Review writer accounts, publishing activity, and account status.
+            </p>
           </div>
-        ) : (
-          writers.map((writer) => {
-            const statusMeta =
-              writerStatusColors[writer.status] ?? writerStatusColors.ACTIVE;
-            return (
-              <div
-                key={writer.id}
-                className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface)] p-4"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[rgba(74,222,128,0.12)] text-sm font-bold text-[var(--color-status-success)]">
-                      {writer.avatar}
-                    </div>
-                    <div>
-                      <p className="font-semibold text-[var(--color-text-primary)]">
-                        {writer.name}
-                      </p>
-                      <p className="text-xs text-[var(--color-text-muted)]">
-                        {writer.email}
-                      </p>
-                    </div>
-                  </div>
-                  <StatusBadge
-                    label={statusMeta.label}
-                    tone={statusMeta.tone}
-                    compact
-                  />
-                </div>
+        </header>
 
-                <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                  <div className="rounded-xl bg-[var(--color-background)] p-3">
-                    <div className="flex items-center gap-2 text-[var(--color-text-muted)]">
-                      <BookOpen size={12} color="var(--color-accent-primary)" />{" "}
-                      <span className="text-[10px] uppercase tracking-[0.18em]">
-                        Books
-                      </span>
-                    </div>
-                    <p className="mt-2 text-xl font-bold text-[var(--color-text-primary)]">
-                      {writer.booksPublished}
-                    </p>
-                  </div>
-                  <div className="rounded-xl bg-[var(--color-background)] p-3">
-                    <div className="flex items-center gap-2 text-[var(--color-text-muted)]">
-                      <Users size={12} color="var(--color-accent-primary)" />{" "}
-                      <span className="text-[10px] uppercase tracking-[0.18em]">
-                        Reads
-                      </span>
-                    </div>
-                    <p className="mt-2 text-xl font-bold text-[var(--color-text-primary)]">
-                      {Math.max(writer.booksPublished * 42, 210)}
-                    </p>
-                  </div>
-                  <div className="rounded-xl bg-[var(--color-background)] p-3">
-                    <div className="flex items-center gap-2 text-[var(--color-text-muted)]">
-                      <TrendingUp
-                        size={12}
-                        color="var(--color-accent-primary)"
-                      />{" "}
-                      <span className="text-[10px] uppercase tracking-[0.18em]">
-                        Earnings
-                      </span>
-                    </div>
-                    <p className="mt-2 text-xl font-bold text-[var(--color-text-primary)]">
-                      ${(writer.booksPublished * 180).toLocaleString()}
-                    </p>
-                  </div>
-                </div>
+        <section className="somi-admin-user-summary">
+          <div>
+            <strong>{writerStats.total}</strong>
+            <span>Total writers</span>
+          </div>
 
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => navigate("admin-users", writer.id)}
-                    className="somi-control rounded-lg bg-[rgba(96,165,250,0.12)] px-3 py-2 text-[10px] font-semibold text-[var(--color-accent-primary)]"
-                  >
-                    View profile
-                  </button>
-                  <button
-                    type="button"
-                    className="somi-control rounded-lg bg-[var(--color-background)] px-3 py-2 text-[10px] font-semibold text-[var(--color-text-secondary)]"
-                  >
-                    Manage status
-                  </button>
-                </div>
+          <div>
+            <strong>{writerStats.active}</strong>
+            <span>Active</span>
+          </div>
+
+          <div>
+            <strong className="somi-admin-summary-warning">
+              {writerStats.pending}
+            </strong>
+            <span>Pending</span>
+          </div>
+
+          <div>
+            <strong className="somi-admin-summary-danger">
+              {writerStats.suspended}
+            </strong>
+            <span>Suspended</span>
+          </div>
+        </section>
+
+        <section className="somi-admin-toolbar">
+          <div className="somi-admin-search">
+            <Search size={15} />
+
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search writers by name or email"
+              aria-label="Search writers"
+            />
+          </div>
+
+          <div className="somi-admin-filter-group">
+            {(["ALL", "ACTIVE", "PENDING", "SUSPENDED"] as const).map(
+              (value) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setStatus(value)}
+                  className={`somi-admin-filter ${
+                    status === value ? "is-active" : ""
+                  }`}
+                >
+                  {value === "ALL"
+                    ? "All writers"
+                    : (writerStatusMeta[value]?.label ?? value)}
+                </button>
+              ),
+            )}
+          </div>
+        </section>
+
+        <section className="somi-admin-data-section">
+          <div className="somi-admin-data-header">
+            <div>
+              <p className="somi-admin-section-eyebrow">Writer directory</p>
+
+              <h2 className="somi-admin-section-title">
+                {writers.length} matching{" "}
+                {writers.length === 1 ? "writer" : "writers"}
+              </h2>
+            </div>
+          </div>
+
+          {writers.length === 0 ? (
+            <div className="somi-admin-empty-state">
+              <BookOpen size={20} />
+
+              <p>No writers match the current filters.</p>
+            </div>
+          ) : (
+            <div className="somi-admin-writer-table">
+              <div className="somi-admin-writer-table-head">
+                <span>Writer</span>
+                <span>Status</span>
+                <span>Books</span>
+                <span>Joined</span>
+                <span>Last active</span>
+                <span />
               </div>
-            );
-          })
-        )}
+
+              {writers.map((writer) => {
+                const statusInfo =
+                  writerStatusMeta[writer.status] ?? writerStatusMeta.ACTIVE;
+
+                const joinedDate = writer.joinedAt ?? writer.createdAt;
+
+                return (
+                  <div key={writer.id} className="somi-admin-writer-row">
+                    <div className="somi-admin-user-identity">
+                      <div className="somi-admin-writer-avatar">
+                        {writer.avatar}
+                      </div>
+
+                      <div className="somi-admin-user-name">
+                        <strong>{writer.name}</strong>
+
+                        <span>{writer.email}</span>
+                      </div>
+                    </div>
+
+                    <span
+                      className={`somi-admin-user-status ${statusInfo.className}`}
+                    >
+                      <span />
+                      {statusInfo.label}
+                    </span>
+
+                    <span className="somi-admin-writer-metric">
+                      <BookOpen size={13} />
+                      {writer.booksPublished}
+                    </span>
+
+                    <span className="somi-admin-writer-date">{joinedDate}</span>
+
+                    <span className="somi-admin-writer-date">
+                      {writer.lastActiveAt}
+                    </span>
+
+                    <div className="somi-admin-writer-actions">
+                      <button
+                        type="button"
+                        onClick={() => navigate("admin-users", writer.id)}
+                        className="somi-admin-row-action"
+                      >
+                        View profile
+                        <ArrowRight size={13} />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => navigate("admin-users", writer.id)}
+                        className="somi-admin-row-action-secondary"
+                      >
+                        Manage
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
       </div>
-    </div>
+    </main>
   );
 }

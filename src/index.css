@@ -5779,3 +5779,1035 @@ textarea:focus-visible,
     width: 100%;
   }
 }
+
+/* =========================================================
+   ADMIN D2 — DASHBOARD
+   ========================================================= */
+
+[data-environment="admin"] .somi-admin-dashboard-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.75fr);
+  gap: 1px;
+  background: var(--admin-border);
+  border-top: 1px solid var(--admin-border);
+  border-bottom: 1px solid var(--admin-border);
+}
+
+[data-environment="admin"] .somi-admin-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 1px;
+  margin-top: 2rem;
+  background: var(--admin-border);
+  border-top: 1px solid var(--admin-border);
+  border-bottom: 1px solid var(--admin-border);
+}
+
+[data-environment="admin"] .somi-admin-kpi {
+  min-width: 0;
+  padding: 1.1rem 1rem 1.2rem;
+  background: var(--admin-bg);
+}
+
+[data-environment="admin"] .somi-admin-kpi-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+[data-environment="admin"] .somi-admin-kpi-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  color: var(--admin-text-secondary);
+  border: 1px solid var(--admin-border);
+  background: var(--admin-surface);
+}
+
+[data-environment="admin"] .somi-admin-kpi-default .somi-admin-kpi-icon {
+  color: var(--admin-accent);
+}
+
+[data-environment="admin"] .somi-admin-kpi-info .somi-admin-kpi-icon {
+  color: var(--admin-info);
+}
+
+[data-environment="admin"] .somi-admin-kpi-warning .somi-admin-kpi-icon {
+  color: var(--admin-warning);
+}
+
+[data-environment="admin"] .somi-admin-kpi-success .somi-admin-kpi-icon {
+  color: var(--admin-success);
+}
+
+[data-environment="admin"] .somi-admin-kpi-status {
+  color: var(--admin-text-muted);
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+[data-environment="admin"] .somi-admin-kpi-value {
+  margin: 1rem 0 0;
+  color: var(--admin-text-primary);
+  font-size: 1.65rem;
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+
+[data-environment="admin"] .somi-admin-kpi-label {
+  margin: 0.45rem 0 0;
+  color: var(--admin-text-muted);
+  font-size: 0.68rem;
+  line-height: 1.3;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+[data-environment="admin"] .somi-admin-dashboard-grid > .somi-admin-section {
+  min-width: 0;
+  border: 0;
+  background: var(--admin-bg);
+}
+
+[data-environment="admin"]
+  .somi-admin-dashboard-grid
+  > .somi-admin-section:first-child {
+  border-right: 1px solid var(--admin-border);
+}
+
+[data-environment="admin"] .somi-admin-section {
+  padding: 1.35rem 1.4rem;
+}
+
+[data-environment="admin"] .somi-admin-section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.1rem;
+}
+
+[data-environment="admin"] .somi-admin-section-eyebrow {
+  margin: 0 0 0.3rem;
+  color: var(--admin-text-muted);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+[data-environment="admin"] .somi-admin-section-title {
+  margin: 0;
+  color: var(--admin-text-primary);
+  font-size: 0.95rem;
+  line-height: 1.35;
+  font-weight: 650;
+}
+
+[data-environment="admin"] .somi-admin-section-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.7rem;
+  height: 1.7rem;
+  padding: 0 0.4rem;
+  border: 1px solid var(--admin-border);
+  color: var(--admin-accent);
+  background: var(--admin-accent-soft);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+[data-environment="admin"] .somi-admin-attention-list {
+  display: flex;
+  flex-direction: column;
+}
+
+[data-environment="admin"] .somi-admin-attention-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.8rem 0;
+  border: 0;
+  border-top: 1px solid var(--admin-border-soft);
+  color: inherit;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color 150ms ease,
+    padding 150ms ease;
+}
+
+[data-environment="admin"] .somi-admin-attention-item:hover {
+  padding-left: 0.35rem;
+  padding-right: 0.35rem;
+  background: var(--admin-accent-soft);
+}
+
+[data-environment="admin"] .somi-admin-attention-marker {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: var(--admin-accent);
+}
+
+[data-environment="admin"] .somi-admin-attention-marker.severity-high {
+  background: var(--admin-danger);
+}
+
+[data-environment="admin"] .somi-admin-attention-marker.severity-medium {
+  background: var(--admin-warning);
+}
+
+[data-environment="admin"] .somi-admin-attention-marker.severity-low {
+  background: var(--admin-info);
+}
+
+[data-environment="admin"] .somi-admin-attention-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.18rem;
+}
+
+[data-environment="admin"] .somi-admin-attention-copy strong {
+  overflow: hidden;
+  color: var(--admin-text-primary);
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-environment="admin"] .somi-admin-attention-copy small {
+  color: var(--admin-text-muted);
+  font-size: 0.67rem;
+}
+
+[data-environment="admin"] .somi-admin-attention-count {
+  min-width: 1.65rem;
+  padding: 0.2rem 0.4rem;
+  color: var(--admin-danger);
+  background: rgba(248, 113, 113, 0.1);
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+[data-environment="admin"] .somi-admin-attention-arrow {
+  color: var(--admin-text-muted);
+}
+
+[data-environment="admin"] .somi-admin-activity-list {
+  display: flex;
+  flex-direction: column;
+}
+
+[data-environment="admin"] .somi-admin-activity-item {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.75rem 0;
+  border-top: 1px solid var(--admin-border-soft);
+}
+
+[data-environment="admin"] .somi-admin-activity-dot {
+  flex: 0 0 auto;
+  width: 0.45rem;
+  height: 0.45rem;
+  margin-top: 0.38rem;
+  border-radius: 999px;
+  background: var(--admin-accent);
+}
+
+[data-environment="admin"] .somi-admin-activity-dot.activity-book {
+  background: var(--admin-info);
+}
+
+[data-environment="admin"] .somi-admin-activity-dot.activity-chapter {
+  background: var(--admin-accent);
+}
+
+[data-environment="admin"] .somi-admin-activity-dot.activity-writer {
+  background: var(--admin-success);
+}
+
+[data-environment="admin"] .somi-admin-activity-dot.activity-transaction {
+  background: var(--admin-warning);
+}
+
+[data-environment="admin"] .somi-admin-activity-dot.activity-report {
+  background: var(--admin-danger);
+}
+
+[data-environment="admin"] .somi-admin-activity-copy {
+  min-width: 0;
+}
+
+[data-environment="admin"] .somi-admin-activity-copy p {
+  margin: 0;
+  color: var(--admin-text-secondary);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+[data-environment="admin"] .somi-admin-activity-copy span {
+  display: block;
+  margin-top: 0.3rem;
+  color: var(--admin-text-muted);
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+[data-environment="admin"] .somi-admin-health-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  margin-top: 2rem;
+  background: var(--admin-border);
+  border-top: 1px solid var(--admin-border);
+  border-bottom: 1px solid var(--admin-border);
+}
+
+[data-environment="admin"] .somi-admin-health-grid > .somi-admin-section {
+  border: 0;
+  background: var(--admin-bg);
+}
+
+[data-environment="admin"] .somi-admin-inline-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0;
+  border: 0;
+  color: var(--admin-accent);
+  background: transparent;
+  font-size: 0.68rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+[data-environment="admin"] .somi-admin-inline-link:hover {
+  color: var(--admin-accent-strong);
+}
+
+[data-environment="admin"] .somi-admin-health-list {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--admin-border-soft);
+}
+
+[data-environment="admin"] .somi-admin-health-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 2.65rem;
+  border-bottom: 1px solid var(--admin-border-soft);
+}
+
+[data-environment="admin"] .somi-admin-health-row span {
+  color: var(--admin-text-secondary);
+  font-size: 0.73rem;
+}
+
+[data-environment="admin"] .somi-admin-health-row strong {
+  color: var(--admin-text-primary);
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+[data-environment="admin"] .somi-admin-dashboard-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2rem;
+  margin-top: 2rem;
+  padding: 1.35rem 0 0.5rem;
+  border-top: 1px solid var(--admin-border);
+}
+
+[data-environment="admin"] .somi-admin-quick-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+[data-environment="admin"] .somi-admin-quick-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.3rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--admin-border);
+  color: var(--admin-text-secondary);
+  background: var(--admin-surface);
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    border-color 150ms ease,
+    color 150ms ease,
+    background-color 150ms ease;
+}
+
+[data-environment="admin"] .somi-admin-quick-link:hover {
+  border-color: var(--admin-accent);
+  color: var(--admin-text-primary);
+  background: var(--admin-accent-soft);
+}
+
+[data-environment="admin"] .somi-admin-quick-link svg:last-child {
+  color: var(--admin-text-muted);
+}
+
+[data-environment="admin"] .somi-admin-empty {
+  padding: 1rem 0;
+  border-top: 1px solid var(--admin-border-soft);
+  color: var(--admin-text-muted);
+  font-size: 0.75rem;
+}
+
+[data-environment="admin"] .somi-admin-empty p {
+  margin: 0;
+}
+
+/* Dashboard header actions */
+
+[data-environment="admin"] .somi-admin-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+[data-environment="admin"] .somi-admin-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: 2.35rem;
+  padding: 0 0.8rem;
+  border: 1px solid var(--admin-border);
+  font-size: 0.7rem;
+  font-weight: 650;
+  cursor: pointer;
+  transition:
+    border-color 150ms ease,
+    color 150ms ease,
+    background-color 150ms ease;
+}
+
+[data-environment="admin"] .somi-admin-button-primary {
+  border-color: rgba(96, 165, 250, 0.35);
+  color: var(--admin-accent-strong);
+  background: var(--admin-accent-soft);
+}
+
+[data-environment="admin"] .somi-admin-button-primary:hover {
+  border-color: var(--admin-accent);
+  background: var(--admin-accent-hover);
+}
+
+[data-environment="admin"] .somi-admin-button-secondary {
+  color: var(--admin-text-secondary);
+  background: transparent;
+}
+
+[data-environment="admin"] .somi-admin-button-secondary:hover {
+  border-color: var(--admin-accent);
+  color: var(--admin-text-primary);
+}
+
+/* Dashboard responsive */
+
+@media (max-width: 1180px) {
+  [data-environment="admin"] .somi-admin-kpi-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  [data-environment="admin"] .somi-admin-dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  [data-environment="admin"]
+    .somi-admin-dashboard-grid
+    > .somi-admin-section:first-child {
+    border-right: 0;
+    border-bottom: 1px solid var(--admin-border);
+  }
+
+  [data-environment="admin"] .somi-admin-health-grid {
+    grid-template-columns: 1fr;
+  }
+
+  [data-environment="admin"] .somi-admin-dashboard-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  [data-environment="admin"] .somi-admin-quick-links {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 640px) {
+  [data-environment="admin"] .somi-admin-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  [data-environment="admin"] .somi-admin-kpi-value {
+    font-size: 1.35rem;
+  }
+
+  [data-environment="admin"] .somi-admin-header-actions {
+    width: 100%;
+  }
+
+  [data-environment="admin"] .somi-admin-button {
+    flex: 1;
+  }
+
+  [data-environment="admin"] .somi-admin-section {
+    padding: 1.1rem;
+  }
+
+  [data-environment="admin"] .somi-admin-attention-item {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  [data-environment="admin"] .somi-admin-attention-arrow {
+    display: none;
+  }
+
+  [data-environment="admin"] .somi-admin-health-row {
+    min-height: 3rem;
+  }
+}
+
+/* =========================================================
+   ADMIN D3 — USERS & WRITERS
+   ========================================================= */
+
+[data-environment="admin"] .somi-admin-user-summary {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin-top: 2rem;
+  border-top: 1px solid var(--admin-border);
+  border-bottom: 1px solid var(--admin-border);
+}
+
+[data-environment="admin"] .somi-admin-user-summary > div {
+  min-width: 0;
+  padding: 1rem 1.1rem;
+  border-right: 1px solid var(--admin-border);
+}
+
+[data-environment="admin"] .somi-admin-user-summary > div:last-child {
+  border-right: 0;
+}
+
+[data-environment="admin"] .somi-admin-user-summary strong {
+  display: block;
+  color: var(--admin-text-primary);
+  font-size: 1.35rem;
+  line-height: 1;
+  font-weight: 700;
+}
+
+[data-environment="admin"] .somi-admin-user-summary span {
+  display: block;
+  margin-top: 0.4rem;
+  color: var(--admin-text-muted);
+  font-size: 0.62rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+[data-environment="admin"] .somi-admin-summary-warning {
+  color: var(--admin-warning) !important;
+}
+
+[data-environment="admin"] .somi-admin-summary-danger {
+  color: var(--admin-danger) !important;
+}
+
+[data-environment="admin"] .somi-admin-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 1.25rem 0;
+}
+
+[data-environment="admin"] .somi-admin-search {
+  display: flex;
+  align-items: center;
+  flex: 1 1 240px;
+  min-width: 220px;
+  height: 2.5rem;
+  gap: 0.55rem;
+  padding: 0 0.8rem;
+  border: 1px solid var(--admin-border);
+  background: var(--admin-surface);
+  color: var(--admin-text-muted);
+}
+
+[data-environment="admin"] .somi-admin-search:focus-within {
+  border-color: rgba(96, 165, 250, 0.55);
+}
+
+[data-environment="admin"] .somi-admin-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  color: var(--admin-text-primary);
+  background: transparent;
+  font-size: 0.75rem;
+}
+
+[data-environment="admin"] .somi-admin-search input::placeholder {
+  color: var(--admin-text-muted);
+}
+
+[data-environment="admin"] .somi-admin-filter-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+[data-environment="admin"] .somi-admin-filter {
+  min-height: 2rem;
+  padding: 0 0.65rem;
+  border: 1px solid var(--admin-border);
+  color: var(--admin-text-muted);
+  background: transparent;
+  font-size: 0.65rem;
+  font-weight: 650;
+  cursor: pointer;
+  transition:
+    color 150ms ease,
+    border-color 150ms ease,
+    background-color 150ms ease;
+}
+
+[data-environment="admin"] .somi-admin-filter:hover {
+  color: var(--admin-text-primary);
+  border-color: var(--admin-accent);
+}
+
+[data-environment="admin"] .somi-admin-filter.is-active {
+  color: var(--admin-accent-strong);
+  border-color: rgba(96, 165, 250, 0.4);
+  background: var(--admin-accent-soft);
+}
+
+[data-environment="admin"] .somi-admin-data-section {
+  border-top: 1px solid var(--admin-border);
+  border-bottom: 1px solid var(--admin-border);
+  background: var(--admin-bg);
+}
+
+[data-environment="admin"] .somi-admin-data-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.15rem 0;
+}
+
+[data-environment="admin"] .somi-admin-user-table,
+[data-environment="admin"] .somi-admin-writer-table {
+  width: 100%;
+}
+
+[data-environment="admin"] .somi-admin-user-table-head,
+[data-environment="admin"] .somi-admin-user-row {
+  display: grid;
+  grid-template-columns:
+    minmax(230px, 1.8fr)
+    minmax(90px, 0.65fr)
+    minmax(100px, 0.7fr)
+    minmax(65px, 0.45fr)
+    minmax(100px, 0.7fr)
+    minmax(125px, auto);
+  align-items: center;
+  column-gap: 1rem;
+}
+
+[data-environment="admin"] .somi-admin-writer-table-head,
+[data-environment="admin"] .somi-admin-writer-row {
+  display: grid;
+  grid-template-columns:
+    minmax(230px, 1.8fr)
+    minmax(100px, 0.75fr)
+    minmax(70px, 0.5fr)
+    minmax(90px, 0.65fr)
+    minmax(110px, 0.8fr)
+    minmax(70px, auto);
+  align-items: center;
+  column-gap: 1rem;
+}
+
+[data-environment="admin"] .somi-admin-user-table-head,
+[data-environment="admin"] .somi-admin-writer-table-head {
+  min-height: 2.3rem;
+  border-top: 1px solid var(--admin-border-soft);
+  border-bottom: 1px solid var(--admin-border);
+  color: var(--admin-text-muted);
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+[data-environment="admin"] .somi-admin-user-row,
+[data-environment="admin"] .somi-admin-writer-row {
+  min-height: 4.7rem;
+  border-bottom: 1px solid var(--admin-border-soft);
+  transition: background-color 150ms ease;
+}
+
+[data-environment="admin"] .somi-admin-user-row:hover,
+[data-environment="admin"] .somi-admin-writer-row:hover {
+  background: rgba(96, 165, 250, 0.035);
+}
+
+[data-environment="admin"] .somi-admin-user-identity {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 0.7rem;
+}
+
+[data-environment="admin"] .somi-admin-user-avatar,
+[data-environment="admin"] .somi-admin-writer-avatar {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 1px solid var(--admin-border);
+  color: var(--admin-accent-strong);
+  background: var(--admin-surface);
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+
+[data-environment="admin"] .somi-admin-writer-avatar {
+  color: var(--admin-success);
+  border-color: rgba(74, 222, 128, 0.2);
+  background: rgba(74, 222, 128, 0.06);
+}
+
+[data-environment="admin"] .somi-admin-user-name {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.18rem;
+}
+
+[data-environment="admin"] .somi-admin-user-name strong {
+  overflow: hidden;
+  color: var(--admin-text-primary);
+  font-size: 0.76rem;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-environment="admin"] .somi-admin-user-name span {
+  overflow: hidden;
+  color: var(--admin-text-muted);
+  font-size: 0.64rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-environment="admin"] .somi-admin-user-role {
+  display: inline-flex;
+  width: fit-content;
+  padding: 0.25rem 0.45rem;
+  font-size: 0.59rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+[data-environment="admin"] .somi-admin-user-role-reader {
+  color: var(--admin-accent-strong);
+  background: rgba(96, 165, 250, 0.1);
+}
+
+[data-environment="admin"] .somi-admin-user-role-writer {
+  color: var(--admin-success);
+  background: rgba(74, 222, 128, 0.1);
+}
+
+[data-environment="admin"] .somi-admin-user-role-admin {
+  color: #c4b5fd;
+  background: rgba(167, 139, 250, 0.1);
+}
+
+[data-environment="admin"] .somi-admin-user-status {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  gap: 0.4rem;
+  color: var(--admin-text-secondary);
+  font-size: 0.66rem;
+  font-weight: 600;
+}
+
+[data-environment="admin"] .somi-admin-user-status > span {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 999px;
+  background: var(--admin-text-muted);
+}
+
+[data-environment="admin"] .somi-admin-status-active {
+  color: var(--admin-success);
+}
+
+[data-environment="admin"] .somi-admin-status-active > span {
+  background: var(--admin-success);
+}
+
+[data-environment="admin"] .somi-admin-status-warning {
+  color: var(--admin-warning);
+}
+
+[data-environment="admin"] .somi-admin-status-warning > span {
+  background: var(--admin-warning);
+}
+
+[data-environment="admin"] .somi-admin-status-danger {
+  color: var(--admin-danger);
+}
+
+[data-environment="admin"] .somi-admin-status-danger > span {
+  background: var(--admin-danger);
+}
+
+[data-environment="admin"] .somi-admin-user-metric,
+[data-environment="admin"] .somi-admin-writer-metric,
+[data-environment="admin"] .somi-admin-writer-earnings {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--admin-text-secondary);
+  font-size: 0.68rem;
+}
+
+[data-environment="admin"] .somi-admin-user-date {
+  color: var(--admin-text-muted);
+  font-size: 0.66rem;
+}
+
+[data-environment="admin"] .somi-admin-writer-earnings {
+  color: var(--admin-success);
+}
+
+[data-environment="admin"] .somi-admin-row-action,
+[data-environment="admin"] .somi-admin-row-action-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-height: 2rem;
+  padding: 0 0.6rem;
+  border: 1px solid var(--admin-border);
+  color: var(--admin-text-secondary);
+  background: transparent;
+  font-size: 0.62rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+[data-environment="admin"] .somi-admin-row-action:hover {
+  border-color: var(--admin-accent);
+  color: var(--admin-accent-strong);
+  background: var(--admin-accent-soft);
+}
+
+[data-environment="admin"] .somi-admin-row-action-secondary:hover {
+  border-color: var(--admin-border);
+  color: var(--admin-text-primary);
+  background: var(--admin-surface);
+}
+
+[data-environment="admin"] .somi-admin-user-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.35rem;
+}
+
+[data-environment="admin"] .somi-admin-empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  min-height: 9rem;
+  border-top: 1px solid var(--admin-border-soft);
+  color: var(--admin-text-muted);
+  font-size: 0.75rem;
+}
+
+@media (max-width: 1050px) {
+  [data-environment="admin"] .somi-admin-user-table-head,
+  [data-environment="admin"] .somi-admin-user-row {
+    grid-template-columns:
+      minmax(200px, 1.6fr)
+      minmax(80px, 0.6fr)
+      minmax(95px, 0.7fr)
+      minmax(55px, 0.4fr)
+      minmax(110px, 0.7fr);
+  }
+
+  [data-environment="admin"] .somi-admin-user-table-head span:nth-child(6),
+  [data-environment="admin"] .somi-admin-user-row .somi-admin-user-actions {
+    display: none;
+  }
+
+  [data-environment="admin"] .somi-admin-writer-table-head,
+  [data-environment="admin"] .somi-admin-writer-row {
+    grid-template-columns:
+      minmax(200px, 1.6fr)
+      minmax(95px, 0.7fr)
+      minmax(60px, 0.4fr)
+      minmax(80px, 0.55fr)
+      minmax(100px, 0.7fr);
+  }
+
+  [data-environment="admin"] .somi-admin-writer-table-head span:last-child,
+  [data-environment="admin"] .somi-admin-writer-row > button {
+    display: none;
+  }
+}
+
+@media (max-width: 760px) {
+  [data-environment="admin"] .somi-admin-user-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  [data-environment="admin"] .somi-admin-user-summary > div {
+    border-bottom: 1px solid var(--admin-border);
+  }
+
+  [data-environment="admin"] .somi-admin-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  [data-environment="admin"] .somi-admin-search {
+    width: 100%;
+  }
+
+  [data-environment="admin"] .somi-admin-filter-group {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    width: 100%;
+    padding-bottom: 0.2rem;
+  }
+
+  [data-environment="admin"] .somi-admin-filter {
+    flex: 0 0 auto;
+  }
+
+  [data-environment="admin"] .somi-admin-user-table-head,
+  [data-environment="admin"] .somi-admin-writer-table-head {
+    display: none;
+  }
+
+  [data-environment="admin"] .somi-admin-user-row,
+  [data-environment="admin"] .somi-admin-writer-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.65rem;
+    padding: 0.9rem 0;
+  }
+
+  [data-environment="admin"] .somi-admin-user-identity {
+    grid-column: 1 / -1;
+  }
+
+  [data-environment="admin"] .somi-admin-user-role,
+  [data-environment="admin"] .somi-admin-user-status,
+  [data-environment="admin"] .somi-admin-user-metric,
+  [data-environment="admin"] .somi-admin-user-date {
+    grid-column: auto;
+  }
+
+  [data-environment="admin"] .somi-admin-user-actions {
+    display: flex;
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+    margin-top: 0.2rem;
+  }
+
+  [data-environment="admin"] .somi-admin-writer-table-head {
+    display: none;
+  }
+
+  [data-environment="admin"] .somi-admin-writer-row {
+    grid-template-columns: 1fr auto;
+  }
+
+  [data-environment="admin"] .somi-admin-writer-row .somi-admin-user-identity {
+    grid-column: 1 / -1;
+  }
+
+  [data-environment="admin"] .somi-admin-writer-row > button {
+    display: inline-flex;
+  }
+}
+[data-environment="admin"] .somi-admin-row-action-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2rem;
+  padding: 0 0.6rem;
+  border: 1px solid rgba(248, 113, 113, 0.2);
+  color: var(--admin-danger);
+  background: rgba(248, 113, 113, 0.05);
+  font-size: 0.62rem;
+  font-weight: 650;
+  cursor: pointer;
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease;
+}
+
+[data-environment="admin"] .somi-admin-row-action-danger:hover {
+  border-color: var(--admin-danger);
+  background: rgba(248, 113, 113, 0.1);
+}
+
+@media (max-width: 1050px) {
+  [data-environment="admin"] .somi-admin-user-actions {
+    display: flex !important;
+  }
+}
+
+@media (max-width: 760px) {
+  [data-environment="admin"] .somi-admin-user-actions {
+    flex-wrap: wrap;
+  }
+}
