@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { BookOpen, Search, ShieldAlert } from "lucide-react";
+import { ArrowRight, BookOpen, Search, ShieldAlert } from "lucide-react";
 import { mockAdminRepository } from "../../features/admin";
 import AdminActionDialog from "../../components/AdminActionDialog";
 import { StatusBadge } from "../../components/DesignPrimitives";
@@ -8,35 +8,75 @@ import type { CommonProps } from "../../types";
 
 const statusConfig: Record<
   string,
-  { label: string; tone: "success" | "warning" | "danger" | "info" | "neutral" }
+  {
+    label: string;
+    tone: "success" | "warning" | "danger" | "info" | "neutral";
+  }
 > = {
-  DRAFT: { label: "Draft", tone: "neutral" },
-  EDITING: { label: "Editing", tone: "warning" },
-  READY_FOR_REVIEW: { label: "Ready for review", tone: "info" },
-  SCHEDULED: { label: "Scheduled", tone: "info" },
-  PUBLISHED: { label: "Published", tone: "success" },
-  REJECTED: { label: "Rejected", tone: "danger" },
-  UNPUBLISHED: { label: "Unpublished", tone: "neutral" },
-  ARCHIVED: { label: "Archived", tone: "neutral" },
+  DRAFT: {
+    label: "Draft",
+    tone: "neutral",
+  },
+  EDITING: {
+    label: "Editing",
+    tone: "warning",
+  },
+  PROOFREADING: {
+    label: "Proofreading",
+    tone: "warning",
+  },
+  READY_FOR_REVIEW: {
+    label: "Ready for review",
+    tone: "info",
+  },
+  SCHEDULED: {
+    label: "Scheduled",
+    tone: "info",
+  },
+  PUBLISHED: {
+    label: "Published",
+    tone: "success",
+  },
+  REJECTED: {
+    label: "Rejected",
+    tone: "danger",
+  },
+  UNPUBLISHED: {
+    label: "Unpublished",
+    tone: "neutral",
+  },
+  ARCHIVED: {
+    label: "Archived",
+    tone: "neutral",
+  },
 };
+
+const statusFilters = [
+  "ALL",
+  "DRAFT",
+  "EDITING",
+  "PROOFREADING",
+  "READY_FOR_REVIEW",
+  "SCHEDULED",
+  "PUBLISHED",
+  "REJECTED",
+  "UNPUBLISHED",
+  "ARCHIVED",
+] as const;
 
 export default function AdminContent({ navigate }: CommonProps) {
   const [searchParams, setSearchParams] = useSearchParams();
+
   const [query, setQuery] = useState(searchParams.get("q") ?? "");
+
   const [status, setStatus] = useState(
-    [
-      "ALL",
-      "DRAFT",
-      "EDITING",
-      "READY_FOR_REVIEW",
-      "PUBLISHED",
-      "REJECTED",
-      "UNPUBLISHED",
-      "ARCHIVED",
-    ].includes(searchParams.get("status") ?? "")
-      ? (searchParams.get("status") ?? "ALL")
+    statusFilters.includes(
+      searchParams.get("status") as (typeof statusFilters)[number],
+    )
+      ? (searchParams.get("status") as (typeof statusFilters)[number])
       : "ALL",
   );
+
   const [dialog, setDialog] = useState<{
     bookId: string;
     action: "approve" | "reject" | "changes" | "unpublish";
@@ -44,26 +84,57 @@ export default function AdminContent({ navigate }: CommonProps) {
 
   useEffect(() => {
     const next = new URLSearchParams();
-    if (query) next.set("q", query);
-    if (status !== "ALL") next.set("status", status);
+
+    if (query.trim()) {
+      next.set("q", query);
+    }
+
+    if (status !== "ALL") {
+      next.set("status", status);
+    }
+
     setSearchParams(next, { replace: true });
   }, [query, status, setSearchParams]);
 
+  const allBooks = useMemo(() => mockAdminRepository.getBooks(), []);
+
   const books = useMemo(() => {
-    const all = mockAdminRepository.getBooks();
-    return all.filter((item) => {
-      const text = `${item.title} ${item.writer}`.toLowerCase();
-      const matchesQuery = !query || text.includes(query.toLowerCase());
-      const matchesStatus = status === "ALL" || item.status === status;
+    const normalizedQuery = query.trim().toLowerCase();
+
+    return allBooks.filter((book) => {
+      const matchesQuery =
+        !normalizedQuery ||
+        `${book.title} ${book.writer}`.toLowerCase().includes(normalizedQuery);
+
+      const matchesStatus = status === "ALL" || book.status === status;
+
       return matchesQuery && matchesStatus;
     });
-  }, [query, status]);
+  }, [allBooks, query, status]);
+
+  const contentStats = useMemo(
+    () => ({
+      total: allBooks.length,
+      published: allBooks.filter((book) => book.status === "PUBLISHED").length,
+      review: allBooks.filter(
+        (book) =>
+          book.status === "READY_FOR_REVIEW" ||
+          book.moderationStatus === "PENDING",
+      ).length,
+      rejected: allBooks.filter((book) => book.status === "REJECTED").length,
+    }),
+    [allBooks],
+  );
 
   const confirmBookAction = () => {
     if (!dialog) return;
 
     const current = mockAdminRepository.getBook(dialog.bookId);
-    if (!current) return;
+
+    if (!current) {
+      setDialog(null);
+      return;
+    }
 
     if (dialog.action === "approve") {
       mockAdminRepository.updateBook(dialog.bookId, {
@@ -122,7 +193,9 @@ export default function AdminContent({ navigate }: CommonProps) {
               : "BOOK_UNPUBLISHED",
       targetType: "BOOK",
       targetId: dialog.bookId,
-      metadata: { action: dialog.action },
+      metadata: {
+        action: dialog.action,
+      },
       timestamp: new Date().toISOString(),
     });
 
@@ -130,154 +203,216 @@ export default function AdminContent({ navigate }: CommonProps) {
   };
 
   return (
-    <div className="flex min-h-full flex-col bg-[var(--color-background)] px-5 py-8 text-[var(--color-text-primary)]">
-      <div className="mb-5">
-        <p className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--color-text-muted)]">
-          Admin Console
-        </p>
-        <h1 className="mt-2 text-2xl font-bold text-[var(--color-text-primary)]">
-          Content
-        </h1>
-      </div>
+    <main className="somi-admin-page">
+      <div className="somi-admin-inner">
+        <header className="somi-admin-header">
+          <div>
+            <p className="somi-admin-eyebrow">Administration</p>
 
-      <div className="mb-4 flex items-center gap-3 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface)] px-4 py-3">
-        <Search size={15} color="var(--color-text-muted)" />
-        <input
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search titles or writers"
-          className="w-full bg-transparent text-sm text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-muted)]"
-        />
-      </div>
+            <h1 className="somi-admin-title">Content</h1>
 
-      <div className="mb-5 flex flex-wrap gap-2">
-        {(
-          [
-            "ALL",
-            "DRAFT",
-            "EDITING",
-            "READY_FOR_REVIEW",
-            "PUBLISHED",
-            "REJECTED",
-            "UNPUBLISHED",
-            "ARCHIVED",
-          ] as const
-        ).map((value) => (
-          <button
-            key={value}
-            type="button"
-            onClick={() => setStatus(value)}
-            className="somi-control rounded-lg px-3 py-1.5 text-xs font-semibold"
-            style={{
-              background:
-                status === value
-                  ? "var(--color-accent-primary)"
-                  : "var(--color-surface)",
-              color:
-                status === value
-                  ? "var(--color-background)"
-                  : "var(--color-text-secondary)",
-            }}
-          >
-            {value}
-          </button>
-        ))}
-      </div>
-
-      <div className="space-y-3 pb-8">
-        {books.length === 0 ? (
-          <div className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface)] p-6 text-center text-[var(--color-text-secondary)]">
-            No content matches these filters.
+            <p className="somi-admin-description">
+              Review books, moderation status, and publishing activity across
+              the platform.
+            </p>
           </div>
-        ) : (
-          books.map((book) => {
-            const statusBadge = statusConfig[book.status] ?? statusConfig.DRAFT;
-            return (
-              <div
-                key={book.id}
-                className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface)] p-4"
+        </header>
+
+        <section className="somi-admin-user-summary">
+          <div>
+            <strong>{contentStats.total}</strong>
+            <span>Total books</span>
+          </div>
+
+          <div>
+            <strong>{contentStats.published}</strong>
+            <span>Published</span>
+          </div>
+
+          <div>
+            <strong className="somi-admin-summary-warning">
+              {contentStats.review}
+            </strong>
+            <span>Awaiting review</span>
+          </div>
+
+          <div>
+            <strong className="somi-admin-summary-danger">
+              {contentStats.rejected}
+            </strong>
+            <span>Rejected</span>
+          </div>
+        </section>
+
+        <section className="somi-admin-toolbar">
+          <div className="somi-admin-search">
+            <Search size={15} />
+
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search titles or writers"
+              aria-label="Search content"
+            />
+          </div>
+
+          <div className="somi-admin-filter-group">
+            {statusFilters.map((value) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setStatus(value)}
+                className={`somi-admin-filter ${
+                  status === value ? "is-active" : ""
+                }`}
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[rgba(96,165,250,0.12)] text-[var(--color-accent-primary)]">
-                      <BookOpen size={18} />
+                {value === "ALL"
+                  ? "All content"
+                  : (statusConfig[value]?.label ?? value)}
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section className="somi-admin-data-section">
+          <div className="somi-admin-data-header">
+            <div>
+              <p className="somi-admin-section-eyebrow">Content directory</p>
+
+              <h2 className="somi-admin-section-title">
+                {books.length} matching {books.length === 1 ? "book" : "books"}
+              </h2>
+            </div>
+          </div>
+
+          {books.length === 0 ? (
+            <div className="somi-admin-empty-state">
+              <BookOpen size={20} />
+
+              <p>No content matches the current filters.</p>
+            </div>
+          ) : (
+            <div className="somi-admin-content-table">
+              <div className="somi-admin-content-table-head">
+                <span>Book</span>
+                <span>Genre</span>
+                <span>Chapters</span>
+                <span>Status</span>
+                <span>Updated</span>
+                <span />
+              </div>
+
+              {books.map((book) => {
+                const statusInfo =
+                  statusConfig[book.status] ?? statusConfig.DRAFT;
+
+                return (
+                  <div key={book.id} className="somi-admin-content-row">
+                    <div className="somi-admin-content-identity">
+                      <div className="somi-admin-content-icon">
+                        <BookOpen size={16} />
+                      </div>
+
+                      <div className="somi-admin-user-name">
+                        <strong>{book.title}</strong>
+
+                        <span>by {book.writer}</span>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-base font-semibold text-[var(--color-text-primary)]">
-                        {book.title}
-                      </p>
-                      <p className="text-xs text-[var(--color-text-muted)]">
-                        by {book.writer}
-                      </p>
+
+                    <span className="somi-admin-content-meta">
+                      {book.genre}
+                    </span>
+
+                    <span className="somi-admin-content-meta">
+                      {book.chapters}
+                    </span>
+
+                    <StatusBadge
+                      label={statusInfo.label}
+                      tone={statusInfo.tone}
+                      compact
+                    />
+
+                    <span className="somi-admin-content-date">
+                      {new Date(book.updatedAt).toLocaleDateString()}
+                    </span>
+
+                    <div className="somi-admin-content-actions">
+                      <button
+                        type="button"
+                        onClick={() => navigate("admin-content", book.id)}
+                        className="somi-admin-row-action"
+                      >
+                        Review
+                        <ArrowRight size={13} />
+                      </button>
+
+                      {book.status !== "PUBLISHED" && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setDialog({
+                              bookId: book.id,
+                              action: "approve",
+                            })
+                          }
+                          className="somi-admin-row-action-secondary"
+                        >
+                          Approve
+                        </button>
+                      )}
+
+                      {book.status !== "REJECTED" && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setDialog({
+                              bookId: book.id,
+                              action: "reject",
+                            })
+                          }
+                          className="somi-admin-row-action-danger"
+                        >
+                          Reject
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setDialog({
+                            bookId: book.id,
+                            action: "changes",
+                          })
+                        }
+                        className="somi-admin-row-action-secondary"
+                      >
+                        <ShieldAlert size={12} />
+                        Changes
+                      </button>
+
+                      {book.status === "PUBLISHED" && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setDialog({
+                              bookId: book.id,
+                              action: "unpublish",
+                            })
+                          }
+                          className="somi-admin-row-action-danger"
+                        >
+                          Unpublish
+                        </button>
+                      )}
                     </div>
                   </div>
-                  <StatusBadge
-                    label={statusBadge.label}
-                    tone={statusBadge.tone}
-                    compact
-                  />
-                </div>
-
-                <div className="mt-3 flex flex-wrap gap-3 text-[10px] text-[var(--color-text-muted)]">
-                  <span>{book.genre}</span>
-                  <span>{book.chapters} chapters</span>
-                  <span>{book.moderationStatus}</span>
-                </div>
-
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => navigate("admin-content", book.id)}
-                    className="somi-control rounded-lg bg-[rgba(96,165,250,0.12)] px-3 py-2 text-[10px] font-semibold text-[var(--color-accent-primary)]"
-                  >
-                    Review
-                  </button>
-                  {book.status !== "PUBLISHED" && (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setDialog({ bookId: book.id, action: "approve" })
-                      }
-                      className="somi-control rounded-lg bg-[rgba(74,222,128,0.12)] px-3 py-2 text-[10px] font-semibold text-[var(--color-status-success)]"
-                    >
-                      Approve
-                    </button>
-                  )}
-                  {book.status !== "REJECTED" && (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setDialog({ bookId: book.id, action: "reject" })
-                      }
-                      className="somi-control rounded-lg bg-[rgba(251,113,133,0.12)] px-3 py-2 text-[10px] font-semibold text-[var(--color-status-danger)]"
-                    >
-                      Reject
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setDialog({ bookId: book.id, action: "changes" })
-                    }
-                    className="somi-control flex items-center gap-1 rounded-lg bg-[var(--color-background)] px-3 py-2 text-[10px] font-semibold text-[var(--color-text-secondary)]"
-                  >
-                    <ShieldAlert size={11} />
-                    Request changes
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setDialog({ bookId: book.id, action: "unpublish" })
-                    }
-                    className="somi-control rounded-lg bg-[rgba(251,191,36,0.12)] px-3 py-2 text-[10px] font-semibold text-[var(--color-status-warning)]"
-                  >
-                    Unpublish
-                  </button>
-                </div>
-              </div>
-            );
-          })
-        )}
+                );
+              })}
+            </div>
+          )}
+        </section>
       </div>
 
       <AdminActionDialog
@@ -309,6 +444,6 @@ export default function AdminContent({ navigate }: CommonProps) {
         onConfirm={confirmBookAction}
         onCancel={() => setDialog(null)}
       />
-    </div>
+    </main>
   );
 }

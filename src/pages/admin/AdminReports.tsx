@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { AlertCircle, Search, ShieldCheck, UserRound } from "lucide-react";
+import { AlertCircle, ArrowRight, Search, ShieldCheck } from "lucide-react";
 import { mockAdminRepository } from "../../features/admin";
 import AdminActionDialog from "../../components/AdminActionDialog";
 import { StatusBadge } from "../../components/DesignPrimitives";
@@ -13,16 +13,34 @@ const reportStatusTone = {
   DISMISSED: "neutral",
 } as const;
 
-export default function AdminReports({}: CommonProps) {
+const reportStatusLabel = {
+  OPEN: "Open",
+  UNDER_REVIEW: "Under review",
+  RESOLVED: "Resolved",
+  DISMISSED: "Dismissed",
+} as const;
+
+const reportFilters = [
+  "ALL",
+  "OPEN",
+  "UNDER_REVIEW",
+  "RESOLVED",
+  "DISMISSED",
+] as const;
+
+export default function AdminReports({ navigate }: CommonProps) {
   const [searchParams, setSearchParams] = useSearchParams();
+
   const [query, setQuery] = useState(searchParams.get("q") ?? "");
+
   const [status, setStatus] = useState(
-    ["ALL", "OPEN", "UNDER_REVIEW", "RESOLVED", "DISMISSED"].includes(
-      searchParams.get("status") ?? "",
+    reportFilters.includes(
+      searchParams.get("status") as (typeof reportFilters)[number],
     )
-      ? (searchParams.get("status") ?? "ALL")
+      ? (searchParams.get("status") as (typeof reportFilters)[number])
       : "ALL",
   );
+
   const [dialog, setDialog] = useState<{
     reportId: string;
     action: "resolve" | "dismiss" | "review";
@@ -30,23 +48,49 @@ export default function AdminReports({}: CommonProps) {
 
   useEffect(() => {
     const next = new URLSearchParams();
-    if (query) next.set("q", query);
-    if (status !== "ALL") next.set("status", status);
+
+    if (query.trim()) {
+      next.set("q", query);
+    }
+
+    if (status !== "ALL") {
+      next.set("status", status);
+    }
+
     setSearchParams(next, { replace: true });
   }, [query, status, setSearchParams]);
 
+  const allReports = useMemo(() => mockAdminRepository.getReports(), []);
+
   const reports = useMemo(() => {
-    const all = mockAdminRepository.getReports();
-    return all.filter((report) => {
-      const matches =
-        !query ||
-        `${report.target} ${report.reason}`
+    const normalizedQuery = query.trim().toLowerCase();
+
+    return allReports.filter((report) => {
+      const matchesQuery =
+        !normalizedQuery ||
+        `${report.target} ${report.reason} ${report.reporter}`
           .toLowerCase()
-          .includes(query.toLowerCase());
+          .includes(normalizedQuery);
+
       const matchesStatus = status === "ALL" || report.status === status;
-      return matches && matchesStatus;
+
+      return matchesQuery && matchesStatus;
     });
-  }, [query, status]);
+  }, [allReports, query, status]);
+
+  const reportStats = useMemo(
+    () => ({
+      total: allReports.length,
+      open: allReports.filter((report) => report.status === "OPEN").length,
+      review: allReports.filter((report) => report.status === "UNDER_REVIEW")
+        .length,
+      resolved: allReports.filter(
+        (report) =>
+          report.status === "RESOLVED" || report.status === "DISMISSED",
+      ).length,
+    }),
+    [allReports],
+  );
 
   const confirmReportAction = () => {
     if (!dialog) return;
@@ -54,20 +98,29 @@ export default function AdminReports({}: CommonProps) {
     const current = mockAdminRepository
       .getReports()
       .find((report) => report.id === dialog.reportId);
-    if (!current) return;
+
+    if (!current) {
+      setDialog(null);
+      return;
+    }
 
     if (dialog.action === "resolve") {
       mockAdminRepository.updateReport(dialog.reportId, {
         status: "RESOLVED",
         resolution: "Resolved after policy review.",
+        resolvedBy: "Admin Console",
+        resolvedAt: new Date().toISOString(),
       });
+
       mockAdminRepository.createAuditEvent({
         actorId: "admin-ops",
         actorName: "Admin Console",
         action: "REPORT_RESOLVED",
         targetType: "REPORT",
         targetId: dialog.reportId,
-        metadata: { resolution: current.reason },
+        metadata: {
+          resolution: current.reason,
+        },
         timestamp: new Date().toISOString(),
       });
     }
@@ -75,15 +128,20 @@ export default function AdminReports({}: CommonProps) {
     if (dialog.action === "dismiss") {
       mockAdminRepository.updateReport(dialog.reportId, {
         status: "DISMISSED",
-        resolution: "Dismissed after review—no policy violation found.",
+        resolution: "Dismissed after review — no policy violation found.",
+        resolvedBy: "Admin Console",
+        resolvedAt: new Date().toISOString(),
       });
+
       mockAdminRepository.createAuditEvent({
         actorId: "admin-ops",
         actorName: "Admin Console",
         action: "REPORT_DISMISSED",
         targetType: "REPORT",
         targetId: dialog.reportId,
-        metadata: { reason: current.reason },
+        metadata: {
+          reason: current.reason,
+        },
         timestamp: new Date().toISOString(),
       });
     }
@@ -91,6 +149,7 @@ export default function AdminReports({}: CommonProps) {
     if (dialog.action === "review") {
       mockAdminRepository.updateReport(dialog.reportId, {
         status: "UNDER_REVIEW",
+        assignedAdmin: "Admin Console",
       });
     }
 
@@ -98,132 +157,207 @@ export default function AdminReports({}: CommonProps) {
   };
 
   return (
-    <div className="min-h-full bg-[var(--color-background)] px-5 py-8 text-[var(--color-text-primary)]">
-      <div className="mb-5">
-        <p className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-muted)]">
-          Admin Console
-        </p>
-        <h1 className="mt-1 text-2xl font-bold text-[var(--color-text-primary)]">
-          Reports
-        </h1>
-      </div>
+    <main className="somi-admin-page">
+      <div className="somi-admin-inner">
+        <header className="somi-admin-header">
+          <div>
+            <p className="somi-admin-eyebrow">Administration</p>
 
-      <div className="mb-4 flex items-center gap-3 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface)] px-4 py-3">
-        <Search size={15} color="var(--color-text-muted)" />
-        <input
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          className="w-full bg-transparent text-sm text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-muted)]"
-          placeholder="Search reports"
-        />
-      </div>
+            <h1 className="somi-admin-title">Reports</h1>
 
-      <div className="mb-5 flex flex-wrap gap-2">
-        {(
-          ["ALL", "OPEN", "UNDER_REVIEW", "RESOLVED", "DISMISSED"] as const
-        ).map((value) => (
-          <button
-            key={value}
-            type="button"
-            onClick={() => setStatus(value)}
-            className="somi-control rounded-lg px-3 py-1.5 text-xs font-semibold"
-            style={{
-              background:
-                status === value
-                  ? "var(--color-accent-primary)"
-                  : "var(--color-surface)",
-              color:
-                status === value
-                  ? "var(--color-background)"
-                  : "var(--color-text-secondary)",
-            }}
-          >
-            {value}
-          </button>
-        ))}
-      </div>
-
-      <div className="space-y-3 pb-8">
-        {reports.length === 0 ? (
-          <div className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface)] p-6 text-center text-[var(--color-text-secondary)]">
-            No reports require attention.
+            <p className="somi-admin-description">
+              Review user reports, moderation concerns, and unresolved platform
+              issues.
+            </p>
           </div>
-        ) : (
-          reports.map((report) => (
-            <div
-              key={report.id}
-              className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface)] p-4"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-base font-semibold text-[var(--color-text-primary)]">
-                    {report.target}
-                  </p>
-                  <p className="text-xs text-[var(--color-text-muted)]">
-                    {report.targetType} · reported by {report.reporter}
-                  </p>
-                </div>
-                <StatusBadge
-                  label={report.status}
-                  tone={
-                    reportStatusTone[
-                      report.status as keyof typeof reportStatusTone
-                    ] ?? "neutral"
-                  }
-                  compact
-                />
-              </div>
+        </header>
 
-              <div className="mt-3 text-sm text-[var(--color-text-secondary)]">
-                <p className="font-medium text-[var(--color-text-primary)]">
-                  {report.reason}
-                </p>
-                <p className="mt-1 text-[var(--color-text-secondary)]">
-                  {report.description}
-                </p>
-              </div>
+        <section className="somi-admin-user-summary">
+          <div>
+            <strong>{reportStats.total}</strong>
+            <span>Total reports</span>
+          </div>
 
-              <div className="mt-4 flex flex-wrap gap-2 text-xs">
-                <button
-                  type="button"
-                  onClick={() =>
-                    setDialog({ reportId: report.id, action: "review" })
-                  }
-                  className="somi-control flex items-center gap-1 rounded-lg bg-[rgba(96,165,250,0.12)] px-3 py-2 text-[var(--color-accent-primary)]"
-                >
-                  <ShieldCheck size={12} /> Open
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setDialog({ reportId: report.id, action: "review" })
-                  }
-                  className="somi-control flex items-center gap-1 rounded-lg bg-[rgba(96,165,250,0.12)] px-3 py-2 text-[var(--color-accent-primary)]"
-                >
-                  <UserRound size={12} /> Assign
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setDialog({ reportId: report.id, action: "resolve" })
-                  }
-                  className="somi-control flex items-center gap-1 rounded-lg bg-[rgba(96,165,250,0.12)] px-3 py-2 text-[var(--color-accent-primary)]"
-                >
-                  <AlertCircle size={12} /> Resolve
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setDialog({ reportId: report.id, action: "dismiss" })
-                  }
-                  className="somi-control flex items-center gap-1 rounded-lg bg-[rgba(251,113,133,0.12)] px-3 py-2 text-[var(--color-status-danger)]"
-                >
-                  <AlertCircle size={12} /> Dismiss
-                </button>
-              </div>
+          <div>
+            <strong className="somi-admin-summary-warning">
+              {reportStats.open}
+            </strong>
+            <span>Open</span>
+          </div>
+
+          <div>
+            <strong>{reportStats.review}</strong>
+            <span>Under review</span>
+          </div>
+
+          <div>
+            <strong>{reportStats.resolved}</strong>
+            <span>Closed</span>
+          </div>
+        </section>
+
+        <section className="somi-admin-toolbar">
+          <div className="somi-admin-search">
+            <Search size={15} />
+
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search reports, targets, or reporters"
+              aria-label="Search reports"
+            />
+          </div>
+
+          <div className="somi-admin-filter-group">
+            {reportFilters.map((value) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setStatus(value)}
+                className={`somi-admin-filter ${
+                  status === value ? "is-active" : ""
+                }`}
+              >
+                {value === "ALL"
+                  ? "All reports"
+                  : reportStatusLabel[value as keyof typeof reportStatusLabel]}
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section className="somi-admin-data-section">
+          <div className="somi-admin-data-header">
+            <div>
+              <p className="somi-admin-section-eyebrow">Report queue</p>
+
+              <h2 className="somi-admin-section-title">
+                {reports.length} matching{" "}
+                {reports.length === 1 ? "report" : "reports"}
+              </h2>
             </div>
-          ))
-        )}
+          </div>
+
+          {reports.length === 0 ? (
+            <div className="somi-admin-empty-state">
+              <AlertCircle size={20} />
+
+              <p>No reports match the current filters.</p>
+            </div>
+          ) : (
+            <div className="somi-admin-report-table">
+              <div className="somi-admin-report-table-head">
+                <span>Report</span>
+                <span>Target</span>
+                <span>Reported by</span>
+                <span>Status</span>
+                <span>Created</span>
+                <span />
+              </div>
+
+              {reports.map((report) => (
+                <div key={report.id} className="somi-admin-report-row">
+                  <div className="somi-admin-report-identity">
+                    <div className="somi-admin-report-icon">
+                      <AlertCircle size={15} />
+                    </div>
+
+                    <div className="somi-admin-user-name">
+                      <strong>{report.reason}</strong>
+
+                      <span>{report.description}</span>
+                    </div>
+                  </div>
+
+                  <div className="somi-admin-report-target">
+                    <strong>{report.target}</strong>
+
+                    <span>{report.targetType}</span>
+                  </div>
+
+                  <span className="somi-admin-content-meta">
+                    {report.reporter}
+                  </span>
+
+                  <StatusBadge
+                    label={reportStatusLabel[report.status]}
+                    tone={reportStatusTone[report.status]}
+                    compact
+                  />
+
+                  <span className="somi-admin-content-date">
+                    {new Date(report.createdAt).toLocaleDateString()}
+                  </span>
+
+                  <div className="somi-admin-report-actions">
+                    {report.status === "OPEN" && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setDialog({
+                            reportId: report.id,
+                            action: "review",
+                          })
+                        }
+                        className="somi-admin-row-action-secondary"
+                      >
+                        <ShieldCheck size={12} />
+                        Review
+                      </button>
+                    )}
+
+                    {(report.status === "OPEN" ||
+                      report.status === "UNDER_REVIEW") && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setDialog({
+                              reportId: report.id,
+                              action: "resolve",
+                            })
+                          }
+                          className="somi-admin-row-action"
+                        >
+                          Resolve
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setDialog({
+                              reportId: report.id,
+                              action: "dismiss",
+                            })
+                          }
+                          className="somi-admin-row-action-danger"
+                        >
+                          Dismiss
+                        </button>
+                      </>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        navigate(
+                          report.targetType === "USER"
+                            ? "admin-users"
+                            : "admin-content",
+                          report.targetId,
+                        )
+                      }
+                      className="somi-admin-row-action-secondary"
+                    >
+                      Open
+                      <ArrowRight size={13} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
       </div>
 
       <AdminActionDialog
@@ -235,7 +369,7 @@ export default function AdminReports({}: CommonProps) {
               ? "Dismiss report"
               : "Review report"
         }
-        description="This action updates the report lifecycle and writes the decision to the review audit trail."
+        description="This action updates the report lifecycle and records the moderation decision."
         confirmLabel={
           dialog?.action === "resolve"
             ? "Resolve"
@@ -247,6 +381,6 @@ export default function AdminReports({}: CommonProps) {
         onConfirm={confirmReportAction}
         onCancel={() => setDialog(null)}
       />
-    </div>
+    </main>
   );
 }

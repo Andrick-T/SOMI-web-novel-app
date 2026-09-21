@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -9,12 +9,18 @@ import {
   XCircle,
 } from "lucide-react";
 import { mockAdminRepository } from "../../features/admin";
+import AdminActionDialog from "../../components/AdminActionDialog";
 import { StatusBadge } from "../../components/DesignPrimitives";
 import { statusToneFor } from "../../config/designSystem";
 import type { CommonProps } from "../../types";
 
 export default function AdminContentDetail({ navigate }: CommonProps) {
   const { bookId } = useParams();
+
+  const [dialog, setDialog] = useState<{
+    action: "approve" | "reject" | "changes" | "unpublish";
+  } | null>(null);
+
   const book = useMemo(
     () => (bookId ? mockAdminRepository.getBook(bookId) : undefined),
     [bookId],
@@ -22,96 +28,293 @@ export default function AdminContentDetail({ navigate }: CommonProps) {
 
   if (!book) {
     return (
-      <div className="flex min-h-full items-center justify-center bg-[var(--color-background)] px-5">
-        <div className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface)] p-6 text-center">
-          <p className="text-sm font-semibold text-[var(--color-status-danger)]">
-            Book not found
-          </p>
-          <button
-            type="button"
-            onClick={() => navigate("admin-content")}
-            className="somi-control mt-4 rounded-lg bg-[rgba(96,165,250,0.12)] px-3 py-2 text-xs font-semibold text-[var(--color-accent-primary)]"
-          >
-            Back to content
-          </button>
+      <main className="somi-admin-page">
+        <div className="somi-admin-inner">
+          <div className="somi-admin-empty-state">
+            <p>Book not found.</p>
+
+            <button
+              type="button"
+              onClick={() => navigate("admin-content")}
+              className="somi-admin-row-action"
+            >
+              <ArrowLeft size={13} />
+              Back to content
+            </button>
+          </div>
         </div>
-      </div>
+      </main>
     );
   }
 
+  const runBookAction = () => {
+    if (!dialog || !bookId) return;
+
+    const current = mockAdminRepository.getBook(bookId);
+
+    if (!current) {
+      setDialog(null);
+      return;
+    }
+
+    if (dialog.action === "approve") {
+      mockAdminRepository.updateBook(bookId, {
+        status: "PUBLISHED",
+        moderationStatus: "APPROVED",
+        metadata: {
+          ...(current.metadata ?? {}),
+          approvedAt: new Date().toISOString(),
+        },
+      });
+    }
+
+    if (dialog.action === "reject") {
+      mockAdminRepository.updateBook(bookId, {
+        status: "REJECTED",
+        moderationStatus: "REJECTED",
+        metadata: {
+          ...(current.metadata ?? {}),
+          rejectionReason: "Policy review",
+        },
+      });
+    }
+
+    if (dialog.action === "changes") {
+      mockAdminRepository.updateBook(bookId, {
+        status: "EDITING",
+        moderationStatus: "CHANGES_REQUESTED",
+        metadata: {
+          ...(current.metadata ?? {}),
+          feedback: "Requires revision before publication.",
+        },
+      });
+    }
+
+    if (dialog.action === "unpublish") {
+      mockAdminRepository.updateBook(bookId, {
+        status: "UNPUBLISHED",
+        moderationStatus: "REJECTED",
+        metadata: {
+          ...(current.metadata ?? {}),
+          unpublishReason: "Removed for policy review.",
+        },
+      });
+    }
+
+    mockAdminRepository.createAuditEvent({
+      actorId: "admin-ops",
+      actorName: "Admin Console",
+      action:
+        dialog.action === "approve"
+          ? "BOOK_APPROVED"
+          : dialog.action === "reject"
+            ? "BOOK_REJECTED"
+            : dialog.action === "changes"
+              ? "BOOK_REJECTED"
+              : "BOOK_UNPUBLISHED",
+      targetType: "BOOK",
+      targetId: bookId,
+      metadata: {
+        action: dialog.action,
+      },
+      timestamp: new Date().toISOString(),
+    });
+
+    setDialog(null);
+
+    navigate("admin-content", bookId);
+  };
+
+  const actionLabel =
+    dialog?.action === "approve"
+      ? "Approve"
+      : dialog?.action === "reject"
+        ? "Reject"
+        : dialog?.action === "changes"
+          ? "Request changes"
+          : "Unpublish";
+
   return (
-    <div className="min-h-full bg-[var(--color-background)] px-5 py-8 text-[var(--color-text-primary)]">
-      <div className="mb-6 flex items-center justify-between gap-3">
-        <button
-          type="button"
-          onClick={() => navigate("admin-content")}
-          className="somi-control flex items-center gap-2 rounded-lg bg-[rgba(96,165,250,0.1)] px-3 py-2 text-xs font-semibold text-[var(--color-accent-primary)]"
-        >
-          <ArrowLeft size={14} />
-          Content
-        </button>
-      </div>
+    <main className="somi-admin-page">
+      <div className="somi-admin-inner">
+        <header className="somi-admin-detail-header">
+          <button
+            type="button"
+            onClick={() => navigate("admin-content")}
+            className="somi-admin-row-action-secondary"
+          >
+            <ArrowLeft size={13} />
+            Content
+          </button>
 
-      <div className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface)] p-5">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[rgba(96,165,250,0.12)] text-[var(--color-accent-primary)]">
-              <BookOpen size={18} />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-[var(--color-text-primary)]">
-                {book.title}
-              </h1>
-              <p className="text-sm text-[var(--color-text-secondary)]">
-                by {book.writer}
-              </p>
-            </div>
+          <div>
+            <p className="somi-admin-eyebrow">Content review</p>
+
+            <h1 className="somi-admin-title">{book.title}</h1>
+
+            <p className="somi-admin-description">by {book.writer}</p>
           </div>
-          <StatusBadge
-            label={book.moderationStatus}
-            tone={statusToneFor(book.moderationStatus)}
-            compact
-          />
-        </div>
+        </header>
 
-        <div className="mt-6 grid gap-4 md:grid-cols-2">
-          <div className="rounded-xl bg-[var(--color-background)] p-4">
-            <p className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-[var(--color-text-muted)]">
-              Metadata
-            </p>
-            <ul className="space-y-2 text-sm text-[var(--color-text-secondary)]">
-              <li>Genre: {book.genre}</li>
-              <li>Chapters: {book.chapters}</li>
-              <li>Status: {book.status}</li>
-              <li>Created: {new Date(book.createdAt).toLocaleDateString()}</li>
-              <li>Updated: {new Date(book.updatedAt).toLocaleDateString()}</li>
-            </ul>
+        <section className="somi-admin-detail-grid">
+          <div className="somi-admin-detail-main">
+            <div className="somi-admin-detail-heading">
+              <div className="somi-admin-content-icon is-large">
+                <BookOpen size={20} />
+              </div>
+
+              <div>
+                <p className="somi-admin-section-eyebrow">Publication record</p>
+
+                <h2 className="somi-admin-section-title">{book.title}</h2>
+
+                <p className="somi-admin-detail-author">
+                  Written by {book.writer}
+                </p>
+              </div>
+
+              <StatusBadge
+                label={book.moderationStatus}
+                tone={statusToneFor(book.moderationStatus)}
+                compact
+              />
+            </div>
+
+            <div className="somi-admin-detail-meta">
+              <div>
+                <span>Genre</span>
+                <strong>{book.genre}</strong>
+              </div>
+
+              <div>
+                <span>Chapters</span>
+                <strong>{book.chapters}</strong>
+              </div>
+
+              <div>
+                <span>Publication status</span>
+                <strong>{book.status}</strong>
+              </div>
+
+              <div>
+                <span>Created</span>
+                <strong>{new Date(book.createdAt).toLocaleDateString()}</strong>
+              </div>
+
+              <div>
+                <span>Last updated</span>
+                <strong>{new Date(book.updatedAt).toLocaleDateString()}</strong>
+              </div>
+
+              <div>
+                <span>Submitted</span>
+                <strong>
+                  {book.submittedAt
+                    ? new Date(book.submittedAt).toLocaleDateString()
+                    : "—"}
+                </strong>
+              </div>
+            </div>
+
+            {book.metadata && Object.keys(book.metadata).length > 0 && (
+              <div className="somi-admin-detail-note">
+                <p className="somi-admin-section-eyebrow">Moderation notes</p>
+
+                {Object.entries(book.metadata).map(([key, value]) => (
+                  <div key={key} className="somi-admin-detail-note-row">
+                    <span>{key}</span>
+                    <strong>{String(value)}</strong>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
-          <div className="rounded-xl bg-[var(--color-background)] p-4">
-            <p className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-[var(--color-text-muted)]">
-              Moderation actions
+          <aside className="somi-admin-detail-side">
+            <p className="somi-admin-section-eyebrow">Moderation</p>
+
+            <h2 className="somi-admin-section-title">Review actions</h2>
+
+            <p className="somi-admin-detail-side-description">
+              Apply a moderation decision to this publication.
             </p>
-            <div className="flex flex-wrap gap-2">
-              {[
-                { label: "Approve", icon: CheckCircle2 },
-                { label: "Reject", icon: XCircle },
-                { label: "Request changes", icon: FileText },
-                { label: "Unpublish", icon: ShieldAlert },
-              ].map(({ label, icon: Icon }) => (
+
+            <div className="somi-admin-detail-actions">
+              {book.status !== "PUBLISHED" && (
                 <button
-                  key={label}
                   type="button"
-                  className="somi-control flex items-center gap-2 rounded-lg bg-[rgba(96,165,250,0.12)] px-3 py-2 text-xs font-semibold text-[var(--color-accent-primary)]"
+                  onClick={() =>
+                    setDialog({
+                      action: "approve",
+                    })
+                  }
+                  className="somi-admin-detail-action"
                 >
-                  <Icon size={12} />
-                  {label}
+                  <CheckCircle2 size={15} />
+                  Approve
                 </button>
-              ))}
+              )}
+
+              {book.status !== "REJECTED" && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setDialog({
+                      action: "reject",
+                    })
+                  }
+                  className="somi-admin-detail-action is-danger"
+                >
+                  <XCircle size={15} />
+                  Reject
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() =>
+                  setDialog({
+                    action: "changes",
+                  })
+                }
+                className="somi-admin-detail-action"
+              >
+                <FileText size={15} />
+                Request changes
+              </button>
+
+              {book.status === "PUBLISHED" && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setDialog({
+                      action: "unpublish",
+                    })
+                  }
+                  className="somi-admin-detail-action is-danger"
+                >
+                  <ShieldAlert size={15} />
+                  Unpublish
+                </button>
+              )}
             </div>
-          </div>
-        </div>
+          </aside>
+        </section>
       </div>
-    </div>
+
+      <AdminActionDialog
+        open={Boolean(dialog)}
+        title={`${actionLabel} content`}
+        description="This moderation decision will update the content record and create an entry in the audit trail."
+        confirmLabel={actionLabel}
+        variant={
+          dialog?.action === "reject" || dialog?.action === "unpublish"
+            ? "danger"
+            : "default"
+        }
+        onConfirm={runBookAction}
+        onCancel={() => setDialog(null)}
+      />
+    </main>
   );
 }

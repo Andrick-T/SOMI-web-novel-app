@@ -6,45 +6,73 @@
 :root {
   color-scheme: dark;
   --focus-ring: rgba(232, 168, 76, 0.9);
-  --color-background: #0d0b18;
-  --color-surface: #1a1726;
-  --color-surface-muted: #231f35;
-  --color-surface-elevated: #2a253b;
-  --color-surface-overlay: rgba(6, 4, 15, 0.88);
-  --color-text-primary: #f0ece4;
-  --color-text-secondary: #c6bbaa;
-  --color-text-muted: #8b7ea8;
-  --color-text-disabled: #5c5670;
-  --color-border-subtle: #1e1c2e;
-  --color-border-default: #2e2945;
-  --color-border-strong: #4a4263;
-  --color-accent-primary: #e8a84c;
-  --color-accent-secondary: #c9603a;
-  --color-accent-hover: #edc47f;
-  --color-accent-active: #c4882e;
-  --color-status-success: #3ecf8e;
-  --color-status-warning: #e8a84c;
-  --color-status-danger: #c9603a;
-  --color-status-info: #60a5fa;
-  --color-status-neutral: #8b7ea8;
-  --color-hover-surface: #231f35;
-  --color-active-surface: rgba(255, 255, 255, 0.08);
-  --radius-control: 0.75rem;
-  --radius-surface: 1rem;
-  --shadow-surface: 0 18px 45px rgba(0, 0, 0, 0.28);
+
+  --theme-background: #0d0b18;
+  --theme-surface: #1a1726;
+  --theme-surface-muted: #231f35;
+  --theme-surface-elevated: #2a253b;
+  --theme-surface-overlay: rgba(6, 4, 15, 0.88);
+  --theme-text-primary: #f0ece4;
+  --theme-text-secondary: #c6bbaa;
+  --theme-text-muted: #8b7ea8;
+  --theme-text-disabled: #5c5670;
+  --theme-border-subtle: #1e1c2e;
+  --theme-border-default: #2e2945;
+  --theme-border-strong: #4a4263;
+  --theme-accent-primary: #e8a84c;
+  --theme-accent-secondary: #c9603a;
+  --theme-accent-hover: #edc47f;
+  --theme-accent-active: #c4882e;
+  --theme-status-success: #3ecf8e;
+  --theme-status-warning: #e8a84c;
+  --theme-status-danger: #c9603a;
+  --theme-status-info: #60a5fa;
+  --theme-status-neutral: #8b7ea8;
+  --theme-hover-surface: #231f35;
+  --theme-active-surface: rgba(255, 255, 255, 0.08);
+  --theme-radius-control: 0.75rem;
+  --theme-radius-surface: 1rem;
+  --theme-shadow-surface: 0 18px 45px rgba(0, 0, 0, 0.28);
+
+  --color-background: var(--theme-background);
+  --color-surface: var(--theme-surface);
+  --color-surface-muted: var(--theme-surface-muted);
+  --color-surface-elevated: var(--theme-surface-elevated);
+  --color-surface-overlay: var(--theme-surface-overlay);
+  --color-text-primary: var(--theme-text-primary);
+  --color-text-secondary: var(--theme-text-secondary);
+  --color-text-muted: var(--theme-text-muted);
+  --color-text-disabled: var(--theme-text-disabled);
+  --color-border-subtle: var(--theme-border-subtle);
+  --color-border-default: var(--theme-border-default);
+  --color-border-strong: var(--theme-border-strong);
+  --color-accent-primary: var(--theme-accent-primary);
+  --color-accent-secondary: var(--theme-accent-secondary);
+  --color-accent-hover: var(--theme-accent-hover);
+  --color-accent-active: var(--theme-accent-active);
+  --color-status-success: var(--theme-status-success);
+  --color-status-warning: var(--theme-status-warning);
+  --color-status-danger: var(--theme-status-danger);
+  --color-status-info: var(--theme-status-info);
+  --color-status-neutral: var(--theme-status-neutral);
+  --color-hover-surface: var(--theme-hover-surface);
+  --color-active-surface: var(--theme-active-surface);
+  --radius-control: var(--theme-radius-control);
+  --radius-surface: var(--theme-radius-surface);
+  --shadow-surface: var(--theme-shadow-surface);
 }
 
 @theme {
   /* === READER APP === */
-  --color-bg: #0d0b18;
-  --color-surface: #1a1726;
-  --color-surface2: #231f35;
-  --color-gold: #e8a84c;
-  --color-gold-dim: #c4882e;
-  --color-terra: #c9603a;
-  --color-ink: #f0ece4;
-  --color-muted: #8b7ea8;
-  --color-border: #2e2945;
+  --color-bg: var(--theme-background);
+  --color-surface: var(--theme-surface);
+  --color-surface2: var(--theme-surface-muted);
+  --color-gold: var(--theme-accent-primary);
+  --color-gold-dim: var(--theme-accent-active);
+  --color-terra: var(--theme-accent-secondary);
+  --color-ink: var(--theme-text-primary);
+  --color-muted: var(--theme-text-muted);
+  --color-border: var(--theme-border-default);
 
   /* === WRITER STUDIO === */
   --color-writer-bg: #131510;
@@ -88,38 +116,55 @@ textarea:focus-visible,
 }
 
 [data-environment="writer"] {
-  --color-background: #131510;
-  --color-surface: #1e2118;
-  --color-surface-muted: #252a1e;
-  --color-surface-elevated: #303924;
-  --color-surface-overlay: rgba(13, 18, 8, 0.9);
-  --color-text-muted: #6a8060;
-  --color-border-subtle: #1e2118;
-  --color-border-default: #2a3525;
-  --color-border-strong: #526648;
-  --color-accent-primary: #4ade80;
-  --color-accent-secondary: #22c55e;
-  --color-accent-hover: #86efac;
-  --color-accent-active: #16a34a;
-  --color-status-info: #60a5fa;
+  --theme-background: #131510;
+  --theme-surface: #1e2118;
+  --theme-surface-muted: #252a1e;
+  --theme-surface-elevated: #303924;
+  --theme-surface-overlay: rgba(13, 18, 8, 0.9);
+  --theme-text-muted: #6a8060;
+  --theme-border-subtle: #1e2118;
+  --theme-border-default: #2a3525;
+  --theme-border-strong: #526648;
+  --theme-accent-primary: #4ade80;
+  --theme-accent-secondary: #22c55e;
+  --theme-accent-hover: #86efac;
+  --theme-accent-active: #16a34a;
+  --theme-status-info: #60a5fa;
 }
 
 [data-environment="admin"] {
-  --color-background: #0e1422;
-  --color-surface: #162035;
-  --color-surface-muted: #1d2d45;
-  --color-surface-elevated: #263b59;
-  --color-surface-overlay: rgba(2, 9, 21, 0.88);
-  --color-text-secondary: #dfeaf8;
-  --color-text-muted: #7093bf;
-  --color-border-subtle: rgba(96, 165, 250, 0.1);
-  --color-border-default: #1d2d45;
-  --color-border-strong: #385b82;
-  --color-accent-primary: #60a5fa;
-  --color-accent-secondary: #3b82f6;
-  --color-accent-hover: #93c5fd;
-  --color-accent-active: #2563eb;
-  --color-status-danger: #fb7185;
+  --theme-background: #0e1422;
+  --theme-surface: #162035;
+  --theme-surface-muted: #1d2d45;
+  --theme-surface-elevated: #263b59;
+  --theme-surface-overlay: rgba(2, 9, 21, 0.88);
+  --theme-text-secondary: #dfeaf8;
+  --theme-text-muted: #7093bf;
+  --theme-border-subtle: rgba(96, 165, 250, 0.1);
+  --theme-border-default: #1d2d45;
+  --theme-border-strong: #385b82;
+  --theme-accent-primary: #60a5fa;
+  --theme-accent-secondary: #3b82f6;
+  --theme-accent-hover: #93c5fd;
+  --theme-accent-active: #2563eb;
+  --theme-status-danger: #fb7185;
+
+  --admin-bg: var(--theme-background);
+  --admin-surface: var(--theme-surface);
+  --admin-surface-soft: var(--theme-surface-muted);
+  --admin-border: var(--theme-border-default);
+  --admin-border-soft: var(--theme-border-subtle);
+  --admin-accent: var(--theme-accent-primary);
+  --admin-accent-strong: var(--theme-accent-hover);
+  --admin-accent-soft: rgba(96, 165, 250, 0.12);
+  --admin-accent-hover: rgba(96, 165, 250, 0.18);
+  --admin-success: var(--theme-status-success);
+  --admin-warning: var(--theme-status-warning);
+  --admin-danger: var(--theme-status-danger);
+  --admin-info: var(--theme-status-info);
+  --admin-text: var(--theme-text-primary);
+  --admin-text-secondary: var(--theme-text-secondary);
+  --admin-text-muted: var(--theme-text-muted);
 }
 
 .somi-surface {
@@ -4964,28 +5009,6 @@ textarea:focus-visible,
    D1
    ========================================================= */
 
-[data-environment="admin"] {
-  --admin-bg: #101318;
-  --admin-surface: #171b22;
-  --admin-surface-soft: #1b2028;
-  --admin-border: #29313b;
-  --admin-border-soft: #222933;
-
-  --admin-accent: #60a5fa;
-  --admin-accent-strong: #93c5fd;
-  --admin-accent-soft: rgba(96, 165, 250, 0.12);
-  --admin-accent-hover: rgba(96, 165, 250, 0.18);
-
-  --admin-success: #4ade80;
-  --admin-warning: #fbbf24;
-  --admin-danger: #fb7185;
-  --admin-info: #60a5fa;
-
-  --admin-text: #f4f5f7;
-  --admin-text-secondary: #a8b0bd;
-  --admin-text-muted: #707a88;
-}
-
 /* ---------------------------------------------------------
    PAGE SHELL
    --------------------------------------------------------- */
@@ -6809,5 +6832,2264 @@ textarea:focus-visible,
 @media (max-width: 760px) {
   [data-environment="admin"] .somi-admin-user-actions {
     flex-wrap: wrap;
+  }
+}
+/* =========================================================
+   D4 — Admin Content & Reports
+   ========================================================= */
+
+[data-environment="admin"] .somi-admin-content-table,
+[data-environment="admin"] .somi-admin-report-table {
+  width: 100%;
+}
+
+[data-environment="admin"] .somi-admin-content-table-head,
+[data-environment="admin"] .somi-admin-content-row {
+  display: grid;
+  grid-template-columns:
+    minmax(240px, 2fr)
+    minmax(90px, 0.7fr)
+    80px
+    130px
+    105px
+    minmax(250px, 1.5fr);
+  align-items: center;
+  gap: 1rem;
+}
+
+[data-environment="admin"] .somi-admin-content-table-head,
+[data-environment="admin"] .somi-admin-report-table-head {
+  min-height: 2.4rem;
+  padding: 0 0.75rem;
+  border-bottom: 1px solid var(--admin-border);
+  color: var(--admin-text-muted);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+[data-environment="admin"] .somi-admin-content-row {
+  min-height: 4.7rem;
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--admin-border-soft);
+}
+
+[data-environment="admin"] .somi-admin-content-row:hover,
+[data-environment="admin"] .somi-admin-report-row:hover {
+  background: rgba(255, 255, 255, 0.015);
+}
+
+[data-environment="admin"] .somi-admin-content-identity {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+[data-environment="admin"] .somi-admin-content-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 2.35rem;
+  height: 2.35rem;
+  border: 1px solid rgba(96, 165, 250, 0.18);
+  background: var(--admin-accent-soft);
+  color: var(--admin-accent);
+}
+
+[data-environment="admin"] .somi-admin-content-icon.is-large {
+  width: 3rem;
+  height: 3rem;
+}
+
+[data-environment="admin"] .somi-admin-content-meta {
+  color: var(--admin-text-secondary);
+  font-size: 0.72rem;
+}
+
+[data-environment="admin"] .somi-admin-content-date {
+  color: var(--admin-text-muted);
+  font-size: 0.68rem;
+}
+
+[data-environment="admin"] .somi-admin-content-actions,
+[data-environment="admin"] .somi-admin-report-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+[data-environment="admin"] .somi-admin-row-action,
+[data-environment="admin"] .somi-admin-row-action-secondary,
+[data-environment="admin"] .somi-admin-row-action-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  min-height: 2rem;
+  padding: 0 0.6rem;
+  border: 1px solid transparent;
+  font-size: 0.62rem;
+  font-weight: 650;
+  cursor: pointer;
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease,
+    color 150ms ease;
+}
+
+[data-environment="admin"] .somi-admin-row-action {
+  border-color: rgba(96, 165, 250, 0.25);
+  background: var(--admin-accent-soft);
+  color: var(--admin-accent-strong);
+}
+
+[data-environment="admin"] .somi-admin-row-action:hover {
+  border-color: var(--admin-accent);
+  background: var(--admin-accent-hover);
+}
+
+[data-environment="admin"] .somi-admin-row-action-secondary {
+  border-color: var(--admin-border);
+  background: transparent;
+  color: var(--admin-text-secondary);
+}
+
+[data-environment="admin"] .somi-admin-row-action-secondary:hover {
+  border-color: var(--admin-accent);
+  color: var(--admin-accent-strong);
+}
+
+[data-environment="admin"] .somi-admin-row-action-danger {
+  border-color: rgba(248, 113, 113, 0.2);
+  background: rgba(248, 113, 113, 0.05);
+  color: var(--admin-danger);
+}
+
+[data-environment="admin"] .somi-admin-row-action-danger:hover {
+  border-color: var(--admin-danger);
+  background: rgba(248, 113, 113, 0.1);
+}
+
+/* Report table */
+
+[data-environment="admin"] .somi-admin-report-table-head,
+[data-environment="admin"] .somi-admin-report-row {
+  display: grid;
+  grid-template-columns:
+    minmax(240px, 1.8fr)
+    minmax(160px, 1.2fr)
+    minmax(100px, 0.8fr)
+    125px
+    105px
+    minmax(230px, 1.5fr);
+  align-items: center;
+  gap: 1rem;
+}
+
+[data-environment="admin"] .somi-admin-report-row {
+  min-height: 5rem;
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--admin-border-soft);
+}
+
+[data-environment="admin"] .somi-admin-report-identity {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  min-width: 0;
+}
+
+[data-environment="admin"] .somi-admin-report-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 2.15rem;
+  height: 2.15rem;
+  border: 1px solid rgba(251, 191, 36, 0.18);
+  background: rgba(251, 191, 36, 0.08);
+  color: var(--admin-warning);
+}
+
+[data-environment="admin"] .somi-admin-report-target {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+[data-environment="admin"] .somi-admin-report-target strong {
+  overflow: hidden;
+  color: var(--admin-text-primary);
+  font-size: 0.72rem;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-environment="admin"] .somi-admin-report-target span {
+  color: var(--admin-text-muted);
+  font-size: 0.6rem;
+  text-transform: uppercase;
+}
+
+/* Content detail */
+
+[data-environment="admin"] .somi-admin-detail-header {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  margin-bottom: 2rem;
+}
+
+[data-environment="admin"] .somi-admin-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(280px, 0.8fr);
+  gap: 2rem;
+  align-items: start;
+}
+
+[data-environment="admin"] .somi-admin-detail-main,
+[data-environment="admin"] .somi-admin-detail-side {
+  border-top: 1px solid var(--admin-border);
+}
+
+[data-environment="admin"] .somi-admin-detail-main {
+  padding-top: 1.4rem;
+}
+
+[data-environment="admin"] .somi-admin-detail-side {
+  padding-top: 1.4rem;
+}
+
+[data-environment="admin"] .somi-admin-detail-heading {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 1rem;
+  align-items: center;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--admin-border-soft);
+}
+
+[data-environment="admin"] .somi-admin-detail-author {
+  margin-top: 0.3rem;
+  color: var(--admin-text-secondary);
+  font-size: 0.72rem;
+}
+
+[data-environment="admin"] .somi-admin-detail-meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.25rem;
+  padding: 1.5rem 0;
+  border-bottom: 1px solid var(--admin-border-soft);
+}
+
+[data-environment="admin"] .somi-admin-detail-meta div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+[data-environment="admin"] .somi-admin-detail-meta span {
+  color: var(--admin-text-muted);
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+[data-environment="admin"] .somi-admin-detail-meta strong {
+  color: var(--admin-text-primary);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+[data-environment="admin"] .somi-admin-detail-note {
+  padding-top: 1.5rem;
+}
+
+[data-environment="admin"] .somi-admin-detail-note-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid var(--admin-border-soft);
+}
+
+[data-environment="admin"] .somi-admin-detail-note-row span {
+  color: var(--admin-text-muted);
+  font-size: 0.68rem;
+}
+
+[data-environment="admin"] .somi-admin-detail-note-row strong {
+  color: var(--admin-text-secondary);
+  font-size: 0.68rem;
+  text-align: right;
+}
+
+[data-environment="admin"] .somi-admin-detail-side-description {
+  max-width: 28rem;
+  margin-top: 0.55rem;
+  color: var(--admin-text-secondary);
+  font-size: 0.72rem;
+  line-height: 1.6;
+}
+
+[data-environment="admin"] .somi-admin-detail-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin-top: 1.25rem;
+}
+
+[data-environment="admin"] .somi-admin-detail-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-height: 2.4rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--admin-border);
+  background: transparent;
+  color: var(--admin-text-secondary);
+  font-size: 0.68rem;
+  font-weight: 650;
+  cursor: pointer;
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease,
+    color 150ms ease;
+}
+
+[data-environment="admin"] .somi-admin-detail-action:hover {
+  border-color: var(--admin-accent);
+  background: var(--admin-accent-soft);
+  color: var(--admin-accent-strong);
+}
+
+[data-environment="admin"] .somi-admin-detail-action.is-danger {
+  color: var(--admin-danger);
+}
+
+[data-environment="admin"] .somi-admin-detail-action.is-danger:hover {
+  border-color: var(--admin-danger);
+  background: rgba(248, 113, 113, 0.08);
+}
+
+/* Responsive */
+
+@media (max-width: 1100px) {
+  [data-environment="admin"] .somi-admin-content-table-head,
+  [data-environment="admin"] .somi-admin-content-row {
+    grid-template-columns:
+      minmax(220px, 2fr)
+      100px
+      70px
+      120px
+      minmax(230px, 1.4fr);
+  }
+
+  [data-environment="admin"] .somi-admin-content-table-head span:nth-child(5),
+  [data-environment="admin"] .somi-admin-content-row > :nth-child(5) {
+    display: none;
+  }
+
+  [data-environment="admin"] .somi-admin-report-table-head,
+  [data-environment="admin"] .somi-admin-report-row {
+    grid-template-columns:
+      minmax(220px, 1.6fr)
+      minmax(150px, 1fr)
+      110px
+      120px
+      minmax(220px, 1.4fr);
+  }
+
+  [data-environment="admin"] .somi-admin-report-table-head span:nth-child(5),
+  [data-environment="admin"] .somi-admin-report-row > :nth-child(5) {
+    display: none;
+  }
+
+  [data-environment="admin"] .somi-admin-content-actions,
+  [data-environment="admin"] .somi-admin-report-actions {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 850px) {
+  [data-environment="admin"] .somi-admin-detail-grid {
+    grid-template-columns: 1fr;
+    gap: 2.5rem;
+  }
+
+  [data-environment="admin"] .somi-admin-detail-meta {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  [data-environment="admin"] .somi-admin-content-table-head,
+  [data-environment="admin"] .somi-admin-report-table-head {
+    display: none;
+  }
+
+  [data-environment="admin"] .somi-admin-content-row,
+  [data-environment="admin"] .somi-admin-report-row {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+    padding: 1rem 0;
+  }
+
+  [data-environment="admin"] .somi-admin-content-meta,
+  [data-environment="admin"] .somi-admin-content-date {
+    display: inline-flex;
+  }
+
+  [data-environment="admin"] .somi-admin-content-actions,
+  [data-environment="admin"] .somi-admin-report-actions {
+    justify-content: flex-start;
+  }
+
+  [data-environment="admin"] .somi-admin-detail-heading {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  [data-environment="admin"] .somi-admin-detail-heading > :last-child {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+
+  [data-environment="admin"] .somi-admin-detail-meta {
+    grid-template-columns: 1fr;
+  }
+}
+/* =========================================================
+   SOMI ADMIN — D5 ECONOMY / TRANSACTIONS / AUDIT
+   ========================================================= */
+
+[data-environment="admin"] .somi-admin-kpi-grid-six {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+[data-environment="admin"] .somi-admin-kpi {
+  min-height: 128px;
+}
+
+[data-environment="admin"] .somi-admin-kpi-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  margin-bottom: 18px;
+  border: 1px solid var(--admin-border);
+  border-radius: 8px;
+  color: var(--admin-accent);
+  background: var(--admin-accent-soft);
+}
+
+[data-environment="admin"] .somi-admin-kpi-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+[data-environment="admin"] .somi-admin-kpi-content > span {
+  color: var(--admin-text-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+[data-environment="admin"] .somi-admin-kpi-content > strong {
+  color: var(--admin-text);
+  font-size: 1.5rem;
+  line-height: 1.1;
+  letter-spacing: -0.025em;
+}
+
+[data-environment="admin"] .somi-admin-kpi-content > small {
+  color: var(--admin-text-muted);
+  font-size: 0.7rem;
+}
+
+[data-environment="admin"] .somi-admin-kpi-success .somi-admin-kpi-icon {
+  color: var(--admin-success);
+  background: var(--admin-success-soft);
+}
+
+[data-environment="admin"] .somi-admin-kpi-warning .somi-admin-kpi-icon {
+  color: var(--admin-warning);
+  background: var(--admin-warning-soft);
+}
+
+[data-environment="admin"] .somi-admin-kpi-danger .somi-admin-kpi-icon {
+  color: var(--admin-danger);
+  background: var(--admin-danger-soft);
+}
+
+[data-environment="admin"] .somi-admin-kpi-info .somi-admin-kpi-icon {
+  color: var(--admin-info);
+  background: var(--admin-info-soft);
+}
+
+/* ---------------------------------------------------------
+   Notices
+   --------------------------------------------------------- */
+
+[data-environment="admin"] .somi-admin-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 28px;
+  padding: 14px 16px;
+  border: 1px solid var(--admin-border);
+  background: var(--admin-surface-soft);
+}
+
+[data-environment="admin"] .somi-admin-notice > svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+[data-environment="admin"] .somi-admin-notice > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+[data-environment="admin"] .somi-admin-notice strong {
+  color: var(--admin-text);
+  font-size: 0.82rem;
+}
+
+[data-environment="admin"] .somi-admin-notice span {
+  color: var(--admin-text-muted);
+  font-size: 0.76rem;
+  line-height: 1.6;
+}
+
+[data-environment="admin"] .somi-admin-notice-info {
+  border-color: rgba(96, 165, 250, 0.28);
+}
+
+[data-environment="admin"] .somi-admin-notice-info > svg {
+  color: var(--admin-info);
+}
+
+[data-environment="admin"] .somi-admin-notice-warning {
+  border-color: rgba(251, 191, 36, 0.28);
+}
+
+[data-environment="admin"] .somi-admin-notice-warning > svg {
+  color: var(--admin-warning);
+}
+
+/* ---------------------------------------------------------
+   Economy layout
+   --------------------------------------------------------- */
+
+[data-environment="admin"] .somi-admin-economy-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(280px, 0.8fr);
+  gap: 20px;
+}
+
+[data-environment="admin"] .somi-admin-surface {
+  min-width: 0;
+}
+
+[data-environment="admin"] .somi-admin-surface-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--admin-border-soft);
+}
+
+[data-environment="admin"] .somi-admin-surface-header h2 {
+  margin: 0;
+  color: var(--admin-text);
+  font-size: 0.96rem;
+  font-weight: 650;
+}
+
+[data-environment="admin"] .somi-admin-surface-header p {
+  margin: 5px 0 0;
+  color: var(--admin-text-muted);
+  font-size: 0.76rem;
+}
+
+[data-environment="admin"] .somi-admin-inline-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  padding: 0;
+  color: var(--admin-accent-strong);
+  background: transparent;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+[data-environment="admin"] .somi-admin-inline-action:hover {
+  color: var(--admin-text);
+}
+
+/* ---------------------------------------------------------
+   Economy activity
+   --------------------------------------------------------- */
+
+[data-environment="admin"] .somi-admin-activity-list {
+  display: flex;
+  flex-direction: column;
+}
+
+[data-environment="admin"] .somi-admin-activity-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  min-width: 0;
+  padding: 17px 0;
+  border-bottom: 1px solid var(--admin-border-soft);
+}
+
+[data-environment="admin"] .somi-admin-activity-row:last-child {
+  border-bottom: 0;
+}
+
+[data-environment="admin"] .somi-admin-activity-main {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+[data-environment="admin"] .somi-admin-activity-main strong {
+  color: var(--admin-text);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+[data-environment="admin"] .somi-admin-activity-main span {
+  color: var(--admin-text-muted);
+  font-size: 0.73rem;
+}
+
+[data-environment="admin"] .somi-admin-activity-value {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+[data-environment="admin"] .somi-admin-activity-value strong {
+  color: var(--admin-text);
+  font-size: 0.8rem;
+}
+
+[data-environment="admin"] .somi-admin-check-list {
+  display: flex;
+  flex-direction: column;
+}
+
+[data-environment="admin"] .somi-admin-check-list > div {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 15px 0;
+  border-bottom: 1px solid var(--admin-border-soft);
+}
+
+[data-environment="admin"] .somi-admin-check-list > div:last-child {
+  border-bottom: 0;
+}
+
+[data-environment="admin"] .somi-admin-check-list span {
+  color: var(--admin-accent);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+[data-environment="admin"] .somi-admin-check-list p {
+  margin: 0;
+  color: var(--admin-text-muted);
+  font-size: 0.77rem;
+  line-height: 1.55;
+}
+
+/* ---------------------------------------------------------
+   Status
+   --------------------------------------------------------- */
+
+[data-environment="admin"] .somi-admin-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 23px;
+  padding: 3px 8px;
+  border: 1px solid var(--admin-border);
+  color: var(--admin-text-muted);
+  background: var(--admin-surface-soft);
+  font-size: 0.63rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+[data-environment="admin"] .somi-admin-status-success {
+  border-color: rgba(74, 222, 128, 0.25);
+  color: var(--admin-success);
+  background: var(--admin-success-soft);
+}
+
+[data-environment="admin"] .somi-admin-status-warning {
+  border-color: rgba(251, 191, 36, 0.25);
+  color: var(--admin-warning);
+  background: var(--admin-warning-soft);
+}
+
+[data-environment="admin"] .somi-admin-status-danger {
+  border-color: rgba(248, 113, 113, 0.25);
+  color: var(--admin-danger);
+  background: var(--admin-danger-soft);
+}
+
+[data-environment="admin"] .somi-admin-status-info {
+  border-color: rgba(96, 165, 250, 0.25);
+  color: var(--admin-info);
+  background: var(--admin-info-soft);
+}
+
+[data-environment="admin"] .somi-admin-status-muted {
+  color: var(--admin-text-muted);
+}
+
+/* ---------------------------------------------------------
+   Small economy summary
+   --------------------------------------------------------- */
+
+[data-environment="admin"] .somi-admin-mini-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-top: 1px solid var(--admin-border);
+  border-bottom: 1px solid var(--admin-border);
+}
+
+[data-environment="admin"] .somi-admin-mini-summary > div {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px 18px;
+  border-right: 1px solid var(--admin-border);
+}
+
+[data-environment="admin"] .somi-admin-mini-summary > div:last-child {
+  border-right: 0;
+}
+
+[data-environment="admin"] .somi-admin-mini-summary span {
+  color: var(--admin-text-muted);
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+[data-environment="admin"] .somi-admin-mini-summary strong {
+  color: var(--admin-text);
+  font-size: 1.25rem;
+  font-weight: 650;
+}
+
+/* ---------------------------------------------------------
+   Search / filters
+   --------------------------------------------------------- */
+
+[data-environment="admin"] .somi-admin-toolbar {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+[data-environment="admin"] .somi-admin-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 220px;
+}
+
+[data-environment="admin"] .somi-admin-search > svg {
+  position: absolute;
+  left: 12px;
+  color: var(--admin-text-muted);
+  pointer-events: none;
+}
+
+[data-environment="admin"] .somi-admin-search input {
+  width: 100%;
+  height: 42px;
+  padding: 0 13px 0 38px;
+  border: 1px solid var(--admin-border);
+  outline: 0;
+  color: var(--admin-text);
+  background: var(--admin-surface);
+  font: inherit;
+  font-size: 0.78rem;
+}
+
+[data-environment="admin"] .somi-admin-search input::placeholder {
+  color: var(--admin-text-dim);
+}
+
+[data-environment="admin"] .somi-admin-search input:focus {
+  border-color: rgba(96, 165, 250, 0.55);
+  box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.08);
+}
+
+[data-environment="admin"] .somi-admin-select {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 165px;
+}
+
+[data-environment="admin"] .somi-admin-select > span {
+  color: var(--admin-text-muted);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+[data-environment="admin"] .somi-admin-select select {
+  appearance: none;
+  width: 100%;
+  height: 42px;
+  padding: 0 34px 0 12px;
+  border: 1px solid var(--admin-border);
+  outline: 0;
+  color: var(--admin-text);
+  background: var(--admin-surface);
+  font: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+[data-environment="admin"] .somi-admin-select > svg {
+  position: absolute;
+  right: 11px;
+  bottom: 13px;
+  color: var(--admin-text-muted);
+  pointer-events: none;
+}
+
+/* ---------------------------------------------------------
+   Transaction table
+   --------------------------------------------------------- */
+
+[data-environment="admin"] .somi-admin-table-wrap {
+  overflow-x: auto;
+  border-top: 1px solid var(--admin-border);
+  border-bottom: 1px solid var(--admin-border);
+}
+
+[data-environment="admin"] .somi-admin-table {
+  width: 100%;
+  min-width: 920px;
+  border-collapse: collapse;
+}
+
+[data-environment="admin"] .somi-admin-table th {
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--admin-border);
+  color: var(--admin-text-muted);
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-align: left;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+[data-environment="admin"] .somi-admin-table td {
+  padding: 14px;
+  border-bottom: 1px solid var(--admin-border-soft);
+  color: var(--admin-text);
+  font-size: 0.76rem;
+  vertical-align: middle;
+}
+
+[data-environment="admin"] .somi-admin-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+[data-environment="admin"] .somi-admin-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.015);
+}
+
+[data-environment="admin"] .somi-admin-table-primary {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+[data-environment="admin"] .somi-admin-table-primary strong {
+  color: var(--admin-text);
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+[data-environment="admin"] .somi-admin-table-primary span {
+  color: var(--admin-text-dim);
+  font-size: 0.65rem;
+}
+
+[data-environment="admin"] .somi-admin-type-label {
+  color: var(--admin-text-muted);
+  white-space: nowrap;
+}
+
+[data-environment="admin"] .somi-admin-number {
+  color: var(--admin-text);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+[data-environment="admin"] .somi-admin-coins {
+  color: var(--admin-accent-strong);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+[data-environment="admin"] .somi-admin-date {
+  color: var(--admin-text-muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------
+   Audit
+   --------------------------------------------------------- */
+
+[data-environment="admin"] .somi-admin-audit-list {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--admin-border);
+  border-bottom: 1px solid var(--admin-border);
+}
+
+[data-environment="admin"] .somi-admin-audit-row {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  gap: 14px;
+  padding: 18px 0;
+  border-bottom: 1px solid var(--admin-border-soft);
+}
+
+[data-environment="admin"] .somi-admin-audit-row:last-child {
+  border-bottom: 0;
+}
+
+[data-environment="admin"] .somi-admin-audit-row.is-sensitive {
+  border-left: 2px solid rgba(251, 191, 36, 0.55);
+  padding-left: 14px;
+}
+
+[data-environment="admin"] .somi-admin-audit-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--admin-border);
+  color: var(--admin-text-muted);
+  background: var(--admin-surface-soft);
+}
+
+[data-environment="admin"]
+  .somi-admin-audit-row.is-sensitive
+  .somi-admin-audit-icon {
+  border-color: rgba(251, 191, 36, 0.25);
+  color: var(--admin-warning);
+  background: var(--admin-warning-soft);
+}
+
+[data-environment="admin"] .somi-admin-audit-main {
+  min-width: 0;
+}
+
+[data-environment="admin"] .somi-admin-audit-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+[data-environment="admin"] .somi-admin-audit-heading > div {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+[data-environment="admin"] .somi-admin-audit-heading strong {
+  color: var(--admin-text);
+  font-size: 0.84rem;
+  font-weight: 650;
+}
+
+[data-environment="admin"] .somi-admin-audit-heading time {
+  color: var(--admin-text-muted);
+  font-size: 0.69rem;
+  white-space: nowrap;
+}
+
+[data-environment="admin"] .somi-admin-sensitive-badge {
+  padding: 3px 7px;
+  border: 1px solid rgba(251, 191, 36, 0.25);
+  color: var(--admin-warning);
+  background: var(--admin-warning-soft);
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+[data-environment="admin"] .somi-admin-audit-context {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px 18px;
+  margin-top: 6px;
+}
+
+[data-environment="admin"] .somi-admin-audit-context span {
+  color: var(--admin-text-muted);
+  font-size: 0.71rem;
+}
+
+[data-environment="admin"] .somi-admin-audit-context strong {
+  color: var(--admin-text);
+  font-weight: 600;
+}
+
+[data-environment="admin"] .somi-admin-audit-metadata {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+[data-environment="admin"] .somi-admin-audit-metadata > div {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 1px solid var(--admin-border-soft);
+  background: var(--admin-surface-soft);
+}
+
+[data-environment="admin"] .somi-admin-audit-metadata span {
+  color: var(--admin-text-dim);
+  font-size: 0.61rem;
+}
+
+[data-environment="admin"] .somi-admin-audit-metadata strong {
+  color: var(--admin-text-muted);
+  font-size: 0.64rem;
+  font-weight: 600;
+  word-break: break-word;
+}
+
+[data-environment="admin"] .somi-admin-audit-id {
+  display: block;
+  margin-top: 10px;
+  color: var(--admin-text-dim);
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    monospace;
+  font-size: 0.61rem;
+}
+
+/* ---------------------------------------------------------
+   Empty state
+   --------------------------------------------------------- */
+
+[data-environment="admin"] .somi-admin-empty {
+  display: flex;
+  min-height: 180px;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 7px;
+  padding: 30px;
+  text-align: center;
+}
+
+[data-environment="admin"] .somi-admin-empty > svg {
+  color: var(--admin-text-dim);
+  margin-bottom: 4px;
+}
+
+[data-environment="admin"] .somi-admin-empty strong {
+  color: var(--admin-text);
+  font-size: 0.82rem;
+}
+
+[data-environment="admin"] .somi-admin-empty p {
+  margin: 0;
+  max-width: 420px;
+  color: var(--admin-text-muted);
+  font-size: 0.74rem;
+  line-height: 1.55;
+}
+
+/* ---------------------------------------------------------
+   Responsive
+   --------------------------------------------------------- */
+
+@media (max-width: 1100px) {
+  [data-environment="admin"] .somi-admin-kpi-grid-six {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  [data-environment="admin"] .somi-admin-economy-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  [data-environment="admin"] .somi-admin-kpi-grid-six {
+    grid-template-columns: 1fr;
+  }
+
+  [data-environment="admin"] .somi-admin-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  [data-environment="admin"] .somi-admin-search,
+  [data-environment="admin"] .somi-admin-select {
+    min-width: 0;
+    width: 100%;
+  }
+
+  [data-environment="admin"] .somi-admin-mini-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  [data-environment="admin"] .somi-admin-mini-summary > div:nth-child(2) {
+    border-right: 0;
+  }
+
+  [data-environment="admin"] .somi-admin-mini-summary > div:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--admin-border);
+  }
+
+  [data-environment="admin"] .somi-admin-activity-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  [data-environment="admin"] .somi-admin-activity-value {
+    align-items: flex-start;
+  }
+
+  [data-environment="admin"] .somi-admin-surface-header {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  [data-environment="admin"] .somi-admin-audit-heading {
+    flex-direction: column;
+    gap: 7px;
+  }
+
+  [data-environment="admin"] .somi-admin-audit-heading time {
+    white-space: normal;
+  }
+
+  [data-environment="admin"] .somi-admin-audit-row {
+    grid-template-columns: 32px minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  [data-environment="admin"] .somi-admin-audit-icon {
+    width: 30px;
+    height: 30px;
+  }
+}
+
+@media (max-width: 480px) {
+  [data-environment="admin"] .somi-admin-mini-summary {
+    grid-template-columns: 1fr;
+  }
+
+  [data-environment="admin"] .somi-admin-mini-summary > div:nth-child(2) {
+    border-right: 0;
+    border-bottom: 1px solid var(--admin-border);
+  }
+
+  [data-environment="admin"] .somi-admin-mini-summary > div:nth-child(3) {
+    border-bottom: 1px solid var(--admin-border);
+  }
+
+  [data-environment="admin"] .somi-admin-notice {
+    padding: 12px;
+  }
+
+  [data-environment="admin"] .somi-admin-notice span {
+    font-size: 0.71rem;
+  }
+
+  [data-environment="admin"] .somi-admin-audit-context {
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  [data-environment="admin"] .somi-admin-audit-metadata {
+    flex-direction: column;
+  }
+
+  [data-environment="admin"] .somi-admin-audit-metadata > div {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 2px;
+  }
+}
+/* =========================================================
+   SOMI ADMIN — D6 SETTINGS
+   ========================================================= */
+
+.somi-admin-settings-page {
+  padding-bottom: 64px;
+}
+
+.somi-admin-settings-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 32px;
+  align-items: start;
+}
+
+.somi-admin-settings-main {
+  min-width: 0;
+}
+
+.somi-admin-settings-section {
+  border-top: 1px solid var(--admin-border);
+  padding: 30px 0;
+}
+
+.somi-admin-settings-section:first-child {
+  border-top: 0;
+  padding-top: 8px;
+}
+
+.somi-admin-settings-section-header {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+  margin-bottom: 24px;
+}
+
+.somi-admin-settings-section-icon {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--admin-border);
+  background: var(--admin-surface-soft);
+  color: var(--admin-accent);
+}
+
+.somi-admin-section-title {
+  margin: 4px 0 6px;
+  color: var(--admin-text);
+  font-size: 20px;
+  line-height: 1.25;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.somi-admin-section-description {
+  max-width: 720px;
+  margin: 0;
+  color: var(--admin-text-muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.somi-admin-settings-section-body {
+  margin-left: 56px;
+  min-width: 0;
+}
+
+.somi-admin-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.somi-admin-field {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.somi-admin-field-spaced {
+  margin-top: 24px;
+}
+
+.somi-admin-field-label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--admin-text);
+  font-size: 13px;
+  line-height: 1.4;
+  font-weight: 600;
+}
+
+.somi-admin-field-help {
+  display: block;
+  margin-top: 7px;
+  color: var(--admin-text-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.somi-admin-input,
+.somi-admin-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--admin-border);
+  border-radius: 0;
+  background: var(--admin-surface);
+  color: var(--admin-text);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.somi-admin-input {
+  min-height: 42px;
+  padding: 10px 12px;
+}
+
+.somi-admin-textarea {
+  min-height: 96px;
+  padding: 11px 12px;
+  resize: vertical;
+  line-height: 1.55;
+}
+
+.somi-admin-input::placeholder,
+.somi-admin-textarea::placeholder {
+  color: var(--admin-text-faint);
+}
+
+.somi-admin-input:hover,
+.somi-admin-textarea:hover {
+  border-color: var(--admin-border-soft);
+}
+
+.somi-admin-input:focus,
+.somi-admin-textarea:focus {
+  border-color: var(--admin-accent);
+  box-shadow: 0 0 0 3px var(--admin-accent-soft);
+}
+
+.somi-admin-input-with-icon {
+  position: relative;
+}
+
+.somi-admin-input-with-icon > svg {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--admin-text-muted);
+  pointer-events: none;
+}
+
+.somi-admin-input-with-icon .somi-admin-input {
+  padding-left: 38px;
+}
+
+.somi-admin-input-with-suffix {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.somi-admin-input-with-suffix .somi-admin-input {
+  padding-right: 72px;
+}
+
+.somi-admin-input-with-suffix > span {
+  position: absolute;
+  right: 12px;
+  color: var(--admin-text-muted);
+  font-size: 11px;
+  pointer-events: none;
+}
+
+.somi-admin-settings-list {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--admin-border-soft);
+}
+
+.somi-admin-settings-list-spaced {
+  margin-top: 24px;
+}
+
+.somi-admin-setting-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 17px 0;
+  border-bottom: 1px solid var(--admin-border-soft);
+  cursor: pointer;
+}
+
+.somi-admin-setting-toggle:last-child {
+  border-bottom: 0;
+}
+
+.somi-admin-setting-toggle-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.somi-admin-setting-toggle-label {
+  color: var(--admin-text);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.somi-admin-setting-toggle-description {
+  max-width: 680px;
+  color: var(--admin-text-muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.somi-admin-switch {
+  position: relative;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+}
+
+.somi-admin-switch input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.somi-admin-switch-track {
+  width: 42px;
+  height: 24px;
+  display: block;
+  position: relative;
+  border: 1px solid var(--admin-border);
+  background: var(--admin-surface-soft);
+  transition:
+    background 160ms ease,
+    border-color 160ms ease;
+}
+
+.somi-admin-switch-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  background: var(--admin-text-muted);
+  transition:
+    transform 160ms ease,
+    background 160ms ease;
+}
+
+.somi-admin-switch input:checked + .somi-admin-switch-track {
+  border-color: var(--admin-accent);
+  background: var(--admin-accent-soft);
+}
+
+.somi-admin-switch
+  input:checked
+  + .somi-admin-switch-track
+  .somi-admin-switch-thumb {
+  transform: translateX(18px);
+  background: var(--admin-accent);
+}
+
+.somi-admin-switch input:focus-visible + .somi-admin-switch-track {
+  outline: 2px solid var(--admin-accent);
+  outline-offset: 3px;
+}
+
+.somi-admin-setting-toggle.is-danger
+  .somi-admin-switch
+  input:checked
+  + .somi-admin-switch-track {
+  border-color: var(--admin-danger);
+  background: var(--admin-danger-soft);
+}
+
+.somi-admin-setting-toggle.is-danger
+  .somi-admin-switch
+  input:checked
+  + .somi-admin-switch-track
+  .somi-admin-switch-thumb {
+  background: var(--admin-danger);
+}
+
+.somi-admin-settings-warning {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-top: 18px;
+  padding: 12px 14px;
+  border: 1px solid var(--admin-warning-border);
+  background: var(--admin-warning-soft);
+  color: var(--admin-warning-text);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.somi-admin-settings-warning svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.somi-admin-settings-aside {
+  position: sticky;
+  top: 24px;
+  border-left: 1px solid var(--admin-border);
+  padding-left: 24px;
+}
+
+.somi-admin-settings-aside-block {
+  padding: 4px 0 26px;
+}
+
+.somi-admin-settings-aside-block + .somi-admin-settings-aside-block {
+  border-top: 1px solid var(--admin-border);
+  padding-top: 24px;
+}
+
+.somi-admin-aside-title {
+  margin: 7px 0 8px;
+  color: var(--admin-text);
+  font-size: 16px;
+  line-height: 1.35;
+  font-weight: 650;
+}
+
+.somi-admin-aside-description {
+  margin: 0;
+  color: var(--admin-text-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.somi-admin-aside-note {
+  margin: 8px 0 0;
+  color: var(--admin-text-muted);
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.somi-admin-settings-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 7px 9px;
+  border: 1px solid var(--admin-border);
+  color: var(--admin-text-muted);
+  font-size: 10px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.somi-admin-settings-state-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--admin-text-muted);
+}
+
+.somi-admin-settings-state-saved {
+  border-color: var(--admin-success-border);
+  background: var(--admin-success-soft);
+  color: var(--admin-success-text);
+}
+
+.somi-admin-settings-state-saved .somi-admin-settings-state-dot {
+  background: var(--admin-success);
+}
+
+.somi-admin-settings-state-pending {
+  border-color: var(--admin-warning-border);
+  background: var(--admin-warning-soft);
+  color: var(--admin-warning-text);
+}
+
+.somi-admin-settings-state-pending .somi-admin-settings-state-dot {
+  background: var(--admin-warning);
+}
+
+/* D6 responsive */
+
+@media (max-width: 1100px) {
+  .somi-admin-settings-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+
+  .somi-admin-settings-aside {
+    position: static;
+    border-left: 0;
+    border-top: 1px solid var(--admin-border);
+    padding: 24px 0 0;
+    margin-top: 8px;
+  }
+
+  .somi-admin-settings-aside-block {
+    max-width: 720px;
+  }
+}
+
+@media (max-width: 760px) {
+  .somi-admin-settings-section {
+    padding: 24px 0;
+  }
+
+  .somi-admin-settings-section-header {
+    grid-template-columns: 36px minmax(0, 1fr);
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .somi-admin-settings-section-icon {
+    width: 36px;
+    height: 36px;
+  }
+
+  .somi-admin-settings-section-body {
+    margin-left: 48px;
+  }
+
+  .somi-admin-form-grid {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+
+  .somi-admin-setting-toggle {
+    align-items: flex-start;
+    padding: 15px 0;
+  }
+}
+
+@media (max-width: 560px) {
+  .somi-admin-settings-page {
+    padding-bottom: 40px;
+  }
+
+  .somi-admin-settings-section-header {
+    grid-template-columns: 1fr;
+  }
+
+  .somi-admin-settings-section-icon {
+    width: 34px;
+    height: 34px;
+  }
+
+  .somi-admin-settings-section-body {
+    margin-left: 0;
+  }
+
+  .somi-admin-setting-toggle {
+    gap: 14px;
+  }
+
+  .somi-admin-setting-toggle-description {
+    font-size: 11px;
+  }
+
+  .somi-admin-header-actions {
+    width: 100%;
+  }
+
+  .somi-admin-header-actions .somi-admin-button {
+    flex: 1;
+  }
+}
+
+@media (max-width: 420px) {
+  .somi-admin-settings-state {
+    max-width: 100%;
+    white-space: normal;
+  }
+}
+
+/* =========================================================
+   SOMI ADMIN — AUDIT LOG
+   ========================================================= */
+
+.somi-admin-audit-page {
+  padding-bottom: 64px;
+}
+
+/* Summary */
+
+.somi-admin-audit-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-top: 1px solid var(--admin-border);
+  border-bottom: 1px solid var(--admin-border);
+  margin-bottom: 24px;
+}
+
+.somi-admin-audit-summary-item {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 20px;
+  border-right: 1px solid var(--admin-border);
+}
+
+.somi-admin-audit-summary-item:last-child {
+  border-right: 0;
+}
+
+.somi-admin-audit-summary-icon {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--admin-border);
+  background: var(--admin-surface-soft);
+  color: var(--admin-accent);
+}
+
+.somi-admin-audit-icon-danger {
+  color: var(--admin-danger);
+  border-color: var(--admin-danger-border);
+  background: var(--admin-danger-soft);
+}
+
+.somi-admin-audit-summary-item > div:last-child {
+  min-width: 0;
+}
+
+.somi-admin-audit-summary-item span {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--admin-text-muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.somi-admin-audit-summary-item strong {
+  display: block;
+  color: var(--admin-text);
+  font-size: 15px;
+  line-height: 1.35;
+  font-weight: 650;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Notice */
+
+.somi-admin-audit-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 24px;
+  padding: 12px 14px;
+  border: 1px solid var(--admin-border);
+  background: var(--admin-surface-soft);
+  color: var(--admin-text-muted);
+}
+
+.somi-admin-audit-notice > svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: var(--admin-accent);
+}
+
+.somi-admin-audit-notice > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.somi-admin-audit-notice strong {
+  color: var(--admin-text);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.somi-admin-audit-notice span {
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+/* Toolbar */
+
+.somi-admin-audit-toolbar {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) 190px 190px;
+  gap: 10px;
+  margin-bottom: 28px;
+}
+
+.somi-admin-audit-search,
+.somi-admin-audit-filter {
+  min-width: 0;
+  height: 42px;
+  border: 1px solid var(--admin-border);
+  background: var(--admin-surface);
+}
+
+.somi-admin-audit-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.somi-admin-audit-search > svg {
+  position: absolute;
+  left: 12px;
+  color: var(--admin-text-muted);
+  pointer-events: none;
+}
+
+.somi-admin-audit-search input {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  border: 0;
+  outline: 0;
+  padding: 0 12px 0 38px;
+  background: transparent;
+  color: var(--admin-text);
+  font: inherit;
+  font-size: 12px;
+}
+
+.somi-admin-audit-search input::placeholder {
+  color: var(--admin-text-faint);
+}
+
+.somi-admin-audit-search:focus-within,
+.somi-admin-audit-filter:focus-within {
+  border-color: var(--admin-accent);
+  box-shadow: 0 0 0 3px var(--admin-accent-soft);
+}
+
+.somi-admin-audit-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px 0 12px;
+}
+
+.somi-admin-audit-filter span {
+  flex: 0 0 auto;
+  color: var(--admin-text-muted);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.somi-admin-audit-filter select {
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--admin-text);
+  font: inherit;
+  font-size: 12px;
+}
+
+/* Results */
+
+.somi-admin-audit-results {
+  border-top: 1px solid var(--admin-border);
+}
+
+.somi-admin-audit-results-header {
+  min-height: 76px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid var(--admin-border);
+}
+
+.somi-admin-audit-results-title {
+  margin: 4px 0 0;
+  color: var(--admin-text);
+  font-size: 18px;
+  line-height: 1.3;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+}
+
+/* Event list */
+
+.somi-admin-audit-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.somi-admin-audit-event {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: 16px;
+  padding: 22px 0;
+  border-bottom: 1px solid var(--admin-border-soft);
+}
+
+.somi-admin-audit-event:last-child {
+  border-bottom: 0;
+}
+
+.somi-admin-audit-event.is-sensitive {
+  margin-left: -12px;
+  margin-right: -12px;
+  padding-left: 12px;
+  padding-right: 12px;
+  background: var(--admin-danger-soft);
+  border-left: 2px solid var(--admin-danger);
+}
+
+.somi-admin-audit-event-icon {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--admin-border);
+  background: var(--admin-surface-soft);
+  color: var(--admin-text-muted);
+}
+
+.somi-admin-audit-event-icon.tone-success {
+  color: var(--admin-success);
+  border-color: var(--admin-success-border);
+  background: var(--admin-success-soft);
+}
+
+.somi-admin-audit-event-icon.tone-warning {
+  color: var(--admin-warning);
+  border-color: var(--admin-warning-border);
+  background: var(--admin-warning-soft);
+}
+
+.somi-admin-audit-event-icon.tone-danger {
+  color: var(--admin-danger);
+  border-color: var(--admin-danger-border);
+  background: var(--admin-danger-soft);
+}
+
+.somi-admin-audit-event-main {
+  min-width: 0;
+}
+
+.somi-admin-audit-event-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.somi-admin-audit-event-heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.somi-admin-audit-action {
+  color: var(--admin-text);
+  font-size: 13px;
+  line-height: 1.4;
+  font-weight: 650;
+}
+
+.somi-admin-audit-action.tone-success {
+  color: var(--admin-success-text);
+}
+
+.somi-admin-audit-action.tone-warning {
+  color: var(--admin-warning-text);
+}
+
+.somi-admin-audit-action.tone-danger {
+  color: var(--admin-danger-text);
+}
+
+.somi-admin-audit-sensitive {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 2px 7px;
+  border: 1px solid var(--admin-danger-border);
+  background: var(--admin-danger-soft);
+  color: var(--admin-danger-text);
+  font-size: 9px;
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.somi-admin-audit-time {
+  flex: 0 0 auto;
+  color: var(--admin-text-muted);
+  font-size: 10px;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.somi-admin-audit-event-context {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin-top: 7px;
+  color: var(--admin-text-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.somi-admin-audit-event-context strong {
+  color: var(--admin-text);
+  font-weight: 600;
+}
+
+.somi-admin-audit-target {
+  color: var(--admin-text-faint);
+}
+
+.somi-admin-audit-metadata {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 13px;
+}
+
+.somi-admin-audit-metadata-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--admin-border-soft);
+  background: var(--admin-surface-soft);
+}
+
+.somi-admin-audit-metadata-item span {
+  color: var(--admin-text-faint);
+  font-size: 9px;
+  line-height: 1.4;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.somi-admin-audit-metadata-item strong {
+  min-width: 0;
+  max-width: 360px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--admin-text-muted);
+  font-size: 10px;
+  line-height: 1.4;
+  font-weight: 500;
+}
+
+.somi-admin-audit-event-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin-top: 13px;
+  color: var(--admin-text-faint);
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+/* Empty state */
+
+.somi-admin-audit-empty {
+  min-height: 260px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border-bottom: 1px solid var(--admin-border);
+  color: var(--admin-text-muted);
+  text-align: center;
+}
+
+.somi-admin-audit-empty > svg {
+  margin-bottom: 5px;
+  color: var(--admin-text-faint);
+}
+
+.somi-admin-audit-empty strong {
+  color: var(--admin-text);
+  font-size: 13px;
+}
+
+.somi-admin-audit-empty span {
+  max-width: 360px;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+/* Responsive */
+
+@media (max-width: 1100px) {
+  .somi-admin-audit-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .somi-admin-audit-summary-item:nth-child(2) {
+    border-right: 0;
+  }
+
+  .somi-admin-audit-summary-item:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--admin-border);
+  }
+
+  .somi-admin-audit-toolbar {
+    grid-template-columns: minmax(0, 1fr) 170px 170px;
+  }
+}
+
+@media (max-width: 760px) {
+  .somi-admin-audit-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .somi-admin-audit-search,
+  .somi-admin-audit-filter {
+    width: 100%;
+  }
+
+  .somi-admin-audit-results-header {
+    min-height: 68px;
+  }
+
+  .somi-admin-audit-event {
+    grid-template-columns: 34px minmax(0, 1fr);
+    gap: 12px;
+    padding: 18px 0;
+  }
+
+  .somi-admin-audit-event-icon {
+    width: 32px;
+    height: 32px;
+  }
+
+  .somi-admin-audit-event-top {
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .somi-admin-audit-time {
+    white-space: normal;
+  }
+
+  .somi-admin-audit-event.is-sensitive {
+    margin-left: -8px;
+    margin-right: -8px;
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+}
+
+@media (max-width: 560px) {
+  .somi-admin-audit-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .somi-admin-audit-summary-item {
+    border-right: 0;
+    border-bottom: 1px solid var(--admin-border);
+  }
+
+  .somi-admin-audit-summary-item:last-child {
+    border-bottom: 0;
+  }
+
+  .somi-admin-audit-event-context {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .somi-admin-audit-metadata {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .somi-admin-audit-metadata-item {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .somi-admin-audit-metadata-item strong {
+    max-width: none;
+  }
+
+  .somi-admin-audit-event-footer {
+    flex-direction: column;
+    gap: 4px;
   }
 }

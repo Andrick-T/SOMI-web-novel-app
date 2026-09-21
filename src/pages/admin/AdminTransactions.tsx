@@ -1,183 +1,318 @@
-import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
-import { ArrowLeft, Coins, Search } from "lucide-react";
-import { mockAdminRepository } from "../../features/admin";
-import { StatusBadge, TransactionRow } from "../../components/DesignPrimitives";
-import { statusToneFor } from "../../config/designSystem";
-import type { CommonProps } from "../../types";
+import { useMemo, useState } from "react";
+import {
+  ArrowRight,
+  ChevronDown,
+  Search,
+  SlidersHorizontal,
+} from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { mockAdminRepository } from "../../features/admin/repository";
+import type {
+  AdminTransaction,
+  TransactionStatus,
+  TransactionType,
+} from "../../features/admin/types";
 
-export default function AdminTransactions({ navigate }: CommonProps) {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [search, setSearch] = useState(searchParams.get("q") ?? "");
-  const [type, setType] = useState(
-    ["ALL", "COIN_PURCHASE", "CHAPTER_UNLOCK", "REFUND", "ADJUSTMENT"].includes(
-      searchParams.get("type") ?? "",
-    )
-      ? (searchParams.get("type") ?? "ALL")
-      : "ALL",
+const ALL = "ALL";
+
+function formatNumber(value: number) {
+  return new Intl.NumberFormat("en-US").format(value);
+}
+
+function formatAmount(value: number, currency: string) {
+  return `${new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(value)} ${currency}`;
+}
+
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
+function transactionTypeLabel(type: TransactionType) {
+  switch (type) {
+    case "COIN_PURCHASE":
+      return "Coin purchase";
+    case "CHAPTER_UNLOCK":
+      return "Chapter unlock";
+    case "REFUND":
+      return "Refund";
+    case "ADJUSTMENT":
+      return "Adjustment";
+    default:
+      return type;
+  }
+}
+
+function statusClass(status: TransactionStatus) {
+  switch (status) {
+    case "COMPLETED":
+      return "somi-admin-status somi-admin-status-success";
+    case "PENDING":
+      return "somi-admin-status somi-admin-status-warning";
+    case "FAILED":
+      return "somi-admin-status somi-admin-status-danger";
+    case "REFUNDED":
+      return "somi-admin-status somi-admin-status-info";
+    case "CANCELLED":
+      return "somi-admin-status somi-admin-status-muted";
+    default:
+      return "somi-admin-status";
+  }
+}
+
+export default function AdminTransactions() {
+  const navigate = useNavigate();
+
+  const [query, setQuery] = useState("");
+  const [type, setType] = useState<TransactionType | typeof ALL>(ALL);
+  const [status, setStatus] = useState<TransactionStatus | typeof ALL>(ALL);
+
+  const transactions = useMemo(() => mockAdminRepository.getTransactions(), []);
+
+  const filteredTransactions = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+
+    return transactions
+      .filter((transaction) => {
+        if (type !== ALL && transaction.type !== type) {
+          return false;
+        }
+
+        if (status !== ALL && transaction.status !== status) {
+          return false;
+        }
+
+        if (!normalizedQuery) {
+          return true;
+        }
+
+        return [
+          transaction.id,
+          transaction.user,
+          transaction.userId,
+          transaction.type,
+          transaction.status,
+          transaction.currency,
+        ]
+          .join(" ")
+          .toLowerCase()
+          .includes(normalizedQuery);
+      })
+      .sort(
+        (a, b) =>
+          new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+      );
+  }, [query, status, transactions, type]);
+
+  const counts = useMemo(
+    () => ({
+      total: transactions.length,
+      pending: transactions.filter((item) => item.status === "PENDING").length,
+      completed: transactions.filter((item) => item.status === "COMPLETED")
+        .length,
+      failed: transactions.filter((item) => item.status === "FAILED").length,
+    }),
+    [transactions],
   );
-  const [status, setStatus] = useState(
-    ["ALL", "PENDING", "COMPLETED", "FAILED", "REFUNDED", "CANCELLED"].includes(
-      searchParams.get("status") ?? "",
-    )
-      ? (searchParams.get("status") ?? "ALL")
-      : "ALL",
-  );
-
-  const transactions = useMemo(() => {
-    const all = mockAdminRepository.getTransactions();
-    return all.filter((txn) => {
-      const text = `${txn.user} ${txn.id} ${txn.type}`.toLowerCase();
-      const matchesSearch = !search || text.includes(search.toLowerCase());
-      const matchesType = type === "ALL" || txn.type === type;
-      const matchesStatus = status === "ALL" || txn.status === status;
-      return matchesSearch && matchesType && matchesStatus;
-    });
-  }, [search, type, status]);
-
-  useEffect(() => {
-    const next = new URLSearchParams();
-    if (search) next.set("q", search);
-    if (type !== "ALL") next.set("type", type);
-    if (status !== "ALL") next.set("status", status);
-    setSearchParams(next, { replace: true });
-  }, [search, type, status, setSearchParams]);
 
   return (
-    <div className="min-h-full bg-[var(--color-background)] px-5 py-8 text-[var(--color-text-primary)]">
-      <div className="mb-6 flex items-center justify-between gap-3">
-        <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-muted)]">
-            Admin Console
-          </p>
-          <h1 className="mt-1 text-2xl font-bold text-[var(--color-text-primary)]">
-            Transactions
-          </h1>
-        </div>
-        <button
-          type="button"
-          onClick={() => navigate("admin-economy")}
-          className="somi-control flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold text-[var(--color-accent-primary)] bg-[rgba(96,165,250,0.1)]"
-        >
-          <ArrowLeft size={14} />
-          Economy
-        </button>
-      </div>
-
-      <div className="mb-4 flex items-center gap-3 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface)] px-4 py-3">
-        <Search size={15} color="var(--color-text-muted)" />
-        <input
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search user or transaction id"
-          aria-label="Search transactions"
-          className="w-full bg-transparent text-sm text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-muted)]"
-        />
-      </div>
-
-      <div className="mb-5 flex flex-wrap gap-2">
-        {(
-          [
-            "ALL",
-            "COIN_PURCHASE",
-            "CHAPTER_UNLOCK",
-            "REFUND",
-            "ADJUSTMENT",
-          ] as const
-        ).map((value) => (
-          <button
-            key={value}
-            type="button"
-            onClick={() => setType(value)}
-            className="somi-control rounded-lg px-3 py-1.5 text-xs font-semibold"
-            style={{
-              background:
-                type === value
-                  ? "var(--color-accent-primary)"
-                  : "var(--color-surface)",
-              color:
-                type === value
-                  ? "var(--color-background)"
-                  : "var(--color-text-secondary)",
-            }}
-          >
-            {value}
-          </button>
-        ))}
-      </div>
-
-      <div className="mb-5 flex flex-wrap gap-2">
-        {(
-          [
-            "ALL",
-            "PENDING",
-            "COMPLETED",
-            "FAILED",
-            "REFUNDED",
-            "CANCELLED",
-          ] as const
-        ).map((value) => (
-          <button
-            key={value}
-            type="button"
-            onClick={() => setStatus(value)}
-            className="somi-control rounded-lg px-3 py-1.5 text-xs font-semibold"
-            style={{
-              background:
-                status === value
-                  ? "var(--color-accent-primary)"
-                  : "var(--color-surface)",
-              color:
-                status === value
-                  ? "var(--color-background)"
-                  : "var(--color-text-secondary)",
-            }}
-          >
-            {value}
-          </button>
-        ))}
-      </div>
-
-      <div className="space-y-3">
-        {transactions.length === 0 ? (
-          <div className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface)] p-6 text-center text-[var(--color-text-secondary)]">
-            No transactions match these filters.
+    <div className="somi-admin-page">
+      <div className="somi-admin-inner">
+        <header className="somi-admin-header">
+          <div>
+            <p className="somi-admin-eyebrow">Economy / Transactions</p>
+            <h1 className="somi-admin-title">Transaction history</h1>
+            <p className="somi-admin-description">
+              Review platform transaction activity and quickly identify pending,
+              failed or completed operations.
+            </p>
           </div>
-        ) : (
-          transactions.map((transaction) => (
-            <div
-              key={transaction.id}
-              className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface)] p-3"
-            >
-              <div className="mb-2 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <StatusBadge
-                    label={transaction.type}
-                    tone={statusToneFor(transaction.type)}
-                    compact
-                  />
-                  <StatusBadge
-                    label={transaction.status}
-                    tone={statusToneFor(transaction.status)}
-                    compact
-                  />
-                </div>
-                <span className="text-right text-sm font-semibold text-[var(--color-text-primary)]">
-                  {transaction.amount} {transaction.currency}
-                </span>
-              </div>
-              <TransactionRow
-                icon={<Coins size={12} color="var(--color-status-warning)" />}
-                label={transaction.user}
-                date={new Date(transaction.timestamp).toLocaleString()}
-                amount={transaction.amount}
-                tone={transaction.amount >= 0 ? "credit" : "debit"}
-                pending={transaction.status === "PENDING"}
-              />
+
+          <button
+            type="button"
+            className="somi-admin-secondary-action"
+            onClick={() => navigate("/admin/economy")}
+          >
+            Economy overview
+            <ArrowRight size={16} />
+          </button>
+        </header>
+
+        <section className="somi-admin-notice somi-admin-notice-info">
+          <SlidersHorizontal size={17} />
+          <div>
+            <strong>Demo transaction directory</strong>
+            <span>
+              This directory currently reads from the mock administration
+              repository. No payment operation is executed from this page.
+            </span>
+          </div>
+        </section>
+
+        <section className="somi-admin-section">
+          <div className="somi-admin-mini-summary">
+            <div>
+              <span>Total</span>
+              <strong>{counts.total}</strong>
             </div>
-          ))
-        )}
+            <div>
+              <span>Completed</span>
+              <strong>{counts.completed}</strong>
+            </div>
+            <div>
+              <span>Pending</span>
+              <strong>{counts.pending}</strong>
+            </div>
+            <div>
+              <span>Failed</span>
+              <strong>{counts.failed}</strong>
+            </div>
+          </div>
+        </section>
+
+        <section className="somi-admin-section">
+          <div className="somi-admin-toolbar">
+            <label className="somi-admin-search">
+              <Search size={17} />
+              <input
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search transaction, user or ID"
+                aria-label="Search transactions"
+              />
+            </label>
+
+            <label className="somi-admin-select">
+              <span>Type</span>
+              <select
+                value={type}
+                onChange={(event) =>
+                  setType(event.target.value as TransactionType | typeof ALL)
+                }
+              >
+                <option value={ALL}>All types</option>
+                <option value="COIN_PURCHASE">Coin purchase</option>
+                <option value="CHAPTER_UNLOCK">Chapter unlock</option>
+                <option value="REFUND">Refund</option>
+                <option value="ADJUSTMENT">Adjustment</option>
+              </select>
+              <ChevronDown size={15} />
+            </label>
+
+            <label className="somi-admin-select">
+              <span>Status</span>
+              <select
+                value={status}
+                onChange={(event) =>
+                  setStatus(
+                    event.target.value as TransactionStatus | typeof ALL,
+                  )
+                }
+              >
+                <option value={ALL}>All statuses</option>
+                <option value="PENDING">Pending</option>
+                <option value="COMPLETED">Completed</option>
+                <option value="FAILED">Failed</option>
+                <option value="REFUNDED">Refunded</option>
+                <option value="CANCELLED">Cancelled</option>
+              </select>
+              <ChevronDown size={15} />
+            </label>
+          </div>
+
+          <div className="somi-admin-table-wrap">
+            <table className="somi-admin-table">
+              <thead>
+                <tr>
+                  <th>Transaction</th>
+                  <th>User</th>
+                  <th>Type</th>
+                  <th>Amount</th>
+                  <th>Coins</th>
+                  <th>Status</th>
+                  <th>Date</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {filteredTransactions.map((transaction) => (
+                  <TransactionRow
+                    key={transaction.id}
+                    transaction={transaction}
+                  />
+                ))}
+              </tbody>
+            </table>
+
+            {filteredTransactions.length === 0 && (
+              <div className="somi-admin-empty">
+                <Search size={20} />
+                <strong>No transactions found</strong>
+                <p>Try changing the search query or transaction filters.</p>
+              </div>
+            )}
+          </div>
+        </section>
       </div>
     </div>
+  );
+}
+
+function TransactionRow({ transaction }: { transaction: AdminTransaction }) {
+  return (
+    <tr>
+      <td>
+        <div className="somi-admin-table-primary">
+          <strong>{transaction.id}</strong>
+          <span>Transaction reference</span>
+        </div>
+      </td>
+
+      <td>
+        <div className="somi-admin-table-primary">
+          <strong>{transaction.user}</strong>
+          <span>{transaction.userId}</span>
+        </div>
+      </td>
+
+      <td>
+        <span className="somi-admin-type-label">
+          {transactionTypeLabel(transaction.type)}
+        </span>
+      </td>
+
+      <td>
+        <strong className="somi-admin-number">
+          {formatAmount(transaction.amount, transaction.currency)}
+        </strong>
+      </td>
+
+      <td>
+        <span className="somi-admin-coins">
+          {formatNumber(transaction.coins)}
+        </span>
+      </td>
+
+      <td>
+        <span className={statusClass(transaction.status)}>
+          {transaction.status}
+        </span>
+      </td>
+
+      <td>
+        <span className="somi-admin-date">
+          {formatDate(transaction.timestamp)}
+        </span>
+      </td>
+    </tr>
   );
 }
