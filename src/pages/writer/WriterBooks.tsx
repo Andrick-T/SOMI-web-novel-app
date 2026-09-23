@@ -3,17 +3,17 @@ import {
   BookOpen,
   ChevronRight,
   Eye,
-  Lock as LockIcon,
   MoreVertical,
   PenLine,
   Plus,
   Search,
   X,
 } from "lucide-react";
+import { useNavigate as useRouterNavigate } from "react-router-dom";
 import type { CommonProps } from "../../types";
 import { writerRepository } from "../../features/writer";
 import { statusToneFor } from "../../config/designSystem";
-import { EmptyState, StatusBadge } from "../../components/DesignPrimitives";
+import { StatusBadge } from "../../components/DesignPrimitives";
 import {
   apiWriterRepository,
   useApiWriterContent,
@@ -79,6 +79,15 @@ const formatMetric = (value: number | undefined) => {
 };
 
 export default function WriterBooks({ navigate }: CommonProps) {
+  /*
+   * Keep the existing SOMI navigation abstraction for normal
+   * application pages.
+   *
+   * React Router navigation is used separately for the ChapterEditor
+   * because CommonProps.navigate intentionally accepts only Page values.
+   */
+  const routerNavigate = useRouterNavigate();
+
   const [books, setBooks] = useState(() =>
     useApiWriterContent ? [] : writerRepository.getWriterBooks(),
   );
@@ -209,6 +218,20 @@ export default function WriterBooks({ navigate }: CommonProps) {
     });
   }, [books, filter, query]);
 
+  /*
+   * Navigate directly to the real ChapterEditor React Router route.
+   *
+   * This deliberately does NOT use the CommonProps navigate() helper,
+   * because that helper accepts only the application's Page union.
+   */
+  const openChapterEditor = (bookId: string, chapterId: string) => {
+    routerNavigate(
+      `/writer/books/${encodeURIComponent(
+        bookId,
+      )}/chapters/${encodeURIComponent(chapterId)}/edit`,
+    );
+  };
+
   const createChapter = async (bookId: string, chapterCount: number) => {
     try {
       const nextChapterNumber = chapterCount + 1;
@@ -225,7 +248,7 @@ export default function WriterBooks({ navigate }: CommonProps) {
 
       setMenuOpen(null);
 
-      navigate("writer-editor", bookId, newChapter.id);
+      openChapterEditor(bookId, newChapter.id);
     } catch (caught) {
       setLoadError(
         caught instanceof Error
@@ -454,11 +477,14 @@ export default function WriterBooks({ navigate }: CommonProps) {
                                 onClick={() => {
                                   setMenuOpen(null);
 
-                                  navigate(
-                                    "writer-editor",
-                                    book.id,
-                                    book.chapters[0]?.id ?? "",
-                                  );
+                                  const firstChapter = book.chapters[0];
+
+                                  if (!firstChapter) {
+                                    void createChapter(book.id, chapterCount);
+                                    return;
+                                  }
+
+                                  openChapterEditor(book.id, firstChapter.id);
                                 }}
                               >
                                 <Eye size={14} />
@@ -524,13 +550,16 @@ export default function WriterBooks({ navigate }: CommonProps) {
                           className="somi-writer-book-action"
                           aria-label={`Write ${book.title}`}
                           title="Write"
-                          onClick={() =>
-                            navigate(
-                              "writer-editor",
-                              book.id,
-                              book.chapters[0]?.id ?? "",
-                            )
-                          }
+                          onClick={() => {
+                            const firstChapter = book.chapters[0];
+
+                            if (!firstChapter) {
+                              void createChapter(book.id, chapterCount);
+                              return;
+                            }
+
+                            openChapterEditor(book.id, firstChapter.id);
+                          }}
                         >
                           <PenLine size={15} />
                         </button>

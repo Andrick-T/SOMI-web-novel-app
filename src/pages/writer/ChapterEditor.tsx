@@ -18,6 +18,7 @@ import {
   AlignRight,
   ArrowLeft,
   Bold,
+  Check,
   Clock,
   ImagePlus,
   Italic,
@@ -28,6 +29,7 @@ import {
   Quote,
   Redo2,
   Save,
+  Settings2,
   Strikethrough,
   Underline as UnderlineIcon,
   Undo2,
@@ -287,7 +289,14 @@ export default function ChapterEditor() {
    * actual saveChapterDraft contract.
    */
   const persistChapter = useCallback(
-    async (nextTitle: string, editorInstance = editor) => {
+    async (
+      nextTitle: string,
+      editorInstance = editor,
+      overrides?: {
+        accessType?: WriterChapter["accessType"];
+        price?: number;
+      },
+    ) => {
       if (!editorInstance || !chapter || !bookId || !chapterId) {
         return;
       }
@@ -314,6 +323,8 @@ export default function ChapterEditor() {
         content,
         wordCount: currentWordCount,
         readingTime: getReadingTime(currentWordCount),
+        accessType: overrides?.accessType ?? chapter.accessType,
+        price: overrides?.price ?? chapter.price,
       };
 
       try {
@@ -322,16 +333,16 @@ export default function ChapterEditor() {
           chapterToSave,
         );
 
-        setChapter(result);
-
         /*
-         * Only clear dirty state if the user has not edited the
-         * chapter since this save started.
+         * Only replace the local chapter state when no newer edit
+         * happened while this save was running.
          *
-         * If they did, the newer edit remains dirty and the
-         * autosave effect will save it separately.
+         * If a newer edit exists, keep the user's current local state.
+         * The dirty state remains active and autosave will persist the
+         * newer version separately.
          */
         if (editVersionRef.current === versionBeingSaved) {
+          setChapter(result);
           setIsDirty(false);
         }
 
@@ -530,7 +541,10 @@ export default function ChapterEditor() {
     saveTimer.current = setTimeout(() => {
       saveTimer.current = null;
 
-      void persistChapter(titleRef.current, editor);
+      void persistChapter(titleRef.current, editor, {
+        accessType: chapter.accessType,
+        price: chapter.price,
+      });
     }, 1200);
 
     return () => {
@@ -591,6 +605,43 @@ export default function ChapterEditor() {
     }, 500);
   };
 
+  const handleAccessTypeChange = (value: WriterChapter["accessType"]) => {
+    if (!chapter) {
+      return;
+    }
+
+    setChapter((current) =>
+      current
+        ? {
+            ...current,
+            accessType: value,
+            price: value === "FREE" ? 0 : Math.max(1, current.price || 80),
+          }
+        : current,
+    );
+
+    markDirty();
+  };
+
+  const handlePriceChange = (value: string) => {
+    if (!chapter) {
+      return;
+    }
+
+    const numericValue = Number(value.replace(/\D/g, ""));
+
+    setChapter((current) =>
+      current
+        ? {
+            ...current,
+            price: Number.isFinite(numericValue) ? numericValue : 0,
+          }
+        : current,
+    );
+
+    markDirty();
+  };
+
   const handleManualSave = async () => {
     /*
      * Manual save should work even when the chapter is not marked
@@ -601,11 +652,14 @@ export default function ChapterEditor() {
       saveTimer.current = null;
     }
 
-    await persistChapter(title, editor);
+    await persistChapter(title, editor, {
+      accessType: chapter?.accessType,
+      price: chapter?.price,
+    });
   };
 
   const handleBack = () => {
-    navigate(`/writer/books/${bookId}`);
+    navigate("/writer/books");
   };
 
   const handleAddLink = () => {
@@ -793,284 +847,446 @@ export default function ChapterEditor() {
         </div>
       </header>
 
-      <div className="somi-editor-workspace">
-        <div className="somi-editor-writing-column">
-          {!previewMode && (
-            <div className="somi-editor-toolbar">
-              <div className="somi-editor-toolbar-group">
-                <select
-                  className="somi-editor-format-select"
-                  value={
-                    editor?.isActive("heading", {
-                      level: 1,
-                    })
-                      ? "h1"
-                      : editor?.isActive("heading", {
-                            level: 2,
-                          })
-                        ? "h2"
-                        : editor?.isActive("heading", {
-                              level: 3,
-                            })
-                          ? "h3"
-                          : "paragraph"
-                  }
-                  onChange={(event) => {
-                    if (!editor) {
-                      return;
-                    }
-
-                    const value = event.target.value;
-
-                    if (value === "paragraph") {
-                      editor.chain().focus().setParagraph().run();
-                    } else {
-                      editor
-                        .chain()
-                        .focus()
-                        .toggleHeading({
-                          level: Number(value.replace("h", "")) as 1 | 2 | 3,
-                        })
-                        .run();
-                    }
-                  }}
-                  aria-label="Text style"
-                >
-                  <option value="paragraph">Paragraph</option>
-                  <option value="h1">Heading 1</option>
-                  <option value="h2">Heading 2</option>
-                  <option value="h3">Heading 3</option>
-                </select>
-              </div>
-
-              <div className="somi-editor-toolbar-divider" />
-
-              <div className="somi-editor-toolbar-group">
-                <ToolbarButton
-                  title="Bold"
-                  active={editor?.isActive("bold")}
-                  onClick={() => {
-                    editor?.chain().focus().toggleBold().run();
-                  }}
-                >
-                  <Bold size={17} />
-                </ToolbarButton>
-
-                <ToolbarButton
-                  title="Italic"
-                  active={editor?.isActive("italic")}
-                  onClick={() => {
-                    editor?.chain().focus().toggleItalic().run();
-                  }}
-                >
-                  <Italic size={17} />
-                </ToolbarButton>
-
-                <ToolbarButton
-                  title="Underline"
-                  active={editor?.isActive("underline")}
-                  onClick={() => {
-                    editor?.chain().focus().toggleUnderline().run();
-                  }}
-                >
-                  <UnderlineIcon size={17} />
-                </ToolbarButton>
-
-                <ToolbarButton
-                  title="Strikethrough"
-                  active={editor?.isActive("strike")}
-                  onClick={() => {
-                    editor?.chain().focus().toggleStrike().run();
-                  }}
-                >
-                  <Strikethrough size={17} />
-                </ToolbarButton>
-              </div>
-
-              <div className="somi-editor-toolbar-divider" />
-
-              <div className="somi-editor-toolbar-group">
-                <ToolbarButton
-                  title="Align left"
-                  active={editor?.isActive({
-                    textAlign: "left",
-                  })}
-                  onClick={() => {
-                    editor?.chain().focus().setTextAlign("left").run();
-                  }}
-                >
-                  <AlignLeft size={17} />
-                </ToolbarButton>
-
-                <ToolbarButton
-                  title="Align center"
-                  active={editor?.isActive({
-                    textAlign: "center",
-                  })}
-                  onClick={() => {
-                    editor?.chain().focus().setTextAlign("center").run();
-                  }}
-                >
-                  <AlignCenter size={17} />
-                </ToolbarButton>
-
-                <ToolbarButton
-                  title="Align right"
-                  active={editor?.isActive({
-                    textAlign: "right",
-                  })}
-                  onClick={() => {
-                    editor?.chain().focus().setTextAlign("right").run();
-                  }}
-                >
-                  <AlignRight size={17} />
-                </ToolbarButton>
-
-                <ToolbarButton
-                  title="Justify"
-                  active={editor?.isActive({
-                    textAlign: "justify",
-                  })}
-                  onClick={() => {
-                    editor?.chain().focus().setTextAlign("justify").run();
-                  }}
-                >
-                  <AlignJustify size={17} />
-                </ToolbarButton>
-              </div>
-
-              <div className="somi-editor-toolbar-divider" />
-
-              <div className="somi-editor-toolbar-group">
-                <ToolbarButton
-                  title="Bulleted list"
-                  active={editor?.isActive("bulletList")}
-                  onClick={() => {
-                    editor?.chain().focus().toggleBulletList().run();
-                  }}
-                >
-                  <List size={17} />
-                </ToolbarButton>
-
-                <ToolbarButton
-                  title="Numbered list"
-                  active={editor?.isActive("orderedList")}
-                  onClick={() => {
-                    editor?.chain().focus().toggleOrderedList().run();
-                  }}
-                >
-                  <ListOrdered size={17} />
-                </ToolbarButton>
-
-                <ToolbarButton
-                  title="Blockquote"
-                  active={editor?.isActive("blockquote")}
-                  onClick={() => {
-                    editor?.chain().focus().toggleBlockquote().run();
-                  }}
-                >
-                  <Quote size={17} />
-                </ToolbarButton>
-
-                <ToolbarButton
-                  title="Horizontal divider"
-                  onClick={() => {
-                    editor?.chain().focus().setHorizontalRule().run();
-                  }}
-                >
-                  <Minus size={17} />
-                </ToolbarButton>
-              </div>
-
-              <div className="somi-editor-toolbar-divider" />
-
-              <div className="somi-editor-toolbar-group">
-                <ToolbarButton
-                  title="Add link"
-                  active={editor?.isActive("link")}
-                  onClick={handleAddLink}
-                >
-                  <LinkIcon size={17} />
-                </ToolbarButton>
-
-                <ToolbarButton title="Upload image" onClick={handleAddImage}>
-                  <ImagePlus size={17} />
-                </ToolbarButton>
-
-                <ToolbarButton
-                  title="Insert image from URL"
-                  onClick={handleImageUrl}
-                >
-                  <ImagePlus size={17} />
-                </ToolbarButton>
-              </div>
-
-              <div className="somi-editor-toolbar-spacer" />
-
-              <div className="somi-editor-toolbar-group">
-                <ToolbarButton
-                  title="Undo"
-                  disabled={!editor?.can().undo()}
-                  onClick={() => {
-                    editor?.chain().focus().undo().run();
-                  }}
-                >
-                  <Undo2 size={17} />
-                </ToolbarButton>
-
-                <ToolbarButton
-                  title="Redo"
-                  disabled={!editor?.can().redo()}
-                  onClick={() => {
-                    editor?.chain().focus().redo().run();
-                  }}
-                >
-                  <Redo2 size={17} />
-                </ToolbarButton>
-              </div>
-            </div>
-          )}
-
-          <div className="somi-editor-writing-area">
-            <input
-              type="text"
-              className="somi-editor-title-input"
-              value={title}
-              onChange={(event) => handleTitleChange(event.target.value)}
-              placeholder="Chapter title"
-              disabled={previewMode}
-            />
-
-            {previewMode ? (
-              <div className="somi-editor-preview-content">
-                {editor?.getText().trim() ? (
-                  <EditorContent editor={editor} />
-                ) : (
-                  <p className="somi-editor-preview-empty">
-                    This chapter is currently empty.
-                  </p>
-                )}
-              </div>
-            ) : (
-              <div className="somi-editor-content">
-                <EditorContent editor={editor} />
-              </div>
-            )}
-
+      <div className="mx-auto mt-6 w-full max-w-[1480px] px-5 pb-10 lg:px-8">
+        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="somi-editor-writing-column min-w-0">
             {!previewMode && (
-              <div className="somi-editor-writing-footer">
-                <span>{wordCount.toLocaleString()} words</span>
+              <div className="somi-editor-toolbar">
+                <div className="somi-editor-toolbar-group">
+                  <select
+                    className="somi-editor-format-select"
+                    value={
+                      editor?.isActive("heading", {
+                        level: 1,
+                      })
+                        ? "h1"
+                        : editor?.isActive("heading", {
+                              level: 2,
+                            })
+                          ? "h2"
+                          : editor?.isActive("heading", {
+                                level: 3,
+                              })
+                            ? "h3"
+                            : "paragraph"
+                    }
+                    onChange={(event) => {
+                      if (!editor) {
+                        return;
+                      }
 
-                <span>·</span>
+                      const value = event.target.value;
 
-                <span>Approximately {readingTime} min read</span>
+                      if (value === "paragraph") {
+                        editor.chain().focus().setParagraph().run();
+                      } else {
+                        editor
+                          .chain()
+                          .focus()
+                          .toggleHeading({
+                            level: Number(value.replace("h", "")) as 1 | 2 | 3,
+                          })
+                          .run();
+                      }
+                    }}
+                    aria-label="Text style"
+                  >
+                    <option value="paragraph">Paragraph</option>
+                    <option value="h1">Heading 1</option>
+                    <option value="h2">Heading 2</option>
+                    <option value="h3">Heading 3</option>
+                  </select>
+                </div>
+
+                <div className="somi-editor-toolbar-divider" />
+
+                <div className="somi-editor-toolbar-group">
+                  <ToolbarButton
+                    title="Bold"
+                    active={editor?.isActive("bold")}
+                    onClick={() => {
+                      editor?.chain().focus().toggleBold().run();
+                    }}
+                  >
+                    <Bold size={17} />
+                  </ToolbarButton>
+
+                  <ToolbarButton
+                    title="Italic"
+                    active={editor?.isActive("italic")}
+                    onClick={() => {
+                      editor?.chain().focus().toggleItalic().run();
+                    }}
+                  >
+                    <Italic size={17} />
+                  </ToolbarButton>
+
+                  <ToolbarButton
+                    title="Underline"
+                    active={editor?.isActive("underline")}
+                    onClick={() => {
+                      editor?.chain().focus().toggleUnderline().run();
+                    }}
+                  >
+                    <UnderlineIcon size={17} />
+                  </ToolbarButton>
+
+                  <ToolbarButton
+                    title="Strikethrough"
+                    active={editor?.isActive("strike")}
+                    onClick={() => {
+                      editor?.chain().focus().toggleStrike().run();
+                    }}
+                  >
+                    <Strikethrough size={17} />
+                  </ToolbarButton>
+                </div>
+
+                <div className="somi-editor-toolbar-divider" />
+
+                <div className="somi-editor-toolbar-group">
+                  <ToolbarButton
+                    title="Align left"
+                    active={editor?.isActive({
+                      textAlign: "left",
+                    })}
+                    onClick={() => {
+                      editor?.chain().focus().setTextAlign("left").run();
+                    }}
+                  >
+                    <AlignLeft size={17} />
+                  </ToolbarButton>
+
+                  <ToolbarButton
+                    title="Align center"
+                    active={editor?.isActive({
+                      textAlign: "center",
+                    })}
+                    onClick={() => {
+                      editor?.chain().focus().setTextAlign("center").run();
+                    }}
+                  >
+                    <AlignCenter size={17} />
+                  </ToolbarButton>
+
+                  <ToolbarButton
+                    title="Align right"
+                    active={editor?.isActive({
+                      textAlign: "right",
+                    })}
+                    onClick={() => {
+                      editor?.chain().focus().setTextAlign("right").run();
+                    }}
+                  >
+                    <AlignRight size={17} />
+                  </ToolbarButton>
+
+                  <ToolbarButton
+                    title="Justify"
+                    active={editor?.isActive({
+                      textAlign: "justify",
+                    })}
+                    onClick={() => {
+                      editor?.chain().focus().setTextAlign("justify").run();
+                    }}
+                  >
+                    <AlignJustify size={17} />
+                  </ToolbarButton>
+                </div>
+
+                <div className="somi-editor-toolbar-divider" />
+
+                <div className="somi-editor-toolbar-group">
+                  <ToolbarButton
+                    title="Bulleted list"
+                    active={editor?.isActive("bulletList")}
+                    onClick={() => {
+                      editor?.chain().focus().toggleBulletList().run();
+                    }}
+                  >
+                    <List size={17} />
+                  </ToolbarButton>
+
+                  <ToolbarButton
+                    title="Numbered list"
+                    active={editor?.isActive("orderedList")}
+                    onClick={() => {
+                      editor?.chain().focus().toggleOrderedList().run();
+                    }}
+                  >
+                    <ListOrdered size={17} />
+                  </ToolbarButton>
+
+                  <ToolbarButton
+                    title="Blockquote"
+                    active={editor?.isActive("blockquote")}
+                    onClick={() => {
+                      editor?.chain().focus().toggleBlockquote().run();
+                    }}
+                  >
+                    <Quote size={17} />
+                  </ToolbarButton>
+
+                  <ToolbarButton
+                    title="Horizontal divider"
+                    onClick={() => {
+                      editor?.chain().focus().setHorizontalRule().run();
+                    }}
+                  >
+                    <Minus size={17} />
+                  </ToolbarButton>
+                </div>
+
+                <div className="somi-editor-toolbar-divider" />
+
+                <div className="somi-editor-toolbar-group">
+                  <ToolbarButton
+                    title="Add link"
+                    active={editor?.isActive("link")}
+                    onClick={handleAddLink}
+                  >
+                    <LinkIcon size={17} />
+                  </ToolbarButton>
+
+                  <ToolbarButton title="Upload image" onClick={handleAddImage}>
+                    <ImagePlus size={17} />
+                  </ToolbarButton>
+
+                  <ToolbarButton
+                    title="Insert image from URL"
+                    onClick={handleImageUrl}
+                  >
+                    <ImagePlus size={17} />
+                  </ToolbarButton>
+                </div>
+
+                <div className="somi-editor-toolbar-spacer" />
+
+                <div className="somi-editor-toolbar-group">
+                  <ToolbarButton
+                    title="Undo"
+                    disabled={!editor?.can().undo()}
+                    onClick={() => {
+                      editor?.chain().focus().undo().run();
+                    }}
+                  >
+                    <Undo2 size={17} />
+                  </ToolbarButton>
+
+                  <ToolbarButton
+                    title="Redo"
+                    disabled={!editor?.can().redo()}
+                    onClick={() => {
+                      editor?.chain().focus().redo().run();
+                    }}
+                  >
+                    <Redo2 size={17} />
+                  </ToolbarButton>
+                </div>
               </div>
             )}
+
+            <div className="somi-editor-writing-area">
+              <input
+                type="text"
+                className="somi-editor-title-input"
+                value={title}
+                onChange={(event) => handleTitleChange(event.target.value)}
+                placeholder="Chapter title"
+                disabled={previewMode}
+              />
+
+              {previewMode ? (
+                <div className="somi-editor-preview-content">
+                  {editor?.getText().trim() ? (
+                    <EditorContent editor={editor} />
+                  ) : (
+                    <p className="somi-editor-preview-empty">
+                      This chapter is currently empty.
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="somi-editor-content">
+                  <EditorContent editor={editor} />
+                </div>
+              )}
+
+              {!previewMode && (
+                <div className="somi-editor-writing-footer">
+                  <span>{wordCount.toLocaleString()} words</span>
+
+                  <span>·</span>
+
+                  <span>Approximately {readingTime} min read</span>
+                </div>
+              )}
+            </div>
+
+            {assetError && (
+              <div className="somi-editor-errors">{assetError}</div>
+            )}
+
+            {error && <div className="somi-editor-errors">{error}</div>}
           </div>
 
-          {assetError && <div className="somi-editor-errors">{assetError}</div>}
+          {/*
+           * ========================================================
+           * CHAPTER SETTINGS
+           * ========================================================
+           *
+           * Monetization belongs to chapter metadata/settings,
+           * not inside the manuscript writing surface.
+           *
+           * This keeps the editor focused while still making
+           * access and pricing immediately available to the writer.
+           */}
 
-          {error && <div className="somi-editor-errors">{error}</div>}
+          {!previewMode && chapter && (
+            <aside
+              className="w-full self-start lg:sticky lg:top-6"
+              aria-label="Chapter settings"
+            >
+              <section className="rounded-2xl border border-[#2e3540] bg-[#171b22] p-5">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#231f35] text-[#e8b363]">
+                    <Settings2 size={17} />
+                  </div>
+
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#8b7ea8]">
+                      Chapter settings
+                    </p>
+
+                    <h2 className="mt-1 text-base font-semibold text-[#f0ece4]">
+                      Reader access
+                    </h2>
+
+                    <p className="mt-1 text-xs leading-5 text-[#8d97a2]">
+                      Decide how readers access this chapter.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-5">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-[#8d97a2]">
+                    Access type
+                  </p>
+
+                  <div className="space-y-2">
+                    <button
+                      type="button"
+                      onClick={() => handleAccessTypeChange("FREE")}
+                      className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left transition ${
+                        chapter.accessType === "FREE"
+                          ? "border-[#e8a84c] bg-[#231f35]"
+                          : "border-[#2e3540] bg-[#101318] hover:border-[#46515e]"
+                      }`}
+                    >
+                      <div>
+                        <div className="text-sm font-semibold text-[#f0ece4]">
+                          Free
+                        </div>
+
+                        <div className="mt-0.5 text-xs text-[#8d97a2]">
+                          Available without unlocking
+                        </div>
+                      </div>
+
+                      {chapter.accessType === "FREE" && (
+                        <Check size={16} className="text-[#e8b363]" />
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleAccessTypeChange("PREMIUM")}
+                      className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left transition ${
+                        chapter.accessType === "PREMIUM"
+                          ? "border-[#e8a84c] bg-[#231f35]"
+                          : "border-[#2e3540] bg-[#101318] hover:border-[#46515e]"
+                      }`}
+                    >
+                      <div>
+                        <div className="text-sm font-semibold text-[#f0ece4]">
+                          Premium
+                        </div>
+
+                        <div className="mt-0.5 text-xs text-[#8d97a2]">
+                          Readers unlock with Somi Coins
+                        </div>
+                      </div>
+
+                      {chapter.accessType === "PREMIUM" && (
+                        <Check size={16} className="text-[#e8b363]" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {chapter.accessType === "PREMIUM" && (
+                  <div className="mt-5 border-t border-[#2e3540] pt-5">
+                    <label
+                      htmlFor="chapter-price"
+                      className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-[#8d97a2]"
+                    >
+                      Unlock price
+                    </label>
+
+                    <div className="relative">
+                      <input
+                        id="chapter-price"
+                        type="number"
+                        min={1}
+                        step={1}
+                        value={chapter.price || ""}
+                        onChange={(event) =>
+                          handlePriceChange(event.target.value)
+                        }
+                        className="w-full rounded-xl border border-[#2e3540] bg-[#101318] px-4 py-3 pr-24 text-sm font-medium text-[#f0ece4] outline-none transition focus:border-[#e8a84c]"
+                        placeholder="80"
+                      />
+
+                      <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-[11px] font-semibold text-[#e8b363]">
+                        Coins
+                      </span>
+                    </div>
+
+                    <p className="mt-2 text-xs leading-5 text-[#737e89]">
+                      Readers will spend this amount of Somi Coins to unlock the
+                      chapter.
+                    </p>
+                  </div>
+                )}
+
+                <div className="mt-5 border-t border-[#2e3540] pt-4">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-[#7f8994]">Chapter status</span>
+
+                    <span className="font-medium capitalize text-[#c9c3ba]">
+                      {chapter.status.replace(/_/g, " ").toLowerCase()}
+                    </span>
+                  </div>
+
+                  <div className="mt-2 flex items-center justify-between text-xs">
+                    <span className="text-[#7f8994]">Words</span>
+
+                    <span className="font-medium text-[#c9c3ba]">
+                      {wordCount.toLocaleString()}
+                    </span>
+                  </div>
+
+                  <div className="mt-2 flex items-center justify-between text-xs">
+                    <span className="text-[#7f8994]">Reading time</span>
+
+                    <span className="font-medium text-[#c9c3ba]">
+                      {readingTime} min
+                    </span>
+                  </div>
+                </div>
+              </section>
+            </aside>
+          )}
         </div>
       </div>
     </div>

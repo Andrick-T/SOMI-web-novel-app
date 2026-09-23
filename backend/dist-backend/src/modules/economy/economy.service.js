@@ -6,9 +6,10 @@ const PUBLISHED = "PUBLISHED";
 const PREMIUM = "PREMIUM";
 const COMPLETED = "COMPLETED";
 export const coinPackages = {
-    starter: { amountCfa: 175, coins: 3150 },
-    plus: { amountCfa: 425, coins: 8000 },
-    premium: { amountCfa: 850, coins: 17000 },
+    starter: { amountCfa: 125, coins: 525 },
+    standard: { amountCfa: 275, coins: 1155 },
+    plus: { amountCfa: 425, coins: 1785 },
+    premium: { amountCfa: 850, coins: 3570 },
 };
 // Persisted balances are whole coins. 6.8 is represented as 34/5 and rounded
 // to the nearest whole coin, with halves rounded up, without floating point math.

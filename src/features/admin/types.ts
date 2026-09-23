@@ -36,7 +36,9 @@ export type AdminPermission =
   | "settings.manage";
 
 export type AdminUserRole = "READER" | "WRITER" | "ADMIN";
+
 export type UserStatus = "ACTIVE" | "SUSPENDED" | "BANNED" | "PENDING";
+
 export type ModerationStatus =
   | "DRAFT"
   | "EDITING"
@@ -49,24 +51,29 @@ export type ModerationStatus =
   | "ARCHIVED";
 
 export type ReportStatus = "OPEN" | "UNDER_REVIEW" | "RESOLVED" | "DISMISSED";
+
 export type ReportPriority = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+
 export type TransactionStatus =
   | "PENDING"
   | "COMPLETED"
   | "FAILED"
   | "REFUNDED"
   | "CANCELLED";
+
 export type TransactionType =
   | "COIN_PURCHASE"
   | "CHAPTER_UNLOCK"
   | "REFUND"
   | "ADJUSTMENT";
+
 export type AuditAction =
   | "USER_SUSPENDED"
   | "USER_REACTIVATED"
   | "USER_BANNED"
   | "ROLE_CHANGED"
   | "BOOK_APPROVED"
+  | "BOOK_PUBLISHED"
   | "BOOK_REJECTED"
   | "BOOK_UNPUBLISHED"
   | "REPORT_RESOLVED"
@@ -151,13 +158,23 @@ export interface AdminTransaction {
 
 export interface AuditEvent {
   id: string;
-  actorId: string;
-  actorName: string;
-  action: AuditAction;
+  actorId: string | null;
+  actorName: string | null;
+  action: string;
   targetType: string;
-  targetId: string;
-  metadata: Record<string, unknown>;
+  targetId: string | null;
+  metadata: Record<string, unknown> | null;
   timestamp: string;
+}
+
+export interface AuditEventsResponse {
+  items: AuditEvent[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
 }
 
 export interface PlatformSettings {
@@ -176,6 +193,12 @@ export interface PlatformSettings {
   sessionPolicy: string;
   adminSessionTimeoutMinutes: number;
   suspiciousActivityMonitoring: boolean;
+}
+
+export interface AdminPlatformSettingsResponse extends PlatformSettings {
+  id: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface AdminDashboardSummary {
@@ -203,7 +226,12 @@ export interface AdminDashboardSummary {
     severity: "low" | "medium" | "high";
     path: string;
   }>;
-  activity: Array<{ id: string; text: string; time: string; type: string }>;
+  activity: Array<{
+    id: string;
+    text: string;
+    time: string;
+    type: string;
+  }>;
   contentHealth: {
     booksPublishedThisWeek: number;
     chaptersPublishedThisWeek: number;
@@ -252,8 +280,11 @@ export interface TransactionFilters {
 }
 
 export interface AuditFilters {
-  action?: AuditAction | "ALL";
-  targetType?: string;
+  action?: string | "ALL";
+  targetType?: string | "ALL";
+  query?: string;
+  page?: number;
+  limit?: number;
 }
 
 export interface AdminValidationResult {

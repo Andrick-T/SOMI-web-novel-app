@@ -48,12 +48,14 @@ const LibraryPage = lazy(() => import("./pages/LibraryPage"));
 const WalletPage = lazy(() => import("./pages/WalletPage"));
 const ProfilePage = lazy(() => import("./pages/ProfilePage"));
 const AuthPage = lazy(() => import("./pages/AuthPage"));
+
 const WriterDashboard = lazy(() => import("./pages/writer/WriterDashboard"));
 const WriterBooks = lazy(() => import("./pages/writer/WriterBooks"));
 const WriterCreate = lazy(() => import("./pages/writer/WriterCreate"));
 const ChapterEditor = lazy(() => import("./pages/writer/ChapterEditor"));
 const WriterAnalytics = lazy(() => import("./pages/writer/WriterAnalytics"));
 const WriterEarnings = lazy(() => import("./pages/writer/WriterEarnings"));
+
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
 const AdminUsers = lazy(() => import("./pages/admin/AdminUsers"));
 const AdminUserDetail = lazy(() => import("./pages/admin/AdminUserDetail"));
@@ -68,6 +70,7 @@ const AdminTransactions = lazy(() => import("./pages/admin/AdminTransactions"));
 const AdminAudit = lazy(() => import("./pages/admin/AdminAudit"));
 const AdminSettings = lazy(() => import("./pages/admin/AdminSettings"));
 const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
+
 import {
   environmentFromPath,
   isFullscreenRoute,
@@ -84,6 +87,7 @@ const WRITER_PAGES: Page[] = [
   "writer-analytics",
   "writer-earnings",
 ];
+
 const ADMIN_PAGES: Page[] = [
   "admin-dashboard",
   "admin-users",
@@ -109,104 +113,132 @@ function RouteLoading() {
   );
 }
 
+const mockEntitlements: ChapterEntitlement[] = [
+  {
+    userId: "guest-user",
+    bookId: "bk",
+    chapterId: "bk-c1",
+    status: "UNLOCKED",
+    pricePaid: 0,
+    coinsSpent: 0,
+    unlockedAt: new Date().toISOString(),
+  },
+  {
+    userId: "guest-user",
+    bookId: "bk",
+    chapterId: "bk-c2",
+    status: "UNLOCKED",
+    pricePaid: 0,
+    coinsSpent: 0,
+    unlockedAt: new Date().toISOString(),
+  },
+  {
+    userId: "guest-user",
+    bookId: "bk",
+    chapterId: "bk-c3",
+    status: "UNLOCKED",
+    pricePaid: 0,
+    coinsSpent: 0,
+    unlockedAt: new Date().toISOString(),
+  },
+  {
+    userId: "guest-user",
+    bookId: "mt",
+    chapterId: "mt-c1",
+    status: "UNLOCKED",
+    pricePaid: 0,
+    coinsSpent: 0,
+    unlockedAt: new Date().toISOString(),
+  },
+  {
+    userId: "guest-user",
+    bookId: "mt",
+    chapterId: "mt-c2",
+    status: "UNLOCKED",
+    pricePaid: 0,
+    coinsSpent: 0,
+    unlockedAt: new Date().toISOString(),
+  },
+  {
+    userId: "guest-user",
+    bookId: "mt",
+    chapterId: "mt-c3",
+    status: "UNLOCKED",
+    pricePaid: 0,
+    coinsSpent: 0,
+    unlockedAt: new Date().toISOString(),
+  },
+];
+
 function AppShell() {
   const location = useLocation();
   const navigate = useNavigate();
   const pathname = location.pathname;
+
   const currentPage = pageFromPath(pathname);
+
   const routeMatch = pathname.match(/^\/books\/([^/]+)(?:\/read\/([^/]+))?$/);
+
   const bookIdFromPath = routeMatch?.[1] ?? undefined;
   const chapterIdFromPath = routeMatch?.[2] ?? undefined;
+
   const { user, isAuthenticated, login, logout, hasRole } = useAuth();
   const { isOnline } = useNetworkStatus();
+
   const isLoggedIn = isAuthenticated;
   const isWriter = hasRole("writer");
   const isAdmin = hasRole("admin");
+
   const [wallet, setWallet] = useState(() =>
     createWallet({
       userId: user?.id ?? "guest-user",
       balance: useApiEconomy ? 0 : 250,
     }),
   );
+
   const [libraryBooks, setLibraryBooks] = useState<string[]>([]);
-  const [entitlements, setEntitlements] = useState<ChapterEntitlement[]>([
-    {
-      userId: user?.id ?? "guest-user",
-      bookId: "bk",
-      chapterId: "bk-c1",
-      status: "UNLOCKED",
-      pricePaid: 0,
-      coinsSpent: 0,
-      unlockedAt: new Date().toISOString(),
-    },
-    {
-      userId: user?.id ?? "guest-user",
-      bookId: "bk",
-      chapterId: "bk-c2",
-      status: "UNLOCKED",
-      pricePaid: 0,
-      coinsSpent: 0,
-      unlockedAt: new Date().toISOString(),
-    },
-    {
-      userId: user?.id ?? "guest-user",
-      bookId: "bk",
-      chapterId: "bk-c3",
-      status: "UNLOCKED",
-      pricePaid: 0,
-      coinsSpent: 0,
-      unlockedAt: new Date().toISOString(),
-    },
-    {
-      userId: user?.id ?? "guest-user",
-      bookId: "mt",
-      chapterId: "mt-c1",
-      status: "UNLOCKED",
-      pricePaid: 0,
-      coinsSpent: 0,
-      unlockedAt: new Date().toISOString(),
-    },
-    {
-      userId: user?.id ?? "guest-user",
-      bookId: "mt",
-      chapterId: "mt-c2",
-      status: "UNLOCKED",
-      pricePaid: 0,
-      coinsSpent: 0,
-      unlockedAt: new Date().toISOString(),
-    },
-    {
-      userId: user?.id ?? "guest-user",
-      bookId: "mt",
-      chapterId: "mt-c3",
-      status: "UNLOCKED",
-      pricePaid: 0,
-      coinsSpent: 0,
-      unlockedAt: new Date().toISOString(),
-    },
-  ]);
+
+  const [entitlements, setEntitlements] = useState<ChapterEntitlement[]>(() =>
+    useApiEconomy ? [] : mockEntitlements,
+  );
+
   const [environment, setEnvironment] = useState<AppEnvironment>(
     environmentFromPath(pathname),
   );
+
   const [apiBooks, setApiBooks] = useState<Book[]>([]);
   const [apiError, setApiError] = useState<Error | null>(null);
-  const [apiLoading, setApiLoading] = useState(
-    import.meta.env.VITE_USE_API_CONTENT === "true",
-  );
+
+  const [apiLoading, setApiLoading] = useState(appConfig.useApiContent);
 
   useEffect(() => {
     if (!useApiEconomy || !isAuthenticated || !user) {
       if (!isAuthenticated) {
-        setWallet(createWallet({ userId: "guest-user", balance: 0 }));
+        setWallet(
+          createWallet({
+            userId: "guest-user",
+            balance: 0,
+          }),
+        );
+
         setEntitlements([]);
       }
+
       return;
     }
+
     const authenticatedUserId = user.id;
-    setWallet(createWallet({ userId: authenticatedUserId, balance: 0 }));
+
+    setWallet(
+      createWallet({
+        userId: authenticatedUserId,
+        balance: 0,
+      }),
+    );
+
     void apiWalletRepository
       .getWallet()
-      .then((remoteWallet: { balance: any }) => {
+      .then((remoteWallet: { balance: number }) => {
         if (user?.id === authenticatedUserId && isAuthenticated) {
           setWallet(
             createWallet({
@@ -215,6 +247,10 @@ function AppShell() {
             }),
           );
         }
+      })
+      .catch(() => {
+        // Keep the local wallet state at zero if the API request fails.
+        // Do not fall back to mock coins in API mode.
       });
   }, [isAuthenticated, user]);
 
@@ -225,6 +261,7 @@ function AppShell() {
   const navigateTo = useCallback(
     (target: Page, bookId?: string, chapterId?: string) => {
       const url = routeForPage(target, bookId, chapterId);
+
       window.scrollTo(0, 0);
       navigate(url);
     },
@@ -233,28 +270,41 @@ function AppShell() {
 
   useEffect(() => {
     if (!useApiLibrary || !isAuthenticated) {
-      if (!isAuthenticated) setLibraryBooks([]);
+      if (!isAuthenticated) {
+        setLibraryBooks([]);
+      }
+
       return;
     }
+
     const authenticatedUserId = user?.id;
-    void apiLibraryRepository.list().then((items) => {
-      if (authenticatedUserId === user?.id && isAuthenticated) {
-        setLibraryBooks(items.map((item) => item.book.id));
-      }
-    });
+
+    void apiLibraryRepository
+      .list()
+      .then((items) => {
+        if (authenticatedUserId === user?.id && isAuthenticated) {
+          setLibraryBooks(items.map((item) => item.book.id));
+        }
+      })
+      .catch(() => {
+        // Do not populate library from mock data in API mode.
+      });
   }, [isAuthenticated, user?.id]);
 
   useEffect(() => {
-    if (isAuthenticated)
+    if (isAuthenticated) {
       void hydrateRecentReadingProgress().catch(() => undefined);
+    }
   }, [isAuthenticated]);
 
   const addToLibrary = (id: string) => {
     if (useApiLibrary) {
       const isSaved = libraryBooks.includes(id);
+
       setLibraryBooks((current) =>
         isSaved ? current.filter((bookId) => bookId !== id) : [...current, id],
       );
+
       void (
         isSaved ? apiLibraryRepository.remove(id) : apiLibraryRepository.add(id)
       ).catch(() => {
@@ -264,8 +314,10 @@ function AppShell() {
             : current.filter((bookId) => bookId !== id),
         );
       });
+
       return;
     }
+
     setLibraryBooks((current) =>
       current.includes(id)
         ? current.filter((bookId) => bookId !== id)
@@ -282,21 +334,38 @@ function AppShell() {
 
     if (useApiEconomy) {
       const result = await apiWalletRepository.unlock(selectedBook.id, id);
+
       setWallet((current) =>
-        createWallet({ userId: current.userId, balance: result.balance }),
+        createWallet({
+          userId: current.userId,
+          balance: result.balance,
+        }),
       );
-      setEntitlements((current) => [
-        ...current,
-        {
-          userId: user?.id ?? "",
-          bookId: selectedBook.id,
-          chapterId: id,
-          status: "UNLOCKED",
-          pricePaid: cost,
-          coinsSpent: cost,
-          unlockedAt: new Date().toISOString(),
-        },
-      ]);
+
+      setEntitlements((current) => {
+        const alreadyPresent = current.some(
+          (entitlement) =>
+            entitlement.chapterId === id && entitlement.status === "UNLOCKED",
+        );
+
+        if (alreadyPresent) {
+          return current;
+        }
+
+        return [
+          ...current,
+          {
+            userId: user?.id ?? "",
+            bookId: selectedBook.id,
+            chapterId: id,
+            status: "UNLOCKED",
+            pricePaid: cost,
+            coinsSpent: cost,
+            unlockedAt: new Date().toISOString(),
+          },
+        ];
+      });
+
       return;
     }
 
@@ -314,39 +383,63 @@ function AppShell() {
       setEntitlements(result.entitlements);
     }
   };
-  const addCoins = (amount: number) =>
+
+  const addCoins = (amount: number) => {
+    if (useApiEconomy) {
+      return;
+    }
+
     setWallet((current) =>
       createWallet({
         userId: current.userId,
         balance: current.balance + amount,
       }),
     );
+  };
 
   const coins = wallet.balance;
 
   useEffect(() => {
-    if (import.meta.env.VITE_USE_API_CONTENT === "true") {
-      void apiBookRepository.loadBooks().then((loadedBooks) => {
+    if (!appConfig.useApiContent) {
+      setApiLoading(false);
+      return;
+    }
+
+    setApiLoading(true);
+
+    void apiBookRepository
+      .loadBooks()
+      .then((loadedBooks) => {
         setApiBooks(loadedBooks);
         setApiError(apiBookRepository.error);
+      })
+      .catch((error) => {
+        setApiBooks([]);
+        setApiError(
+          error instanceof Error ? error : new Error("Failed to load books."),
+        );
+      })
+      .finally(() => {
         setApiLoading(false);
       });
-    }
   }, []);
 
-  const books =
-    import.meta.env.VITE_USE_API_CONTENT === "true"
-      ? apiBooks
-      : bookRepository.getBooks();
+  const books = appConfig.useApiContent ? apiBooks : bookRepository.getBooks();
+
   const [detailBook, setDetailBook] = useState<Book | undefined>();
+
   const [chapterBook, setChapterBook] = useState<Book | undefined>();
 
   useEffect(() => {
-    if (import.meta.env.VITE_USE_API_CONTENT !== "true" || !bookIdFromPath) {
+    if (!appConfig.useApiContent || !bookIdFromPath) {
       setDetailBook(undefined);
       return;
     }
-    if (apiBooks.some((book) => book.id === bookIdFromPath)) return;
+
+    if (apiBooks.some((book) => book.id === bookIdFromPath)) {
+      return;
+    }
+
     void apiBookRepository.getBookDetail(bookIdFromPath).then((book) => {
       setDetailBook(book);
       setApiError(apiBookRepository.error);
@@ -354,10 +447,11 @@ function AppShell() {
   }, [apiBooks, bookIdFromPath]);
 
   useEffect(() => {
-    if (import.meta.env.VITE_USE_API_CONTENT !== "true" || !chapterIdFromPath) {
+    if (!appConfig.useApiContent || !chapterIdFromPath) {
       setChapterBook(undefined);
       return;
     }
+
     void apiChapterRepository
       .getChapterById(bookIdFromPath ?? "", chapterIdFromPath)
       .then(async (chapter) => {
@@ -365,8 +459,10 @@ function AppShell() {
           setChapterBook(undefined);
           return;
         }
+
         const book =
           apiBooks.find((entry) => entry.id === bookIdFromPath) ?? detailBook;
+
         if (book) {
           setChapterBook({
             ...book,
@@ -384,17 +480,22 @@ function AppShell() {
     (bookIdFromPath
       ? books.find((book) => book.id === bookIdFromPath)
       : (books[0] ?? undefined));
+
   const selectedChapterId =
     chapterIdFromPath ?? selectedBook?.chapters?.[0]?.id ?? "";
+
   const bookLoading =
-    import.meta.env.VITE_USE_API_CONTENT === "true" &&
-    Boolean(bookIdFromPath) &&
-    !selectedBook;
+    appConfig.useApiContent && Boolean(bookIdFromPath) && !selectedBook;
+
   const bookFallback = bookLoading ? <RouteLoading /> : <NotFoundPage />;
 
   useEffect(() => {
-    if (!useApiEconomy || !isAuthenticated || !user || !selectedBook) return;
+    if (!useApiEconomy || !isAuthenticated || !user || !selectedBook) {
+      return;
+    }
+
     const authenticatedUserId = user.id;
+
     void Promise.all(
       selectedBook.chapters
         .filter((chapter) => chapter.accessType === "PREMIUM")
@@ -407,7 +508,10 @@ function AppShell() {
         })),
     )
       .then((entries) => {
-        if (user?.id !== authenticatedUserId || !isAuthenticated) return;
+        if (user?.id !== authenticatedUserId || !isAuthenticated) {
+          return;
+        }
+
         setEntitlements(
           entries
             .filter((entry) => entry.entitlement.entitled)
@@ -422,7 +526,9 @@ function AppShell() {
             })),
         );
       })
-      .catch(() => undefined);
+      .catch(() => {
+        // Do not fall back to mock entitlements.
+      });
   }, [isAuthenticated, selectedBook, user]);
 
   const metaTitle =
@@ -450,19 +556,27 @@ function AppShell() {
 
   const isFullscreen = isFullscreenRoute(pathname);
   const isShellless = isShelllessRoute(pathname);
+
   const isWriterEnv = environment === "writer";
   const isAdminEnv = environment === "admin";
+
   const bgColor = isAdminEnv ? "#0e1422" : isWriterEnv ? "#131510" : "#0d0b18";
 
   useEffect(() => {
-    if (currentPage !== "reader" || !selectedBook) return;
+    if (currentPage !== "reader" || !selectedBook) {
+      return;
+    }
+
     const handler = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         const bookId = bookIdFromPath ?? selectedBook.id;
+
         navigateTo("book", bookId);
       }
     };
+
     window.addEventListener("keydown", handler);
+
     return () => window.removeEventListener("keydown", handler);
   }, [bookIdFromPath, currentPage, navigateTo, selectedBook]);
 
@@ -477,6 +591,7 @@ function AppShell() {
     addToLibrary,
     unlockChapter,
     addCoins,
+
     onLogin: async (credentials) => {
       const authenticatedUser = await login(
         credentials ? { ...credentials } : undefined,
@@ -495,11 +610,13 @@ function AppShell() {
 
       return authenticatedUser;
     },
+
     onLogout: async () => {
       await logout();
       setEnvironment("reader");
       navigateTo("home");
     },
+
     environment,
     setEnvironment,
   };
@@ -514,6 +631,7 @@ function AppShell() {
           url={`${appConfig.appUrl}${pathname}`}
           image={selectedBook?.heroImage ?? ""}
         />
+
         <div
           style={{
             width: "100vw",
@@ -534,6 +652,7 @@ function AppShell() {
             ) : (
               bookFallback
             ))}
+
           {pathname === "/auth" && (
             <Suspense fallback={<RouteLoading />}>
               <AuthPage {...commonProps} />
@@ -545,6 +664,13 @@ function AppShell() {
   }
 
   if (isShellless) {
+    const isWriterCreateRoute = pathname === "/writer/books/new";
+
+    const isWriterEditorRoute =
+      pathname.includes("/chapters/") && pathname.includes("/edit");
+
+    const canAccessWriterShelllessRoute = isAuthenticated && isWriter;
+
     return (
       <>
         <Metadata
@@ -553,6 +679,7 @@ function AppShell() {
           pathname={pathname}
           url={`${appConfig.appUrl}${pathname}`}
         />
+
         <div
           style={{
             width: "100vw",
@@ -561,16 +688,20 @@ function AppShell() {
             background: bgColor,
           }}
         >
-          {pathname === "/writer/books/new" && (
+          {isWriterCreateRoute && canAccessWriterShelllessRoute && (
             <Suspense fallback={<RouteLoading />}>
               <WriterCreate {...commonProps} />
             </Suspense>
           )}
-          {pathname.includes("/chapters/") && pathname.includes("/edit") && (
+
+          {isWriterEditorRoute && canAccessWriterShelllessRoute && (
             <Suspense fallback={<RouteLoading />}>
-              <ChapterEditor {...commonProps} />
+              <ChapterEditor />
             </Suspense>
           )}
+
+          {(isWriterCreateRoute || isWriterEditorRoute) &&
+            !canAccessWriterShelllessRoute && <UnauthorizedPage />}
         </div>
       </>
     );
@@ -585,10 +716,14 @@ function AppShell() {
         url={`${appConfig.appUrl}${pathname}`}
         image={selectedBook?.heroImage ?? ""}
       />
+
       <div
         className="flex flex-col"
         data-environment={environment}
-        style={{ minHeight: "100dvh", background: bgColor }}
+        style={{
+          minHeight: "100dvh",
+          background: bgColor,
+        }}
       >
         {!isOnline && (
           <div
@@ -599,10 +734,12 @@ function AppShell() {
             Offline mode
           </div>
         )}
+
         <TopNav
           page={currentPage}
           navigate={navigateTo}
           isLoggedIn={isLoggedIn}
+          userName={user?.name ?? user?.email ?? ""}
           coins={coins}
           isWriter={isWriter}
           isAdmin={isAdmin}
@@ -618,6 +755,7 @@ function AppShell() {
               setEnvironment={setEnvironment}
             />
           )}
+
           {isAdminEnv && (
             <AdminSidebar
               page={currentPage}
@@ -626,7 +764,7 @@ function AppShell() {
             />
           )}
 
-          <div className="flex flex-col flex-1 overflow-hidden">
+          <div className="flex flex-1 flex-col overflow-hidden">
             <main className="flex-1 overflow-y-auto overflow-x-hidden">
               {apiLoading ? (
                 <RouteLoading />
@@ -635,7 +773,9 @@ function AppShell() {
                   <div className="somi-home-inner flex min-h-[70vh] items-center justify-center px-6 py-16">
                     <div className="somi-state max-w-xl" role="alert">
                       <h2>Catalog unavailable</h2>
+
                       <p>{apiError.message}</p>
+
                       <button
                         className="somi-quiet-button"
                         onClick={() => window.location.reload()}
@@ -649,10 +789,12 @@ function AppShell() {
                 <Suspense fallback={<RouteLoading />}>
                   <Routes>
                     <Route path="/" element={<HomePage {...commonProps} />} />
+
                     <Route
                       path="/discover"
                       element={<DiscoverPage {...commonProps} />}
                     />
+
                     <Route
                       path="/books/:bookId"
                       element={
@@ -666,6 +808,7 @@ function AppShell() {
                         )
                       }
                     />
+
                     <Route
                       path="/books/:bookId/read/:chapterId"
                       element={
@@ -680,22 +823,27 @@ function AppShell() {
                         )
                       }
                     />
+
                     <Route
                       path="/library"
                       element={<LibraryPage {...commonProps} />}
                     />
+
                     <Route
                       path="/wallet"
                       element={<WalletPage {...commonProps} />}
                     />
+
                     <Route
                       path="/profile"
                       element={<ProfilePage {...commonProps} />}
                     />
+
                     <Route
                       path="/auth"
                       element={<AuthPage {...commonProps} />}
                     />
+
                     <Route
                       path="/unauthorized"
                       element={<UnauthorizedPage />}
@@ -706,22 +854,27 @@ function AppShell() {
                         path="/writer"
                         element={<WriterDashboard {...commonProps} />}
                       />
+
                       <Route
                         path="/writer/books"
                         element={<WriterBooks {...commonProps} />}
                       />
+
                       <Route
                         path="/writer/books/new"
                         element={<WriterCreate {...commonProps} />}
                       />
+
                       <Route
                         path="/writer/books/:bookId/chapters/:chapterId/edit"
-                        element={<ChapterEditor {...commonProps} />}
+                        element={<ChapterEditor />}
                       />
+
                       <Route
                         path="/writer/analytics"
                         element={<WriterAnalytics {...commonProps} />}
                       />
+
                       <Route
                         path="/writer/earnings"
                         element={<WriterEarnings {...commonProps} />}
@@ -733,45 +886,49 @@ function AppShell() {
                         path="/admin"
                         element={<AdminDashboard {...commonProps} />}
                       />
+
                       <Route
                         path="/admin/users"
                         element={<AdminUsers {...commonProps} />}
                       />
+
                       <Route
                         path="/admin/users/:userId"
                         element={<AdminUserDetail {...commonProps} />}
                       />
+
                       <Route
                         path="/admin/writers"
                         element={<AdminWriters {...commonProps} />}
                       />
+
                       <Route
                         path="/admin/content"
                         element={<AdminContent {...commonProps} />}
                       />
+
                       <Route
                         path="/admin/content/:bookId"
                         element={<AdminContentDetail {...commonProps} />}
                       />
+
                       <Route
                         path="/admin/reports"
                         element={<AdminReports {...commonProps} />}
                       />
-                      <Route
-                        path="/admin/economy"
-                        element={<AdminEconomy {...commonProps} />}
-                      />
+
+                      <Route path="/admin/economy" element={<AdminEconomy />} />
+
                       <Route
                         path="/admin/economy/transactions"
-                        element={<AdminTransactions {...commonProps} />}
+                        element={<AdminTransactions />}
                       />
-                      <Route
-                        path="/admin/audit"
-                        element={<AdminAudit {...commonProps} />}
-                      />
+
+                      <Route path="/admin/audit" element={<AdminAudit />} />
+
                       <Route
                         path="/admin/settings"
-                        element={<AdminSettings {...commonProps} />}
+                        element={<AdminSettings />}
                       />
                     </Route>
 
@@ -782,7 +939,7 @@ function AppShell() {
             </main>
 
             {!isWriterEnv && !isAdminEnv && (
-              <div className="md:hidden flex-shrink-0">
+              <div className="flex-shrink-0 md:hidden">
                 <BottomNav
                   currentPage={currentPage}
                   navigate={navigateTo}
@@ -793,13 +950,13 @@ function AppShell() {
             )}
 
             {isWriterEnv && (
-              <div className="md:hidden flex-shrink-0">
+              <div className="flex-shrink-0 md:hidden">
                 <WriterNav page={currentPage} navigate={navigateTo} />
               </div>
             )}
 
             {isAdminEnv && (
-              <div className="md:hidden flex-shrink-0">
+              <div className="flex-shrink-0 md:hidden">
                 <AdminNav page={currentPage} navigate={navigateTo} />
               </div>
             )}

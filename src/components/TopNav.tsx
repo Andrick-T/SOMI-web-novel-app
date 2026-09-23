@@ -6,18 +6,19 @@ interface TopNavProps {
   page: Page;
   navigate: (page: Page) => void;
   isLoggedIn: boolean;
+  userName?: string;
   coins: number;
   isWriter: boolean;
   isAdmin: boolean;
   environment: AppEnvironment;
   setEnvironment: (env: AppEnvironment) => void;
 }
-
 export default function TopNav({
   page,
   navigate,
   isLoggedIn,
   coins,
+  userName,
   isWriter,
   isAdmin,
   environment,
@@ -251,7 +252,7 @@ export default function TopNav({
               color: "#0d0b18",
             }}
           >
-            K
+            {(userName?.trim()?.charAt(0) || "?").toUpperCase()}
           </button>
         )}
       </div>

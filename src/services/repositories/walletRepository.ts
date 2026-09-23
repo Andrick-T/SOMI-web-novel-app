@@ -63,29 +63,56 @@ const apiWalletRepository = {
     const response = await apiAuthRepository.authorizedRequest<{
       wallet: WalletState;
     }>("/api/v1/wallet");
+
     return response.wallet;
   },
+
   async getTransactions(): Promise<WalletTransaction[]> {
     const response = await apiAuthRepository.authorizedRequest<{
       transactions: WalletTransaction[];
     }>("/api/v1/wallet/transactions");
+
     return response.transactions;
   },
-  async getEntitlement(bookId: string, chapterId: string) {
+
+  async getEntitlement(
+    bookId: string,
+    chapterId: string,
+  ): Promise<{
+    entitled: boolean;
+    access: string;
+  }> {
     return apiAuthRepository.authorizedRequest<{
       entitled: boolean;
       access: string;
-    }>(`/api/v1/books/${bookId}/chapters/${chapterId}/entitlement`);
+    }>(
+      `/api/v1/books/${encodeURIComponent(bookId)}/chapters/${encodeURIComponent(
+        chapterId,
+      )}/entitlement`,
+    );
   },
-  async unlock(bookId: string, chapterId: string) {
+
+  async unlock(
+    bookId: string,
+    chapterId: string,
+  ): Promise<{
+    entitled: boolean;
+    alreadyUnlocked: boolean;
+    balance: number;
+  }> {
     return apiAuthRepository.authorizedRequest<{
       entitled: boolean;
       alreadyUnlocked: boolean;
       balance: number;
-    }>(`/api/v1/books/${bookId}/chapters/${chapterId}/unlock`, {
-      method: "POST",
-      body: JSON.stringify({}),
-    });
+    }>(
+      `/api/v1/books/${encodeURIComponent(bookId)}/chapters/${encodeURIComponent(
+        chapterId,
+      )}/unlock`,
+      {
+        method: "POST",
+        body: JSON.stringify({}),
+      },
+    );
   },
 };
 

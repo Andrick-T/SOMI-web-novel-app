@@ -1,4 +1,5 @@
 import type { WriterBook, WriterChapter } from "../../features/writer/types";
+import { appConfig } from "../../config/env";
 import { apiAuthRepository } from "./authRepository";
 
 type ApiBook = {
@@ -33,10 +34,12 @@ type ApiChapter = {
   contentVersion: number;
 };
 
-const status = (value?: string) =>
+type ApiResponse<T> = T;
+
+const normalizeBookStatus = (value?: string) =>
   (value?.toUpperCase() ?? "DRAFT") as WriterBook["status"];
 
-const chapterStatus = (value?: string) =>
+const normalizeChapterStatus = (value?: string) =>
   (value?.toUpperCase() ?? "DRAFT") as WriterChapter["status"];
 
 const normalizeChapter = (chapter: ApiChapter): WriterChapter => {
@@ -50,7 +53,7 @@ const normalizeChapter = (chapter: ApiChapter): WriterChapter => {
     number: chapter.number,
     title: chapter.title,
     content: chapter.content ?? "",
-    status: chapterStatus(chapter.status),
+    status: normalizeChapterStatus(chapter.status),
     accessType:
       (chapter.accessType?.toUpperCase() as WriterChapter["accessType"]) ??
       "FREE",
@@ -73,7 +76,7 @@ const normalizeBook = (book: ApiBook): WriterBook => ({
   synopsis: book.synopsis ?? "",
   genres: book.genres ?? [],
   tags: book.tags ?? [],
-  status: status(book.status),
+  status: normalizeBookStatus(book.status),
   audience: "general",
   contentWarnings: [],
   publishingStrategy: "serial",
@@ -88,7 +91,7 @@ const normalizeBook = (book: ApiBook): WriterBook => ({
 });
 
 class ApiWriterRepository {
-  private async request<T>(path: string, init: RequestInit = {}) {
+  private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
     return apiAuthRepository.authorizedRequest<T>(path, {
       ...init,
       headers: {
@@ -99,7 +102,7 @@ class ApiWriterRepository {
     });
   }
 
-  async getWriterBooks() {
+  async getWriterBooks(): Promise<WriterBook[]> {
     const result = await this.request<{
       books: ApiBook[];
     }>("/api/v1/writer/books");
@@ -107,28 +110,50 @@ class ApiWriterRepository {
     return (result.books ?? []).map(normalizeBook);
   }
 
-  async getBook(bookId: string) {
+  async getBook(bookId: string): Promise<WriterBook | undefined> {
     const result = await this.request<{
-      book: ApiBook;
+      book?: ApiBook;
     }>(`/api/v1/books/${encodeURIComponent(bookId)}`);
 
     return result.book ? normalizeBook(result.book) : undefined;
   }
 
-  async getChapter(bookId: string, chapterId: string) {
+  async updateBookDraft(
+    bookId: string,
+    book: Partial<WriterBook>,
+  ): Promise<WriterBook> {
     const result = await this.request<{
-      chapters: ApiChapter[];
-    }>(`/api/v1/books/${encodeURIComponent(bookId)}/chapters/manage`);
+      book: ApiBook;
+    }>(`/api/v1/books/${encodeURIComponent(bookId)}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        title: book.title,
+        synopsis: book.synopsis,
+        cover: book.cover,
+        heroImage: book.heroImage,
+        genres: book.genres ?? [],
+        tags: book.tags ?? [],
 
-    const chapter = (result.chapters ?? []).find(
-      (entry) => entry.id === chapterId,
-    );
+        /*
+         * Writers do not control lifecycle status through
+         * the generic content PATCH endpoint.
+         */
+      }),
+    });
 
-    return chapter ? normalizeChapter(chapter) : undefined;
+    return normalizeBook(result.book);
   }
 
-  async createBook(input: Partial<WriterBook>) {
-    const slug = `${input.title ?? "untitled-book"}-${Date.now()}`
+  async deleteDraft(bookId: string): Promise<void> {
+    await this.request<void>(`/api/v1/books/${encodeURIComponent(bookId)}`, {
+      method: "DELETE",
+    });
+  }
+
+  async createBook(input: Partial<WriterBook>): Promise<WriterBook> {
+    const baseSlug = input.title?.trim() || "untitled-book";
+
+    const slug = `${baseSlug}-${Date.now()}`
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "");
@@ -143,13 +168,6 @@ class ApiWriterRepository {
         synopsis: input.synopsis,
         cover: input.cover,
         heroImage: input.heroImage,
-
-        /*
-         * Deliberately no status.
-         *
-         * Server creates the book as DRAFT.
-         */
-
         genres: input.genres ?? [],
         tags: input.tags ?? [],
       }),
@@ -158,7 +176,33 @@ class ApiWriterRepository {
     return normalizeBook(result.book);
   }
 
-  async createChapter(bookId: string, input: Partial<WriterChapter>) {
+  async getChapters(bookId: string): Promise<WriterChapter[]> {
+    const result = await this.request<{
+      chapters: ApiChapter[];
+    }>(`/api/v1/books/${encodeURIComponent(bookId)}/chapters/manage`);
+
+    return (result.chapters ?? []).map(normalizeChapter);
+  }
+
+  async getChapter(
+    bookId: string,
+    chapterId: string,
+  ): Promise<WriterChapter | undefined> {
+    const result = await this.request<{
+      chapter?: ApiChapter;
+    }>(
+      `/api/v1/books/${encodeURIComponent(
+        bookId,
+      )}/chapters/${encodeURIComponent(chapterId)}`,
+    );
+
+    return result.chapter ? normalizeChapter(result.chapter) : undefined;
+  }
+
+  async createChapter(
+    bookId: string,
+    input: Partial<WriterChapter>,
+  ): Promise<WriterChapter> {
     const result = await this.request<{
       chapter: ApiChapter;
     }>(`/api/v1/books/${encodeURIComponent(bookId)}/chapters`, {
@@ -167,13 +211,6 @@ class ApiWriterRepository {
         title: input.title,
         number: input.number ?? 1,
         content: input.content ?? "Begin your chapter here.",
-
-        /*
-         * Deliberately no status.
-         *
-         * Server creates the chapter as DRAFT.
-         */
-
         accessType: input.accessType ?? "FREE",
         price: input.price ?? 0,
       }),
@@ -182,7 +219,10 @@ class ApiWriterRepository {
     return normalizeChapter(result.chapter);
   }
 
-  async saveChapterDraft(bookId: string, chapter: WriterChapter) {
+  async saveChapterDraft(
+    bookId: string,
+    chapter: WriterChapter,
+  ): Promise<WriterChapter> {
     const result = await this.request<{
       chapter: ApiChapter;
     }>(
@@ -195,16 +235,13 @@ class ApiWriterRepository {
           title: chapter.title,
           number: chapter.number,
           content: chapter.content,
-
-          /*
-           * Writer generic saves never mutate lifecycle status.
-           *
-           * Autosave already resets the working chapter to DRAFT
-           * server-side.
-           */
-
           accessType: chapter.accessType,
           price: chapter.price,
+
+          /*
+           * Deliberately no lifecycle status.
+           * Writers cannot publish through this endpoint.
+           */
         }),
       },
     );
@@ -212,8 +249,24 @@ class ApiWriterRepository {
     return normalizeChapter(result.chapter);
   }
 
-  async autosaveChapter(bookId: string, chapter: WriterChapter) {
-    const result = await this.request<ApiChapter>(
+  async deleteChapter(bookId: string, chapterId: string): Promise<void> {
+    await this.request<void>(
+      `/api/v1/books/${encodeURIComponent(
+        bookId,
+      )}/chapters/${encodeURIComponent(chapterId)}`,
+      {
+        method: "DELETE",
+      },
+    );
+  }
+
+  async autosaveChapter(
+    bookId: string,
+    chapter: WriterChapter,
+  ): Promise<WriterChapter> {
+    const result = await this.request<{
+      chapter: ApiChapter;
+    }>(
       `/api/v1/writer/books/${encodeURIComponent(
         bookId,
       )}/chapters/${encodeURIComponent(chapter.id)}/autosave`,
@@ -223,13 +276,20 @@ class ApiWriterRepository {
           languageCode: "en",
           title: chapter.title,
           content: chapter.content,
-          contentFormat: "plain-text",
+
+          /*
+           * The editor stores Tiptap JSON.
+           * Therefore this is structured rich text,
+           * not plain text.
+           */
+          contentFormat: "structured-rich-text",
+
           clientVersion: chapter.contentVersion,
         }),
       },
     );
 
-    return normalizeChapter(result);
+    return normalizeChapter(result.chapter);
   }
 
   async getLocalizations(bookId: string) {
@@ -419,6 +479,7 @@ class ApiWriterRepository {
       body: file,
     });
   }
+
   async getBookAnalytics() {
     return this.request<{
       analytics: Array<{
@@ -441,5 +502,4 @@ class ApiWriterRepository {
 
 export const apiWriterRepository = new ApiWriterRepository();
 
-export const useApiWriterContent =
-  import.meta.env.VITE_USE_API_CONTENT === "true";
+export const useApiWriterContent = appConfig.useApiContent;

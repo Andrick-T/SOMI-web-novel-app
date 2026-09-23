@@ -9,6 +9,7 @@ import {
   type PropsWithChildren,
 } from "react";
 import { apiAuthRepository } from "../../services/repositories/authRepository";
+import { appConfig } from "@/config/env";
 
 export type AppRole = "reader" | "writer" | "admin";
 
@@ -42,6 +43,12 @@ interface AuthContextValue {
   setError: (message: string | null) => void;
 }
 
+/**
+ * Demo-only user.
+ *
+ * This is intentionally retained for local development/testing.
+ * Production never uses this fallback.
+ */
 const mockUserBase: AppUser = {
   id: "user-admin-01",
   name: "Kemi Nwosu",
@@ -55,14 +62,35 @@ const mockUserBase: AppUser = {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: PropsWithChildren) {
-  const useApi = import.meta.env.VITE_USE_API_AUTH === "true";
+  /**
+   * Production is always API-authenticated.
+   *
+   * This prevents a production build from accidentally falling back
+   * to the demo authentication system when VITE_USE_API_AUTH is false
+   * or missing.
+   *
+   * Development can still explicitly opt into API authentication
+   * through VITE_USE_API_AUTH=true.
+   */
+  const useApi = import.meta.env.PROD || appConfig.useApiAuth;
+
   const [user, setUser] = useState<AppUser | null>(
     useApi ? null : mockUserBase,
   );
+
   const [isLoading, setIsLoading] = useState(useApi);
+
   const [error, setError] = useState<string | null>(null);
+
+  /**
+   * Used to prevent an older async authentication request from
+   * overwriting newer authentication state.
+   */
   const authGeneration = useRef(0);
 
+  /**
+   * Restore an existing API session on application startup.
+   */
   useEffect(() => {
     if (!useApi) return;
 
@@ -109,7 +137,21 @@ export function AuthProvider({ children }: PropsWithChildren) {
       setError(null);
       authGeneration.current += 1;
 
-      if (useApi && payload?.email && payload.password) {
+      /**
+       * API authentication path.
+       *
+       * In production this is the only authentication path.
+       */
+      if (useApi) {
+        if (!payload?.email || !payload.password) {
+          const message = "Email and password are required.";
+
+          setError(message);
+          setIsLoading(false);
+
+          throw new Error(message);
+        }
+
         try {
           const authenticatedUser = await (payload.name
             ? apiAuthRepository.register(
@@ -120,20 +162,32 @@ export function AuthProvider({ children }: PropsWithChildren) {
             : apiAuthRepository.login(payload.email, payload.password));
 
           setUser(authenticatedUser);
+
           return authenticatedUser;
         } catch (caught) {
-          setError(
-            caught instanceof Error ? caught.message : "Unable to sign in.",
-          );
+          const message =
+            caught instanceof Error
+              ? caught.message
+              : "Unable to authenticate.";
+
+          setError(message);
+
           throw caught;
         } finally {
           setIsLoading(false);
         }
       }
 
+      /**
+       * Development-only mock authentication.
+       *
+       * This branch can never execute in a production build because
+       * useApi is forced to true there.
+       */
       const isAdminDemoLogin =
         payload?.email?.toLowerCase() === "admin@somi.app" &&
         payload?.password === "admin123";
+
       const nextRole = isAdminDemoLogin
         ? "admin"
         : (payload?.role ?? payload?.roles?.[0] ?? "reader");
@@ -168,7 +222,11 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   const logout = useCallback(async () => {
     authGeneration.current += 1;
-    if (useApi) await apiAuthRepository.logout().catch(() => undefined);
+
+    if (useApi) {
+      await apiAuthRepository.logout().catch(() => undefined);
+    }
+
     setUser(null);
     setError(null);
   }, [useApi]);

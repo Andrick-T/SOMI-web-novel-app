@@ -20,6 +20,65 @@
 				"$tsc"
 			],
 			"group": "build"
+		},
+		{
+			"label": "Build app verification",
+			"type": "shell",
+			"command": "npm run build",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [
+				"$tsc"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Admin backend verification",
+			"type": "shell",
+			"command": "git branch --show-current && npx vitest run backend/src/modules/admin/admin.test.ts --reporter=verbose && npm run backend:build",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Verify admin moderation contract",
+			"type": "shell",
+			"command": "npx vitest run backend/src/modules/admin/admin.test.ts --reporter=verbose",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Admin backend verification",
+			"type": "shell",
+			"command": "npm run backend:test -- --run backend/src/modules/admin/admin.test.ts",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "backend verify",
+			"type": "shell",
+			"command": "npm run backend:build && npm run backend:test -- --run backend/src/modules/admin/admin.test.ts",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Diagnose Vitest",
+			"type": "shell",
+			"command": "node --version && npm --version && npm ls vitest @vitest/runner @vitest/expect @vitest/utils --depth=0 && npm exec vitest --version",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Diagnostic shell",
+			"type": "shell",
+			"command": "cd /d \"c:\\Users\\lenovo\\Downloads\\High Fidelity Prototype for SOMI\" && node --version && npm --version && dir && if exist package-lock.json (echo HAS_LOCK) else (echo NO_LOCK) && npm ls vitest @vitest/runner @vitest/expect @vitest/utils --depth=0 || true && npm exec vitest --version || true && npm ls -g --depth=0 --json || true",
+			"isBackground": false,
+			"problemMatcher": []
 		}
 	]
 }

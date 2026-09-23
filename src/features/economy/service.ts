@@ -1,3 +1,4 @@
+//src/features/economy/service.ts
 export type TransactionType =
   | "COIN_PURCHASE"
   | "CHAPTER_UNLOCK"
@@ -48,34 +49,36 @@ export interface ChapterEntitlement {
 }
 
 export const coinPackageCatalog: CoinPackage[] = [
-  { id: "starter", name: "Starter", amountCfa: 100, coins: 680 },
+  { id: "starter", name: "Starter", amountCfa: 125, coins: 525 },
   {
     id: "standard",
     name: "Standard",
-    amountCfa: 175,
-    coins: 3150,
+    amountCfa: 275,
+    coins: 1155,
     popular: true,
   },
-  { id: "plus", name: "Plus", amountCfa: 425, coins: 8000 },
+  { id: "plus", name: "Plus", amountCfa: 425, coins: 1785 },
+
   {
     id: "premium",
     name: "Premium",
     amountCfa: 850,
-    coins: 17000,
+    coins: 3570,
     bestValue: true,
   },
 ];
 
-export const MINIMUM_PURCHASE_CFA = 100;
+export const MINIMUM_PURCHASE_CFA = 125;
 
 export function getCoinsFromCfa(amountCfa: number): number {
   const config = coinPackageCatalog.find((pkg) => pkg.amountCfa === amountCfa);
   if (config) return config.coins;
 
   const exactPackages = new Map<number, number>([
-    [175, 3150],
-    [425, 8000],
-    [850, 17000],
+    [125, 525],
+    [275, 1155],
+    [425, 1785],
+    [850, 3570],
   ]);
   if (exactPackages.has(amountCfa)) return exactPackages.get(amountCfa)!;
 

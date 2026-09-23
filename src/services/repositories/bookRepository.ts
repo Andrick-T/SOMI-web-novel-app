@@ -9,7 +9,7 @@ export type {
   AccessType,
 } from "../../data/books";
 
-const useApiContent = import.meta.env.VITE_USE_API_CONTENT === "true";
+const useApiContent = appConfig.useApiContent;
 
 type ApiChapter = {
   id: string;
@@ -53,6 +53,7 @@ type ApiBook = {
 
 const sortByViews = (a: (typeof books)[number], b: (typeof books)[number]) =>
   b.views - a.views;
+
 const sortByRating = (a: (typeof books)[number], b: (typeof books)[number]) =>
   b.rating - a.rating;
 
@@ -76,10 +77,13 @@ const normalizeStatus = (value?: string): (typeof books)[number]["status"] => {
   switch (value?.toUpperCase()) {
     case "COMPLETED":
       return "COMPLETED";
+
     case "UPCOMING":
       return "UPCOMING";
+
     case "PAUSED":
       return "PAUSED";
+
     case "DRAFT":
     case "PUBLISHED":
     case "ONGOING":
@@ -92,24 +96,37 @@ const relativeLabel = (value?: string | null) => {
   if (!value) return "Recently";
 
   const parsed = Date.parse(value);
-  if (Number.isNaN(parsed)) return "Recently";
+
+  if (Number.isNaN(parsed)) {
+    return "Recently";
+  }
 
   const diffMinutes = Math.max(1, Math.round((Date.now() - parsed) / 60000));
-  if (diffMinutes < 60) return `${diffMinutes} min ago`;
+
+  if (diffMinutes < 60) {
+    return `${diffMinutes} min ago`;
+  }
 
   const diffHours = Math.round(diffMinutes / 60);
-  if (diffHours < 24)
+
+  if (diffHours < 24) {
     return `${diffHours} hour${diffHours === 1 ? "" : "s"} ago`;
+  }
 
   const diffDays = Math.round(diffHours / 24);
-  if (diffDays < 30) return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
+
+  if (diffDays < 30) {
+    return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
+  }
 
   const diffMonths = Math.round(diffDays / 30);
+
   return `${diffMonths} month${diffMonths === 1 ? "" : "s"} ago`;
 };
 
 const normalizeGenreList = (value: unknown): string[] => {
   if (!Array.isArray(value)) return [];
+
   return value.filter((entry): entry is string => typeof entry === "string");
 };
 
@@ -138,21 +155,34 @@ const normalizeApiBook = (
   return {
     id: apiBook.id,
     title: apiBook.title,
+
     author:
       apiBook.author?.displayName ?? apiBook.author?.email ?? "Unknown Author",
+
     cover: apiBook.cover ?? apiBook.heroImage ?? "",
+
     heroImage: apiBook.heroImage ?? apiBook.cover ?? "",
+
     genres: normalizeGenres(apiBook.genres),
+
     status: normalizeStatus(apiBook.status),
+
     synopsis: apiBook.synopsis ?? "",
+
     totalChapters: Number(
       apiBook.totalChapters ?? apiBook.chapters?.length ?? 0,
     ),
+
     lastUpdate: relativeLabel(apiBook.updatedAt ?? apiBook.publishedAt),
+
     rating: Number(apiBook.rating ?? 0),
+
     views: Number(apiBook.views ?? 0),
+
     favorites: Number(apiBook.favorites ?? 0),
+
     tags: normalizeGenreList(apiBook.tags),
+
     chapters: (apiBook.chapters ?? []).map((chapter) => ({
       id: chapter.id,
       number: chapter.number,
@@ -169,21 +199,24 @@ const normalizeApiBook = (
 
 class ApiBookRepository {
   private cache: (typeof books)[number][] = [];
+
   error: Error | null = null;
 
   private async request<T>(path: string): Promise<T> {
-    const response = await fetch(
-      `${appConfig.apiBaseUrl.replace(/\/$/, "")}/api/v1${path}`,
-      {
-        headers: {
-          Accept: "application/json",
-        },
+    const baseUrl = appConfig.apiBaseUrl.replace(/\/$/, "");
+
+    const response = await fetch(`${baseUrl}/api/v1${path}`, {
+      headers: {
+        Accept: "application/json",
       },
-    );
+    });
 
     if (!response.ok) {
       const body = await response.json().catch(() => null);
-      throw new Error(body?.error?.message ?? "Failed to load books.");
+
+      throw new Error(
+        body?.error?.message ?? `Failed to load content (${response.status}).`,
+      );
     }
 
     return response.json() as Promise<T>;
@@ -191,32 +224,42 @@ class ApiBookRepository {
 
   async loadBooks(): Promise<(typeof books)[number][]> {
     try {
-      const response = await this.request<{ books?: ApiBook[] | unknown }>(
-        "/books",
-      );
+      const response = await this.request<{
+        books?: ApiBook[] | unknown;
+      }>("/books");
+
       const rawBooks = Array.isArray(response.books) ? response.books : [];
+
       this.cache = rawBooks
         .map(normalizeApiBook)
         .filter((book): book is (typeof books)[number] => Boolean(book));
+
       this.error = null;
+
       return this.cache;
     } catch (error) {
       this.cache = [];
+
       this.error =
         error instanceof Error ? error : new Error("Failed to load books.");
+
       return this.cache;
     }
   }
 
   async getBookDetail(id: string) {
     try {
-      const response = await this.request<{ book: ApiBook }>(
-        `/books/${encodeURIComponent(id)}`,
-      );
+      const response = await this.request<{
+        book: ApiBook;
+      }>(`/books/${encodeURIComponent(id)}`);
+
+      this.error = null;
+
       return normalizeApiBook(response.book);
     } catch (error) {
       this.error =
         error instanceof Error ? error : new Error("Failed to load book.");
+
       return undefined;
     }
   }
@@ -249,6 +292,7 @@ class ApiBookRepository {
     const genres = this.cache.flatMap((book) =>
       Array.isArray(book.genres) ? book.genres : [],
     );
+
     return ["All", ...new Set(genres)];
   }
 }
@@ -257,15 +301,22 @@ export const apiBookRepository = new ApiBookRepository();
 
 export const mockBookRepository = {
   getBooks: () => books,
+
   getBookById: (id: string) => resolveSelectedBook(books, id),
+
   getFeaturedBook: () => resolveFeaturedBook(books),
+
   getPopularBooks: () => [...books].sort(sortByViews),
+
   getRecentlyUpdatedBooks: () => [...books].sort((a, b) => b.views - a.views),
+
   getTopRatedBooks: () => [...books].sort(sortByRating),
+
   getGenres: () => {
     const genres = books.flatMap((book) =>
       Array.isArray(book.genres) ? book.genres : [],
     );
+
     return ["All", ...new Set(genres)];
   },
 };

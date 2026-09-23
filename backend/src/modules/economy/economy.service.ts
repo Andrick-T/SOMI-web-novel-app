@@ -8,9 +8,10 @@ const PREMIUM = "PREMIUM";
 const COMPLETED = "COMPLETED";
 
 export const coinPackages = {
-  starter: { amountCfa: 175, coins: 3150 },
-  plus: { amountCfa: 425, coins: 8000 },
-  premium: { amountCfa: 850, coins: 17000 },
+  starter: { amountCfa: 125, coins: 525 },
+  standard: { amountCfa: 275, coins: 1155 },
+  plus: { amountCfa: 425, coins: 1785 },
+  premium: { amountCfa: 850, coins: 3570 },
 } as const;
 
 export type TrustedPaymentEvent = {
