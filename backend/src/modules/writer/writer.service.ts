@@ -3,6 +3,16 @@ import { AppError } from "../../common/errors/http-error.js";
 import { prisma } from "../../config/database.js";
 import type { AuthPrincipal } from "../auth/auth.types.js";
 
+export const WRITER_SHARE_PERCENTAGE = 65;
+
+export function calculateWriterEarningCoins(coinsSpent: number) {
+  if (!Number.isInteger(coinsSpent) || coinsSpent < 0) {
+    throw new Error("coinsSpent must be a non-negative integer.");
+  }
+
+  return Math.floor((coinsSpent * WRITER_SHARE_PERCENTAGE) / 100);
+}
+
 const languages = ["en", "fr"] as const;
 
 type LanguageCode = (typeof languages)[number];
@@ -676,7 +686,7 @@ export async function attributeWriterEarning(sourceTransactionId: string) {
         writerId: chapter.book.authorId,
         bookId,
         chapterId,
-        coins: Math.abs(transaction.coins),
+        coins: calculateWriterEarningCoins(Math.abs(transaction.coins)),
         status: "PENDING",
       },
 
