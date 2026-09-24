@@ -18,6 +18,8 @@ import {
   getAdminPlatformSettings,
   updateAdminPlatformSettings,
   recordAdminAuditEvent,
+  getAdminWriterKyc,
+  reviewAdminWriterKyc,
 } from "./admin.service.js";
 
 const asyncRoute =
@@ -265,6 +267,56 @@ adminRouter.get(
     const result = await getAdminBookById(String(req.params.bookId));
 
     res.json(result);
+  }),
+);
+
+
+/* -------------------------------------------------------------------------- */
+/* Writer KYC                                                                 */
+/* -------------------------------------------------------------------------- */
+
+adminRouter.get(
+  "/writers/:writerId/kyc",
+  asyncRoute(async (req: AuthRequest, res) => {
+    const kyc = await getAdminWriterKyc(String(req.params.writerId));
+
+    if (!kyc) {
+      throw new Error("KYC_NOT_FOUND");
+    }
+
+    res.json({ kyc });
+  }),
+);
+
+adminRouter.post(
+  "/writers/:writerId/kyc/review",
+  validate(
+    z.object({
+      approved: z.boolean(),
+      rejectionReason: z.string().trim().max(2000).optional(),
+    }),
+  ),
+  asyncRoute(async (req: AuthRequest, res) => {
+    const kyc = await reviewAdminWriterKyc({
+      writerId: String(req.params.writerId),
+      actorId: req.user!.id,
+      approved: req.body.approved,
+      rejectionReason: req.body.rejectionReason,
+    });
+
+    await recordAdminAuditEvent({
+      actorId: req.user!.id,
+      actorName: req.user!.email,
+      action: req.body.approved ? "WRITER_KYC_APPROVED" : "WRITER_KYC_REJECTED",
+      targetType: "WRITER_KYC",
+      targetId: kyc.id,
+      metadata: {
+        writerId: String(req.params.writerId),
+        status: kyc.status,
+      },
+    });
+
+    res.json({ kyc });
   }),
 );
 
