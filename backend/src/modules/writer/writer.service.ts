@@ -108,6 +108,10 @@ export async function saveWriterProfile(
     bio?: string | null;
     avatar?: string | null;
     banner?: string | null;
+    preferredCurrency?: "XAF" | "USD" | "EUR" | "CAD";
+    payoutMethod?: "ORANGE_MONEY" | "MTN_MOBILE_MONEY" | "PAYPAL" | null;
+    payoutAccount?: string | null;
+    payoutAccountName?: string | null;
   },
 ) {
   const viewer = assertWriter(writer);
