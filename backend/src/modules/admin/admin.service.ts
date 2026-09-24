@@ -1358,3 +1358,75 @@ export async function updateAdminPlatformSettings(args: {
 
   return mapPlatformSettings(updated);
 }
+
+
+export async function getAdminWriterKyc(writerId: string) {
+  return prisma.writerKyc.findUnique({
+    where: { writerId },
+    include: {
+      writer: {
+        select: { id: true, email: true, username: true, role: true, status: true },
+      },
+      documents: {
+        select: {
+          id: true,
+          documentType: true,
+          mimeType: true,
+          sizeBytes: true,
+          status: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: "desc" },
+      },
+    },
+  });
+}
+
+export async function reviewAdminWriterKyc(args: {
+  writerId: string;
+  actorId: string;
+  approved: boolean;
+  rejectionReason?: string;
+}) {
+  const kyc = await prisma.writerKyc.findUnique({
+    where: { writerId: args.writerId },
+    include: { documents: true },
+  });
+
+  if (!kyc) {
+    throw new AppError(404, "KYC_NOT_FOUND", "Writer KYC record not found.");
+  }
+
+  if (kyc.status !== "PENDING") {
+    throw new AppError(409, "KYC_INVALID_STATE", "Only pending KYC can be reviewed.");
+  }
+
+  if (!args.approved && !args.rejectionReason?.trim()) {
+    throw new AppError(
+      400,
+      "KYC_REJECTION_REASON_REQUIRED",
+      "A rejection reason is required.",
+    );
+  }
+
+  const status = args.approved ? "APPROVED" : "REJECTED";
+
+  return prisma.$transaction(async (tx) => {
+    const reviewed = await tx.writerKyc.update({
+      where: { id: kyc.id },
+      data: {
+        status,
+        reviewedAt: new Date(),
+        reviewedBy: args.actorId,
+        rejectionReason: args.approved ? null : args.rejectionReason!.trim(),
+      },
+    });
+
+    await tx.writerKycDocument.updateMany({
+      where: { kycId: kyc.id },
+      data: { status: args.approved ? "APPROVED" : "REJECTED" },
+    });
+
+    return reviewed;
+  });
+}
