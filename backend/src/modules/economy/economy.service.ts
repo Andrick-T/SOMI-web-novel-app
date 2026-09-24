@@ -146,6 +146,105 @@ export async function markPaymentFailed(paymentId: string) {
   });
 }
 
+
+
+export async function findPaymentBySomiReference(userId: string, somiReference: string) {
+  const payment = await prisma.payment.findFirst({
+    where: { userId, somiReference },
+  });
+
+  if (!payment) {
+    throw new AppError(404, "PAYMENT_NOT_FOUND", "Payment not found.");
+  }
+
+  return {
+    id: payment.id,
+    somiReference: payment.somiReference,
+    providerReference: payment.providerReference,
+    packageId: payment.packageId,
+    amount: Number(payment.amount),
+    amountCfa: payment.amountCfa,
+    currency: payment.currency,
+    coins: payment.coins,
+    provider: payment.provider,
+    paymentMethod: payment.paymentMethod,
+    status: payment.status,
+    verifiedAt: payment.verifiedAt?.toISOString() ?? null,
+    expiresAt: payment.expiresAt?.toISOString() ?? null,
+    createdAt: payment.createdAt.toISOString(),
+    updatedAt: payment.updatedAt.toISOString(),
+  };
+}
+
+export type CinetPayVerifiedEvent = {
+  somiReference: string;
+  providerReference: string;
+  status: "ACCEPTED" | "REFUSED" | "PENDING";
+  amount: number;
+  currency: string;
+  paymentMethod?: string | null;
+  verifiedAt: Date;
+};
+
+export async function handleVerifiedCinetPayEvent(event: CinetPayVerifiedEvent) {
+  const payment = await prisma.payment.findUnique({
+    where: { somiReference: event.somiReference },
+  });
+
+  if (!payment) {
+    throw new AppError(404, "PAYMENT_NOT_FOUND", "Payment not found.");
+  }
+
+  if (payment.provider !== "CINETPAY") {
+    throw new AppError(409, "PAYMENT_PROVIDER_MISMATCH", "Payment provider mismatch.");
+  }
+
+  if (Number(payment.amount) !== event.amount || payment.currency !== event.currency) {
+    throw new AppError(409, "PAYMENT_AMOUNT_MISMATCH", "Verified payment does not match the SOMI payment.");
+  }
+
+  if (payment.providerReference && payment.providerReference !== event.providerReference) {
+    throw new AppError(409, "PAYMENT_REFERENCE_MISMATCH", "Provider reference mismatch.");
+  }
+
+  if (event.status === "PENDING") {
+    await prisma.payment.update({
+      where: { id: payment.id },
+      data: {
+        status: "PROCESSING",
+        providerReference: event.providerReference,
+        paymentMethod: event.paymentMethod ?? payment.paymentMethod,
+      },
+    });
+    return { status: "PROCESSING", paymentId: payment.id };
+  }
+
+  if (event.status === "REFUSED") {
+    await prisma.payment.update({
+      where: { id: payment.id },
+      data: {
+        status: "FAILED",
+        providerReference: event.providerReference,
+        paymentMethod: event.paymentMethod ?? payment.paymentMethod,
+        verifiedAt: event.verifiedAt,
+      },
+    });
+    return { status: "FAILED", paymentId: payment.id };
+  }
+
+  await prisma.payment.update({
+    where: { id: payment.id },
+    data: {
+      status: "SUCCESS",
+      providerReference: event.providerReference,
+      paymentMethod: event.paymentMethod ?? payment.paymentMethod,
+      verifiedAt: event.verifiedAt,
+    },
+  });
+
+  return { status: "SUCCESS", paymentId: payment.id };
+}
+
 export async function getWallet(userId: string) {
   const wallet = await prisma.wallet.findUnique({
     where: { userId },
