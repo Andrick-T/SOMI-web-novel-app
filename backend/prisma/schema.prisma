@@ -30,6 +30,7 @@ model User {
   transactions      WalletTransaction[]
   payments          Payment[]
   writerProfile     WriterProfile?
+  writerKyc          WriterKyc?
   writerSubmissions WriterSubmission[]
   writerEarnings    WriterEarning[]
   writerAssets      WriterAsset[]
@@ -399,6 +400,69 @@ model WriterEarning {
 
   @@index([writerId, status])
   @@index([bookId, chapterId])
+}
+
+
+model WriterKyc {
+  id              String   @id @default(uuid())
+  writerId        String   @unique
+  status          String   @default("NOT_STARTED")
+  submittedAt     DateTime?
+  reviewedAt      DateTime?
+  reviewedBy      String?
+  rejectionReason String?  @db.Text
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  writer    User                @relation(fields: [writerId], references: [id], onDelete: Cascade)
+  documents WriterKycDocument[]
+
+  @@index([status])
+}
+
+model WriterKycDocument {
+  id          String   @id @default(uuid())
+  writerId    String
+  kycId       String
+  documentType String
+  storageKey  String   @unique
+  mimeType    String
+  sizeBytes   Int
+  status      String   @default("PENDING")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  writer User      @relation(fields: [writerId], references: [id], onDelete: Cascade)
+  kyc    WriterKyc @relation(fields: [kycId], references: [id], onDelete: Cascade)
+
+  @@index([writerId, status])
+  @@index([kycId, documentType])
+}
+
+model WithdrawalRequest {
+  id              String   @id @default(uuid())
+  writerId        String
+  status          String   @default("PENDING")
+  coins           Int
+  amountCfa       Decimal  @db.Decimal(18, 6)
+  currency        String   @db.VarChar(3)
+  exchangeRateCfa Decimal  @db.Decimal(18, 6)
+  amount          Decimal  @db.Decimal(18, 6)
+  payoutMethod    String
+  payoutAccount   String
+  payoutAccountName String?
+  failureCount    Int      @default(0)
+  failureMessage  String?  @db.Text
+  reviewedBy      String?
+  reviewedAt      DateTime?
+  processedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  writer User @relation(fields: [writerId], references: [id], onDelete: Cascade)
+
+  @@index([writerId, status, createdAt])
+  @@index([status, createdAt])
 }
 
 model PlatformSettings {
