@@ -18,6 +18,13 @@ const envSchema = z.object({
   AUTH_COOKIE_NAME: z.string().default("somi_refresh_token"),
   CORS_ORIGIN: z.string().optional(),
   APP_NAME: z.string().default("SOMI API"),
+  CINETPAY_API_KEY: z.string().min(1).optional(),
+  CINETPAY_SITE_ID: z.string().min(1).optional(),
+  CINETPAY_API_URL: z.string().url().default("https://api-checkout.cinetpay.com/v2/payment"),
+  CINETPAY_NOTIFY_URL: z.string().url().optional(),
+  CINETPAY_RETURN_URL: z.string().url().optional(),
+  CINETPAY_CURRENCY: z.string().length(3).default("XAF"),
+  CINETPAY_CHANNELS: z.string().default("ALL"),
 });
 
 const parsed = envSchema.safeParse(process.env);
