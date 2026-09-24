@@ -3,7 +3,6 @@ import { AppError } from "../../common/errors/http-error.js";
 import { prisma } from "../../config/database.js";
 import type { AuthPrincipal } from "../auth/auth.types.js";
 import {
-  ACTIVE_WRITER_WITHDRAWAL_STATUSES,
   calculateWriterPayout,
   MINIMUM_WRITER_WITHDRAWAL_COINS,
   isSupportedWriterCurrency,
