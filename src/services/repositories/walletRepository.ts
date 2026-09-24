@@ -73,6 +73,29 @@ const apiWalletRepository = {
     }>("/api/v1/wallet/transactions");
 
     return response.transactions;
+  },\n  async getPaymentHistory(limit = 25, offset = 0) {
+    return apiAuthRepository.authorizedRequest<{
+      payments: Array<{
+        id: string;
+        packageId?: string | null;
+        amount: number;
+        currency: string;
+        amountCfa?: number | null;
+        coins: number;
+        somiReference: string;
+        providerReference?: string | null;
+        provider: string;
+        paymentMethod?: string | null;
+        status: string;
+        verifiedAt?: string | null;
+        expiresAt?: string | null;
+        createdAt: string;
+        updatedAt: string;
+      }>;
+      total: number;
+      limit: number;
+      offset: number;
+    }>(`/api/v1/payments?limit=${limit}&offset=${offset}`);
   },
   async getPaymentByReference(somiReference: string) {
     return apiAuthRepository.authorizedRequest<{
