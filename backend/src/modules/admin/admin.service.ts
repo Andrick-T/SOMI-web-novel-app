@@ -1084,6 +1084,237 @@ export async function getAdminBookDetail(bookId: string): Promise<unknown> {
   });
 }
 
+
+/* -------------------------------------------------------------------------- */
+/* Writer withdrawals                                                        */
+/* -------------------------------------------------------------------------- */
+
+const mapAdminWithdrawal = (withdrawal: {
+  id: string;
+  writerId: string;
+  status: string;
+  coins: number;
+  amountCfa: Prisma.Decimal;
+  currency: string;
+  exchangeRateCfa: Prisma.Decimal;
+  amount: Prisma.Decimal;
+  payoutMethod: string;
+  payoutAccount: string;
+  payoutAccountName: string | null;
+  failureCount: number;
+  failureMessage: string | null;
+  reviewedBy: string | null;
+  reviewedAt: Date | null;
+  processedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}) => ({
+  id: withdrawal.id,
+  writerId: withdrawal.writerId,
+  status: withdrawal.status,
+  coins: withdrawal.coins,
+  amountCfa: Number(withdrawal.amountCfa),
+  currency: withdrawal.currency,
+  exchangeRateCfa: Number(withdrawal.exchangeRateCfa),
+  amount: Number(withdrawal.amount),
+  payoutMethod: withdrawal.payoutMethod,
+  payoutAccount: withdrawal.payoutAccount,
+  payoutAccountName: withdrawal.payoutAccountName,
+  failureCount: withdrawal.failureCount,
+  failureMessage: withdrawal.failureMessage,
+  reviewedBy: withdrawal.reviewedBy,
+  reviewedAt: withdrawal.reviewedAt?.toISOString() ?? null,
+  processedAt: withdrawal.processedAt?.toISOString() ?? null,
+  createdAt: withdrawal.createdAt.toISOString(),
+  updatedAt: withdrawal.updatedAt.toISOString(),
+});
+
+export async function getAdminWithdrawals(args: {
+  status?: string;
+  writerId?: string;
+  page?: number;
+  limit?: number;
+}) {
+  const page = clampPage(args.page ?? 1);
+  const limit = clampLimit(args.limit ?? 20);
+  const skip = (page - 1) * limit;
+
+  const where: Prisma.WithdrawalRequestWhereInput = {
+    ...(args.status && args.status !== "ALL" ? { status: args.status } : {}),
+    ...(args.writerId ? { writerId: args.writerId } : {}),
+  };
+
+  const [withdrawals, total] = await Promise.all([
+    prisma.withdrawalRequest.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: limit,
+    }),
+    prisma.withdrawalRequest.count({ where }),
+  ]);
+
+  return {
+    items: withdrawals.map(mapAdminWithdrawal),
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / limit)),
+    },
+  };
+}
+
+export async function getAdminWithdrawal(withdrawalId: string) {
+  const withdrawal = await prisma.withdrawalRequest.findUnique({
+    where: { id: withdrawalId },
+  });
+
+  if (!withdrawal) {
+    throw new AppError(404, "WITHDRAWAL_NOT_FOUND", "Withdrawal request not found.");
+  }
+
+  return mapAdminWithdrawal(withdrawal);
+}
+
+export async function processAdminWithdrawal(args: {
+  withdrawalId: string;
+  actorId: string;
+}) {
+  const updated = await prisma.$transaction(async (tx) => {
+    const current = await tx.withdrawalRequest.findUnique({
+      where: { id: args.withdrawalId },
+    });
+
+    if (!current) {
+      throw new AppError(404, "WITHDRAWAL_NOT_FOUND", "Withdrawal request not found.");
+    }
+
+    if (current.status !== "PENDING") {
+      throw new AppError(
+        409,
+        "WITHDRAWAL_INVALID_STATE",
+        "Only pending withdrawals can move to processing.",
+      );
+    }
+
+    return tx.withdrawalRequest.update({
+      where: { id: current.id },
+      data: {
+        status: "PROCESSING",
+        reviewedBy: args.actorId,
+        reviewedAt: new Date(),
+        failureMessage: null,
+      },
+    });
+  });
+
+  return mapAdminWithdrawal(updated);
+}
+
+export async function completeAdminWithdrawal(args: {
+  withdrawalId: string;
+  actorId: string;
+}) {
+  const updated = await prisma.$transaction(async (tx) => {
+    const current = await tx.withdrawalRequest.findUnique({
+      where: { id: args.withdrawalId },
+    });
+
+    if (!current) {
+      throw new AppError(404, "WITHDRAWAL_NOT_FOUND", "Withdrawal request not found.");
+    }
+
+    if (current.status !== "PROCESSING") {
+      throw new AppError(
+        409,
+        "WITHDRAWAL_INVALID_STATE",
+        "Only processing withdrawals can be completed.",
+      );
+    }
+
+    return tx.withdrawalRequest.update({
+      where: { id: current.id },
+      data: {
+        status: "COMPLETED",
+        reviewedBy: args.actorId,
+        reviewedAt: current.reviewedAt ?? new Date(),
+        processedAt: new Date(),
+        failureMessage: null,
+      },
+    });
+  });
+
+  return mapAdminWithdrawal(updated);
+}
+
+export async function failAdminWithdrawal(args: {
+  withdrawalId: string;
+  actorId: string;
+  failureMessage: string;
+}) {
+  const reason = args.failureMessage.trim();
+
+  if (!reason) {
+    throw new AppError(
+      400,
+      "WITHDRAWAL_FAILURE_REASON_REQUIRED",
+      "A failure reason is required.",
+    );
+  }
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const current = await tx.withdrawalRequest.findUnique({
+      where: { id: args.withdrawalId },
+    });
+
+    if (!current) {
+      throw new AppError(404, "WITHDRAWAL_NOT_FOUND", "Withdrawal request not found.");
+    }
+
+    if (current.status !== "PROCESSING") {
+      throw new AppError(
+        409,
+        "WITHDRAWAL_INVALID_STATE",
+        "Only processing withdrawals can be marked as failed.",
+      );
+    }
+
+    const nextFailureCount = current.failureCount + 1;
+
+    return tx.withdrawalRequest.update({
+      where: { id: current.id },
+      data: {
+        status: "FAILED",
+        failureCount: nextFailureCount,
+        failureMessage: reason,
+        reviewedBy: args.actorId,
+        reviewedAt: current.reviewedAt ?? new Date(),
+        processedAt: new Date(),
+      },
+    });
+  });
+
+  return mapAdminWithdrawal(updated);
+}
+
+export async function getAdminWithdrawalFailureSummary(writerId: string) {
+  const failed = await prisma.withdrawalRequest.aggregate({
+    where: {
+      writerId,
+      status: "FAILED",
+    },
+    _sum: { failureCount: true },
+  });
+
+  const failureCount = Number(failed._sum.failureCount ?? 0);
+
+  return {
+    failureCount,
+    supportRequired: failureCount >= 3,
+  };
+}
+
 /* -------------------------------------------------------------------------- */
 /* Audit                                                                      */
 /* -------------------------------------------------------------------------- */
