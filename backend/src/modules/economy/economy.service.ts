@@ -148,6 +148,68 @@ export async function markPaymentFailed(paymentId: string) {
 
 
 
+
+
+export async function expirePendingPayments(now = new Date()) {
+  const result = await prisma.payment.updateMany({
+    where: {
+      status: { in: ["PENDING", "PROCESSING"] },
+      expiresAt: { not: null, lte: now },
+    },
+    data: {
+      status: "EXPIRED",
+    },
+  });
+
+  return { expired: result.count };
+}
+
+export async function cancelPayment(userId: string, paymentId: string) {
+  const payment = await prisma.payment.findFirst({
+    where: { id: paymentId, userId },
+  });
+
+  if (!payment) {
+    throw new AppError(404, "PAYMENT_NOT_FOUND", "Payment not found.");
+  }
+
+  if (payment.status === "SUCCESS") {
+    throw new AppError(409, "PAYMENT_ALREADY_COMPLETED", "A completed payment cannot be cancelled.");
+  }
+
+  if (["FAILED", "CANCELLED", "EXPIRED"].includes(payment.status)) {
+    return {
+      paymentId: payment.id,
+      status: payment.status,
+    };
+  }
+
+  const updated = await prisma.payment.updateMany({
+    where: {
+      id: payment.id,
+      userId,
+      status: { in: ["PENDING", "PROCESSING"] },
+    },
+    data: { status: "CANCELLED" },
+  });
+
+  if (updated.count !== 1) {
+    const current = await prisma.payment.findUnique({ where: { id: payment.id } });
+    if (!current) {
+      throw new AppError(404, "PAYMENT_NOT_FOUND", "Payment not found.");
+    }
+    if (current.status === "SUCCESS") {
+      throw new AppError(409, "PAYMENT_ALREADY_COMPLETED", "A completed payment cannot be cancelled.");
+    }
+    return { paymentId: current.id, status: current.status };
+  }
+
+  return {
+    paymentId: payment.id,
+    status: "CANCELLED",
+  };
+}
+
 export async function findPaymentBySomiReference(userId: string, somiReference: string) {
   const payment = await prisma.payment.findFirst({
     where: { userId, somiReference },
