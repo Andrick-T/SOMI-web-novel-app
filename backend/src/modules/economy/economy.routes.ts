@@ -11,8 +11,8 @@ import {
   getWallet,
   unlockChapter,
   createPaymentIntent,
-  createCinetPayCheckout,
 } from "./economy.service.js";
+import { createCinetPayCheckout } from "./cinetpay.client.js";
 
 const asyncRoute =
   (handler: RequestHandler): RequestHandler =>
