@@ -242,3 +242,27 @@ export interface AdminPlatformSettings {
   createdAt: string;
   updatedAt: string;
 }
+
+
+export type AdminWithdrawalStatus = "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED";
+
+export interface AdminWithdrawalSummary {
+  id: string;
+  writerId: string;
+  status: AdminWithdrawalStatus;
+  coins: number;
+  amountCfa: number;
+  currency: string;
+  exchangeRateCfa: number;
+  amount: number;
+  payoutMethod: string;
+  payoutAccount: string;
+  payoutAccountName: string | null;
+  failureCount: number;
+  failureMessage: string | null;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  processedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
