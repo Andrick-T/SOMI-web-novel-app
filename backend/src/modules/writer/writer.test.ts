@@ -628,8 +628,8 @@ describe("Phase 7F Writer workflow", () => {
     expect(earningB).toBeDefined();
     expect(earningA!.writerId).toBe(writerA.id);
     expect(earningB!.writerId).toBe(writerB.id);
-    expect(earningA!.coins).toBe(120);
-    expect(earningB!.coins).toBe(120);
+    expect(earningA!.coins).toBe(78);
+    expect(earningB!.coins).toBe(78);
 
     /*
      * ============================================================
@@ -641,8 +641,8 @@ describe("Phase 7F Writer workflow", () => {
       .set("Authorization", `Bearer ${writerA.token}`);
 
     expect(writerAEarnings.status).toBe(200);
-    expect(writerAEarnings.body.totalCoins).toBe(120);
-    expect(writerAEarnings.body.pendingCoins).toBe(120);
+    expect(writerAEarnings.body.totalCoins).toBe(78);
+    expect(writerAEarnings.body.pendingCoins).toBe(78);
     expect(writerAEarnings.body.availableCoins).toBe(0);
 
     /*
@@ -658,7 +658,7 @@ describe("Phase 7F Writer workflow", () => {
       id: earningA!.id,
       bookId: bookA.id,
       chapterId: chapterAId,
-      coins: 120,
+      coins: 78,
       status: "PENDING",
     });
 
@@ -678,8 +678,8 @@ describe("Phase 7F Writer workflow", () => {
       .set("Authorization", `Bearer ${writerB.token}`);
 
     expect(writerBEarnings.status).toBe(200);
-    expect(writerBEarnings.body.totalCoins).toBe(120);
-    expect(writerBEarnings.body.pendingCoins).toBe(120);
+    expect(writerBEarnings.body.totalCoins).toBe(78);
+    expect(writerBEarnings.body.pendingCoins).toBe(78);
     expect(writerBEarnings.body.availableCoins).toBe(0);
 
     /*
@@ -695,7 +695,7 @@ describe("Phase 7F Writer workflow", () => {
       id: earningB!.id,
       bookId: bookB.id,
       chapterId: chapterBId,
-      coins: 120,
+      coins: 78,
       status: "PENDING",
     });
 
