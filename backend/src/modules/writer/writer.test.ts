@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createApp } from "../../app.js";
 import { prisma } from "../../config/database.js";
 import { creditWalletFromTrustedPayment } from "../economy/economy.service.js";
+import { calculateWriterEarningCoins } from "./writer.service.js";
 
 const app = createApp();
 const password = "Somi-writer-password-123";
@@ -12,6 +13,17 @@ const created = {
   books: [] as string[],
   chapters: [] as string[],
 };
+
+describe("writer earning calculation", () => {
+  it("applies the 65 percent share with floor rounding", () => {
+    expect(calculateWriterEarningCoins(80)).toBe(52);
+    expect(calculateWriterEarningCoins(100)).toBe(65);
+    expect(calculateWriterEarningCoins(120)).toBe(78);
+    expect(calculateWriterEarningCoins(125)).toBe(81);
+    expect(calculateWriterEarningCoins(150)).toBe(97);
+    expect(calculateWriterEarningCoins(225)).toBe(146);
+  });
+});
 
 const createWriter = async () => {
   const email = `writer-${randomUUID()}@example.test`;
