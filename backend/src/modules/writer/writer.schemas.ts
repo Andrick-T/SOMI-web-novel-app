@@ -117,7 +117,7 @@ export const writerProfileSchema = z.object({
 
   banner: z.string().url().nullable().optional(),
 
-  preferredCurrency: z.enum(SUPPORTED_WRITER_CURRENCIES).default("XAF"),
+  preferredCurrency: z.enum(SUPPORTED_WRITER_CURRENCIES).optional(),
   payoutMethod: z.enum(WRITER_PAYOUT_METHODS).nullable().optional(),
   payoutAccount: z.string().trim().max(255).nullable().optional(),
   payoutAccountName: z.string().trim().max(150).nullable().optional(),
