@@ -31,7 +31,7 @@ export default function PaymentReturnPage({ navigate, coins }: CommonProps) {
     "";
   const [payment, setPayment] = useState<PaymentState | null>(null);
   const [error, setError] = useState("");
-  const [checking, setChecking] = useState(true);
+  const [checking, setChecking] = useState(true);\n  const [walletBalance, setWalletBalance] = useState(coins);
 
   const checkPayment = async () => {
     if (!reference || !useApiEconomy) {
@@ -133,7 +133,7 @@ export default function PaymentReturnPage({ navigate, coins }: CommonProps) {
                 <div className="px-6 py-5 sm:px-8">
                   <div className="flex items-center justify-between border border-[#e8a84c]/20 bg-[#e8a84c]/5 px-4 py-3">
                     <span className="text-xs text-[#aaa0ba]">Wallet balance</span>
-                    <span className="text-sm font-semibold text-[#f0c477]">{coins.toLocaleString()} coins</span>
+                    <span className="text-sm font-semibold text-[#f0c477]">{walletBalance.toLocaleString()} coins</span>
                   </div>
                 </div>
               )}
