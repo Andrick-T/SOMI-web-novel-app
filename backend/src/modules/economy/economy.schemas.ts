@@ -6,5 +6,5 @@ export const paginationSchema = z.object({
 });
 
 export const purchaseSchema = z.object({
-  amountCfa: z.coerce.number().int().min(125),
+  packageId: z.enum(["starter", "standard", "plus", "premium"]),
 });
