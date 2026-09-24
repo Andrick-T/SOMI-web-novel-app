@@ -19,6 +19,7 @@ const envSchema = z.object({
   CORS_ORIGIN: z.string().optional(),
   APP_NAME: z.string().default("SOMI API"),
   CINETPAY_API_KEY: z.string().min(1).optional(),
+  CINETPAY_SECRET_KEY: z.string().min(1).optional(),
   CINETPAY_SITE_ID: z.string().min(1).optional(),
   CINETPAY_API_URL: z.string().url().default("https://api-checkout.cinetpay.com/v2/payment"),
   CINETPAY_NOTIFY_URL: z.string().url().optional(),
