@@ -9,6 +9,7 @@ import {
   getTransactions,
   getWallet,
   unlockChapter,
+  createPaymentIntent,
 } from "./economy.service.js";
 
 const asyncRoute =
@@ -44,14 +45,7 @@ economyRouter.post(
   validate(purchaseSchema),
   asyncRoute(async (req: AuthRequest, res) => {
     const { packageId } = req.body as { packageId: keyof typeof coinPackages };
-    const packageConfig = coinPackages[packageId];
-
-    res.status(202).json({
-      paymentRequired: true,
-      packageId,
-      amountCfa: packageConfig.amountCfa,
-      coins: packageConfig.coins,
-    });
+    res.status(201).json(await createPaymentIntent(req.user!.id, packageId));
   }),
 );
 economyRouter.get(
