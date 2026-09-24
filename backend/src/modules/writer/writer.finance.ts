@@ -21,6 +21,20 @@ export const WRITER_EXCHANGE_RATES_CFA: Readonly<Record<WriterCurrency, number>>
 export const MINIMUM_WRITER_WITHDRAWAL_COINS = 21_000;
 export const MINIMUM_WRITER_WITHDRAWAL_CFA = 5_000;
 
+export const WRITER_WITHDRAWAL_STATUSES = [
+  "PENDING",
+  "PROCESSING",
+  "COMPLETED",
+  "FAILED",
+] as const;
+export type WriterWithdrawalStatus =
+  (typeof WRITER_WITHDRAWAL_STATUSES)[number];
+
+export const ACTIVE_WRITER_WITHDRAWAL_STATUSES = [
+  "PENDING",
+  "PROCESSING",
+] as const;
+
 export function isSupportedWriterCurrency(value: string): value is WriterCurrency {
   return (SUPPORTED_WRITER_CURRENCIES as readonly string[]).includes(value);
 }
