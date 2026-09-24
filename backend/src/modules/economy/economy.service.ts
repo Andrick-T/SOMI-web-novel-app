@@ -210,9 +210,9 @@ export async function cancelPayment(userId: string, paymentId: string) {
   };
 }
 
-export async function findPaymentBySomiReference(userId: string, somiReference: string) {
+export async function getPayment(userId: string, paymentId: string) {
   const payment = await prisma.payment.findFirst({
-    where: { userId, somiReference },
+    where: { id: paymentId, userId },
   });
 
   if (!payment) {
