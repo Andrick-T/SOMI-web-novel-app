@@ -90,3 +90,50 @@ export async function createCinetPayCheckout(
     paymentToken: body.data.payment_token ?? null,
   };
 }
+
+
+export type CinetPayVerification = {
+  code: string;
+  message?: string;
+  data?: {
+    amount?: string;
+    currency?: string;
+    status?: string;
+    payment_method?: string;
+    description?: string;
+    metadata?: string | null;
+    operator_id?: string | null;
+    payment_date?: string;
+    fund_availability_date?: string;
+  };
+  api_response_id?: string;
+};
+
+export async function verifyCinetPayTransaction(
+  transactionId: string,
+  config: { apiKey: string; siteId: string },
+) {
+  const response = await fetch("https://api-checkout.cinetpay.com/v2/payment/check", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      "User-Agent": "SOMI-Payment-Service/1.0",
+    },
+    body: JSON.stringify({
+      apikey: config.apiKey,
+      site_id: config.siteId,
+      transaction_id: transactionId,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new AppError(
+      502,
+      "PAYMENT_PROVIDER_UNAVAILABLE",
+      "Unable to verify the payment with the payment provider.",
+    );
+  }
+
+  return (await response.json()) as CinetPayVerification;
+}
