@@ -531,24 +531,51 @@ export async function settleVerifiedPayment(paymentId: string) {
         },
       });
 
-      const walletTransaction = await tx.walletTransaction.create({
-        data: {
-          userId: payment.userId,
-          type: "COIN_PURCHASE",
-          amount: payment.amountCfa ?? Number(payment.amount),
-          coins: payment.coins,
-          status: COMPLETED,
-          reference: payment.somiReference,
-          paymentId: payment.id,
-          metadata: {
-            packageId: payment.packageId,
-            provider: payment.provider,
-            providerReference: payment.providerReference,
-            balanceBefore: wallet.balance,
-            balanceAfter: updatedWallet.balance,
+      let walletTransaction;
+      try {
+        walletTransaction = await tx.walletTransaction.create({
+          data: {
+            userId: payment.userId,
+            type: "COIN_PURCHASE",
+            amount: payment.amountCfa ?? Number(payment.amount),
+            coins: payment.coins,
+            status: COMPLETED,
+            reference: payment.somiReference,
+            paymentId: payment.id,
+            metadata: {
+              packageId: payment.packageId,
+              provider: payment.provider,
+              providerReference: payment.providerReference,
+              balanceBefore: wallet.balance,
+              balanceAfter: updatedWallet.balance,
+            },
           },
-        },
-      });
+        });
+      } catch (error) {
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+          const existing = await tx.walletTransaction.findUnique({
+            where: { paymentId: payment.id },
+          });
+
+          if (existing) {
+            const settledPayment = await tx.payment.update({
+              where: { id: payment.id },
+              data: { status: "SUCCESS" },
+            });
+
+            return {
+              paymentId: settledPayment.id,
+              walletTransactionId: existing.id,
+              balance: updatedWallet.balance,
+              coins: payment.coins,
+              status: "SUCCESS",
+              alreadySettled: true,
+            };
+          }
+        }
+
+        throw error;
+      }
 
       await tx.payment.update({
         where: { id: payment.id },
