@@ -10,6 +10,7 @@ import {
   autosaveSchema,
   localizationSchema,
   writerProfileSchema,
+  withdrawalRequestSchema,
 } from "./writer.schemas.js";
 import { readWriterImage, storeWriterImage, storeWriterKycDocument, readWriterKycDocument } from "./writer.storage.js";
 import {
@@ -23,6 +24,9 @@ import {
   markChapterLocalizationReady,
   submitBook,
   getWriterSubmissions,
+  getWriterWithdrawalSummary,
+  getWriterWithdrawals,
+  requestWriterWithdrawal,
 } from "./writer.service.js";
 import { WRITER_PAYOUT_METHODS, SUPPORTED_WRITER_CURRENCIES, WRITER_EXCHANGE_RATES_CFA } from "./writer.finance.js";
 
@@ -449,6 +453,35 @@ writerRouter.get(
     return res.json({
       transactions,
     });
+  }),
+);
+
+/* ============================================================
+   WRITER WITHDRAWALS
+   ============================================================ */
+
+writerRouter.get(
+  "/withdrawals/summary",
+  asyncRoute(async (req: AuthRequest, res) => {
+    const summary = await getWriterWithdrawalSummary(req.user);
+    return res.json(summary);
+  }),
+);
+
+writerRouter.get(
+  "/withdrawals",
+  asyncRoute(async (req: AuthRequest, res) => {
+    const withdrawals = await getWriterWithdrawals(req.user);
+    return res.json({ withdrawals });
+  }),
+);
+
+writerRouter.post(
+  "/withdrawals",
+  validate(withdrawalRequestSchema),
+  asyncRoute(async (req: AuthRequest, res) => {
+    const withdrawal = await requestWriterWithdrawal(req.user, req.body);
+    return res.status(201).json({ withdrawal });
   }),
 );
 
