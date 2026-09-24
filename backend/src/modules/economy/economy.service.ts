@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import crypto from "node:crypto";
 import { AppError } from "../../common/errors/http-error.js";
 import { prisma } from "../../config/database.js";
 import { attributeWriterEarning } from "../writer/writer.service.js";
@@ -91,6 +92,46 @@ const isPrismaConflict = (error: unknown) =>
  * Wallets are created by trusted financial operations such as a verified
  * payment. A user who has no wallet yet receives a zero-balance projection.
  */
+export async function createPaymentIntent(
+  userId: string,
+  packageId: CoinPackageId,
+) {
+  const packageConfig = coinPackages[packageId];
+
+  if (!packageConfig) {
+    throw new AppError(422, "INVALID_PACKAGE", "Unknown coin package.");
+  }
+
+  const somiReference = `SOMI-${new Date().toISOString().replace(/[-:TZ.]/g, "").slice(0, 14)}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
+
+  const payment = await prisma.payment.create({
+    data: {
+      userId,
+      packageId,
+      amount: packageConfig.amountCfa,
+      currency: "XAF",
+      amountCfa: packageConfig.amountCfa,
+      coins: packageConfig.coins,
+      somiReference,
+      provider: "CINETPAY",
+      status: "PENDING",
+      expiresAt: new Date(Date.now() + 30 * 60 * 1000),
+    },
+  });
+
+  return {
+    paymentId: payment.id,
+    somiReference: payment.somiReference,
+    packageId: payment.packageId,
+    amount: Number(payment.amount),
+    currency: payment.currency,
+    coins: payment.coins,
+    provider: payment.provider,
+    status: payment.status,
+    expiresAt: payment.expiresAt?.toISOString() ?? null,
+  };
+}
+
 export async function getWallet(userId: string) {
   const wallet = await prisma.wallet.findUnique({
     where: { userId },
