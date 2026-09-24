@@ -138,7 +138,7 @@ economyRouter.post(
           siteId: env.CINETPAY_SITE_ID,
           apiUrl: env.CINETPAY_API_URL,
           notifyUrl: env.CINETPAY_NOTIFY_URL,
-          returnUrl: env.CINETPAY_RETURN_URL,
+          returnUrl: (() => {\n            const url = new URL(env.CINETPAY_RETURN_URL!);\n            url.searchParams.set("reference", payment.somiReference);\n            return url.toString();\n          })(),
           channels: env.CINETPAY_CHANNELS,
         },
       );
