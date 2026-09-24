@@ -2,38 +2,39 @@ import { Prisma } from "@prisma/client";
 import { AppError } from "../../common/errors/http-error.js";
 import { prisma } from "../../config/database.js";
 import { attributeWriterEarning } from "../writer/writer.service.js";
+import {
+  COIN_PACKAGES,
+  MINIMUM_PURCHASE_CFA,
+  type CoinPackageId,
+} from "./economy.rules.js";
 
 const PUBLISHED = "PUBLISHED";
 const PREMIUM = "PREMIUM";
 const COMPLETED = "COMPLETED";
 
-export const coinPackages = {
-  starter: { amountCfa: 125, coins: 525 },
-  standard: { amountCfa: 275, coins: 1155 },
-  plus: { amountCfa: 425, coins: 1785 },
-  premium: { amountCfa: 850, coins: 3570 },
-} as const;
+export const coinPackages = COIN_PACKAGES;
 
 export type TrustedPaymentEvent = {
   userId: string;
-  packageId?: keyof typeof coinPackages;
+  packageId?: CoinPackageId;
   amountCfa?: number;
   providerReference: string;
   verified: true;
 };
 
-// Persisted balances are whole coins. 6.8 is represented as 34/5 and rounded
-// to the nearest whole coin, with halves rounded up, without floating point math.
+// Persisted balances are whole coins. The 4.2 CFA conversion is represented as
+// 21/5 and rounded to the nearest whole coin, with halves rounded up, without
+// floating point math.
 export function getCoinsForCustomPurchase(amountCfa: number) {
-  if (!Number.isSafeInteger(amountCfa) || amountCfa < 100) {
+  if (!Number.isSafeInteger(amountCfa) || amountCfa < MINIMUM_PURCHASE_CFA) {
     throw new AppError(
       422,
       "INVALID_PURCHASE_AMOUNT",
-      "Purchase amount must be at least 100 FCFA.",
+      "Purchase amount must be at least 125 FCFA.",
     );
   }
 
-  return Math.floor((amountCfa * 34 + 2) / 5);
+  return Math.floor((amountCfa * 21 + 2) / 5);
 }
 
 export function getPurchaseRule(event: TrustedPaymentEvent) {
