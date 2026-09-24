@@ -6,5 +6,5 @@ export const paginationSchema = z.object({
 });
 
 export const purchaseSchema = z.object({
-  amountCfa: z.coerce.number().int().min(100).max(1000000),
+  amountCfa: z.coerce.number().int().min(125),
 });
