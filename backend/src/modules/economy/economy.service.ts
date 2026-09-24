@@ -358,6 +358,49 @@ export async function getWallet(userId: string) {
   };
 }
 
+export async function getPaymentHistory(userId: string, limit: number, offset: number) {
+  const [payments, total] = await prisma.$transaction([
+    prisma.payment.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+      take: limit,
+      skip: offset,
+      select: {
+        id: true,
+        packageId: true,
+        amount: true,
+        currency: true,
+        amountCfa: true,
+        coins: true,
+        somiReference: true,
+        providerReference: true,
+        provider: true,
+        paymentMethod: true,
+        status: true,
+        verifiedAt: true,
+        expiresAt: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    }),
+    prisma.payment.count({ where: { userId } }),
+  ]);
+
+  return {
+    payments: payments.map((payment) => ({
+      ...payment,
+      amount: Number(payment.amount),
+      verifiedAt: payment.verifiedAt?.toISOString() ?? null,
+      expiresAt: payment.expiresAt?.toISOString() ?? null,
+      createdAt: payment.createdAt.toISOString(),
+      updatedAt: payment.updatedAt.toISOString(),
+    })),
+    total,
+    limit,
+    offset,
+  };
+}
+
 export async function getTransactions(
   userId: string,
   limit: number,
