@@ -21,6 +21,11 @@ import {
   recordAdminAuditEvent,
   getAdminWriterKyc,
   reviewAdminWriterKyc,
+  getAdminWithdrawals,
+  getAdminWithdrawal,
+  processAdminWithdrawal,
+  completeAdminWithdrawal,
+  failAdminWithdrawal,
 } from "./admin.service.js";
 
 const asyncRoute =
@@ -271,6 +276,117 @@ adminRouter.get(
   }),
 );
 
+
+/* -------------------------------------------------------------------------- */
+/* Writer withdrawals                                                        */
+/* -------------------------------------------------------------------------- */
+
+adminRouter.get(
+  "/withdrawals",
+  validate(
+    z.object({
+      page: z.coerce.number().int().min(1).default(1),
+      limit: z.coerce.number().int().min(1).max(100).default(20),
+      status: z.string().optional(),
+      writerId: z.string().optional(),
+    }),
+    "query",
+  ),
+  asyncRoute(async (req: AuthRequest, res) => {
+    const result = await getAdminWithdrawals({
+      page: req.query.page as number,
+      limit: req.query.limit as number,
+      status: req.query.status as string | undefined,
+      writerId: req.query.writerId as string | undefined,
+    });
+    res.json(result);
+  }),
+);
+
+adminRouter.get(
+  "/withdrawals/:withdrawalId",
+  asyncRoute(async (req: AuthRequest, res) => {
+    res.json({
+      withdrawal: await getAdminWithdrawal(String(req.params.withdrawalId)),
+    });
+  }),
+);
+
+adminRouter.post(
+  "/withdrawals/:withdrawalId/process",
+  asyncRoute(async (req: AuthRequest, res) => {
+    const withdrawal = await processAdminWithdrawal({
+      withdrawalId: String(req.params.withdrawalId),
+      actorId: req.user!.id,
+    });
+
+    await recordAdminAuditEvent({
+      actorId: req.user!.id,
+      actorName: req.user!.email,
+      action: "WRITER_WITHDRAWAL_PROCESSING",
+      targetType: "WITHDRAWAL",
+      targetId: withdrawal.id,
+      metadata: { writerId: withdrawal.writerId },
+    });
+
+    res.json({ withdrawal });
+  }),
+);
+
+adminRouter.post(
+  "/withdrawals/:withdrawalId/complete",
+  asyncRoute(async (req: AuthRequest, res) => {
+    const withdrawal = await completeAdminWithdrawal({
+      withdrawalId: String(req.params.withdrawalId),
+      actorId: req.user!.id,
+    });
+
+    await recordAdminAuditEvent({
+      actorId: req.user!.id,
+      actorName: req.user!.email,
+      action: "WRITER_WITHDRAWAL_COMPLETED",
+      targetType: "WITHDRAWAL",
+      targetId: withdrawal.id,
+      metadata: { writerId: withdrawal.writerId },
+    });
+
+    res.json({ withdrawal });
+  }),
+);
+
+adminRouter.post(
+  "/withdrawals/:withdrawalId/fail",
+  validate(
+    z.object({
+      failureMessage: z.string().trim().min(1).max(2000),
+    }),
+  ),
+  asyncRoute(async (req: AuthRequest, res) => {
+    const withdrawal = await failAdminWithdrawal({
+      withdrawalId: String(req.params.withdrawalId),
+      actorId: req.user!.id,
+      failureMessage: req.body.failureMessage,
+    });
+
+    await recordAdminAuditEvent({
+      actorId: req.user!.id,
+      actorName: req.user!.email,
+      action: "WRITER_WITHDRAWAL_FAILED",
+      targetType: "WITHDRAWAL",
+      targetId: withdrawal.id,
+      metadata: {
+        writerId: withdrawal.writerId,
+        failureCount: withdrawal.failureCount,
+        supportRequired: withdrawal.failureCount >= 3,
+      },
+    });
+
+    res.json({
+      withdrawal,
+      supportRequired: withdrawal.failureCount >= 3,
+    });
+  }),
+);
 
 /* -------------------------------------------------------------------------- */
 /* Writer KYC                                                                 */
