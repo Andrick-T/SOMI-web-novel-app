@@ -61,6 +61,14 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  await prisma.auditEvent.deleteMany({
+    where: {
+      actorId: {
+        in: [adminUserId, readerUserId],
+      },
+    },
+  });
+
   await prisma.user.deleteMany({
     where: {
       id: { in: [adminUserId, readerUserId] },
@@ -150,6 +158,7 @@ describe("Phase 7H admin foundation read endpoints", () => {
 
   it("returns real writer, economy, and transaction data for admins", async () => {
     const testId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+
     const writerEmail = `phase7h-admin-writer-${testId}@example.test`;
     const writerUsername = `phase7h-admin-writer-${testId}`;
 
@@ -314,6 +323,7 @@ describe("Phase 7H admin foundation read endpoints", () => {
 
   it("allows admins to publish and unpublish books through the existing lifecycle contract", async () => {
     const testId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+
     const writerEmail = `phase7h-admin-publish-${testId}@example.test`;
     const writerUsername = `phase7h-admin-publish-${testId}`;
 
@@ -367,5 +377,326 @@ describe("Phase 7H admin foundation read endpoints", () => {
     await prisma.user.delete({
       where: { id: writer.id },
     });
+  });
+});
+
+describe("Phase 7H admin platform settings", () => {
+  it("allows an admin to read platform settings", async () => {
+    const response = await request(app)
+      .get("/api/v1/admin/settings")
+      .set("Authorization", `Bearer ${adminToken}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toHaveProperty("settings");
+
+    expect(response.body.settings).toEqual(
+      expect.objectContaining({
+        platformName: expect.any(String),
+        supportEmail: expect.any(String),
+        maintenanceMode: expect.any(Boolean),
+        moderationEnabled: expect.any(Boolean),
+        writerRegistrationEnabled: expect.any(Boolean),
+        autoPublishEnabled: expect.any(Boolean),
+        coinConversionRate: expect.any(Number),
+        minimumPurchase: expect.any(Number),
+        chapterPricingRules: expect.any(String),
+        emailNotifications: expect.any(Boolean),
+        moderationNotifications: expect.any(Boolean),
+        paymentNotifications: expect.any(Boolean),
+        sessionPolicy: expect.any(String),
+        adminSessionTimeoutMinutes: expect.any(Number),
+        suspiciousActivityMonitoring: expect.any(Boolean),
+      }),
+    );
+
+    expect(response.body.settings).not.toHaveProperty("password");
+    expect(response.body.settings).not.toHaveProperty("passwordHash");
+    expect(response.body.settings).not.toHaveProperty("refreshTokenHash");
+  });
+
+  it("rejects unauthenticated access to platform settings", async () => {
+    const response = await request(app).get("/api/v1/admin/settings");
+
+    expect(response.status).toBe(401);
+  });
+
+  it("rejects non-admin access to platform settings", async () => {
+    const response = await request(app)
+      .get("/api/v1/admin/settings")
+      .set("Authorization", `Bearer ${readerToken}`);
+
+    expect(response.status).toBe(403);
+  });
+
+  it("allows an admin to update platform settings", async () => {
+    const response = await request(app)
+      .patch("/api/v1/admin/settings")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        platformName: "SOMI Test",
+        maintenanceMode: true,
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toHaveProperty("settings");
+
+    expect(response.body.settings).toEqual(
+      expect.objectContaining({
+        platformName: "SOMI Test",
+        maintenanceMode: true,
+      }),
+    );
+  });
+
+  it("persists platform settings after update", async () => {
+    await request(app)
+      .patch("/api/v1/admin/settings")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        platformName: "SOMI Persistence Test",
+        maintenanceMode: true,
+      })
+      .expect(200);
+
+    const response = await request(app)
+      .get("/api/v1/admin/settings")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .expect(200);
+
+    expect(response.body.settings).toEqual(
+      expect.objectContaining({
+        platformName: "SOMI Persistence Test",
+        maintenanceMode: true,
+      }),
+    );
+  });
+
+  it("preserves unrelated settings during a partial update", async () => {
+    const initialResponse = await request(app)
+      .get("/api/v1/admin/settings")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .expect(200);
+
+    const initialSettings = initialResponse.body.settings;
+
+    const response = await request(app)
+      .patch("/api/v1/admin/settings")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        platformName: "SOMI Partial Update Test",
+      })
+      .expect(200);
+
+    expect(response.body.settings).toEqual(
+      expect.objectContaining({
+        platformName: "SOMI Partial Update Test",
+        maintenanceMode: initialSettings.maintenanceMode,
+        moderationEnabled: initialSettings.moderationEnabled,
+        writerRegistrationEnabled: initialSettings.writerRegistrationEnabled,
+        autoPublishEnabled: initialSettings.autoPublishEnabled,
+        coinConversionRate: initialSettings.coinConversionRate,
+        minimumPurchase: initialSettings.minimumPurchase,
+        chapterPricingRules: initialSettings.chapterPricingRules,
+        emailNotifications: initialSettings.emailNotifications,
+        moderationNotifications: initialSettings.moderationNotifications,
+        paymentNotifications: initialSettings.paymentNotifications,
+        sessionPolicy: initialSettings.sessionPolicy,
+        adminSessionTimeoutMinutes: initialSettings.adminSessionTimeoutMinutes,
+        suspiciousActivityMonitoring:
+          initialSettings.suspiciousActivityMonitoring,
+      }),
+    );
+  });
+
+  it("rejects an empty settings update", async () => {
+    const response = await request(app)
+      .patch("/api/v1/admin/settings")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({});
+
+    expect(response.status).toBe(400);
+  });
+
+  it("rejects invalid settings values", async () => {
+    const response = await request(app)
+      .patch("/api/v1/admin/settings")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        platformName: "",
+        supportEmail: "not-an-email",
+        coinConversionRate: 0,
+        minimumPurchase: -100,
+        adminSessionTimeoutMinutes: 0,
+      });
+
+    expect(response.status).toBe(400);
+  });
+
+  it("creates a SETTING_CHANGED audit event when settings change", async () => {
+    const before = await prisma.auditEvent.count({
+      where: {
+        action: "SETTING_CHANGED",
+        actorId: adminUserId,
+      },
+    });
+
+    const response = await request(app)
+      .patch("/api/v1/admin/settings")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        platformName: "SOMI Audit Test",
+        maintenanceMode: true,
+      })
+      .expect(200);
+
+    expect(response.body.settings).toEqual(
+      expect.objectContaining({
+        platformName: "SOMI Audit Test",
+        maintenanceMode: true,
+      }),
+    );
+
+    const after = await prisma.auditEvent.count({
+      where: {
+        action: "SETTING_CHANGED",
+        actorId: adminUserId,
+      },
+    });
+
+    expect(after).toBe(before + 1);
+
+    const auditEvent = await prisma.auditEvent.findFirst({
+      where: {
+        action: "SETTING_CHANGED",
+        actorId: adminUserId,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    expect(auditEvent).not.toBeNull();
+
+    expect(auditEvent).toEqual(
+      expect.objectContaining({
+        actorId: adminUserId,
+        actorName: "phase7h-admin@example.test",
+        action: "SETTING_CHANGED",
+        targetType: "PLATFORM_SETTINGS",
+      }),
+    );
+
+    expect(auditEvent?.metadata).toEqual(
+      expect.objectContaining({
+        changedFields: expect.arrayContaining([
+          "platformName",
+          "maintenanceMode",
+        ]),
+      }),
+    );
+  });
+
+  it("does not create an audit event when settings are unchanged", async () => {
+    const currentResponse = await request(app)
+      .get("/api/v1/admin/settings")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .expect(200);
+
+    const currentSettings = currentResponse.body.settings;
+
+    const before = await prisma.auditEvent.count({
+      where: {
+        action: "SETTING_CHANGED",
+        actorId: adminUserId,
+      },
+    });
+
+    await request(app)
+      .patch("/api/v1/admin/settings")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        platformName: currentSettings.platformName,
+      })
+      .expect(200);
+
+    const after = await prisma.auditEvent.count({
+      where: {
+        action: "SETTING_CHANGED",
+        actorId: adminUserId,
+      },
+    });
+
+    expect(after).toBe(before);
+  });
+});
+
+describe("Phase 7H admin audit endpoints", () => {
+  it("allows an admin to read audit events", async () => {
+    const response = await request(app)
+      .get("/api/v1/admin/audit")
+      .set("Authorization", `Bearer ${adminToken}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toHaveProperty("items");
+    expect(response.body).toHaveProperty("pagination");
+
+    expect(Array.isArray(response.body.items)).toBe(true);
+
+    expect(response.body.pagination).toEqual(
+      expect.objectContaining({
+        page: expect.any(Number),
+        limit: expect.any(Number),
+        total: expect.any(Number),
+        totalPages: expect.any(Number),
+      }),
+    );
+  });
+
+  it("rejects unauthenticated audit access", async () => {
+    const response = await request(app).get("/api/v1/admin/audit");
+
+    expect(response.status).toBe(401);
+  });
+
+  it("rejects non-admin audit access", async () => {
+    const response = await request(app)
+      .get("/api/v1/admin/audit")
+      .set("Authorization", `Bearer ${readerToken}`);
+
+    expect(response.status).toBe(403);
+  });
+
+  it("supports audit filtering", async () => {
+    await prisma.auditEvent.create({
+      data: {
+        actorId: adminUserId,
+        actorName: "phase7h-admin@example.test",
+        action: "C4_TEST_ACTION",
+        targetType: "TEST",
+        targetId: "c4-test-target",
+        metadata: {
+          source: "admin.test",
+        },
+      },
+    });
+
+    const response = await request(app)
+      .get(
+        "/api/v1/admin/audit?action=C4_TEST_ACTION&targetType=TEST&search=c4-test-target",
+      )
+      .set("Authorization", `Bearer ${adminToken}`)
+      .expect(200);
+
+    expect(response.body.items.length).toBeGreaterThanOrEqual(1);
+
+    expect(response.body.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: "C4_TEST_ACTION",
+          targetType: "TEST",
+          targetId: "c4-test-target",
+        }),
+      ]),
+    );
   });
 });

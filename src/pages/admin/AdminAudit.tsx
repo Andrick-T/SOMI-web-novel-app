@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -9,7 +9,7 @@ import {
   ShieldAlert,
   UserRound,
 } from "lucide-react";
-import { mockAdminRepository } from "../../features/admin/repository.ts";
+import { apiAdminRepository } from "../../features/admin/apiRepository.ts";
 import type { AuditAction, AuditEvent } from "../../features/admin/types";
 
 const SENSITIVE_ACTIONS: AuditAction[] = [
@@ -28,12 +28,15 @@ const ACTION_LABELS: Record<string, string> = {
   ROLE_CHANGED: "Role changed",
   BOOK_APPROVED: "Book approved",
   BOOK_REJECTED: "Book rejected",
+  BOOK_PUBLISHED: "Book published",
   BOOK_UNPUBLISHED: "Book unpublished",
   REPORT_RESOLVED: "Report resolved",
   REPORT_DISMISSED: "Report dismissed",
   WALLET_ADJUSTED: "Wallet adjusted",
   SETTING_CHANGED: "Setting changed",
 };
+
+const PAGE_SIZE = 20;
 
 function formatAction(action: string) {
   return (
@@ -94,6 +97,7 @@ function formatMetadata(metadata: Record<string, unknown>) {
 function actionTone(action: string) {
   if (
     action === "BOOK_APPROVED" ||
+    action === "BOOK_PUBLISHED" ||
     action === "REPORT_RESOLVED" ||
     action === "USER_REACTIVATED"
   ) {
@@ -123,6 +127,7 @@ function eventIcon(action: string) {
   if (
     action === "BOOK_APPROVED" ||
     action === "BOOK_REJECTED" ||
+    action === "BOOK_PUBLISHED" ||
     action === "BOOK_UNPUBLISHED"
   ) {
     return <FileText size={16} />;
@@ -136,12 +141,65 @@ function eventIcon(action: string) {
 }
 
 export default function AdminAudit() {
-  const [events] = useState<AuditEvent[]>(() =>
-    mockAdminRepository.getAuditEvents(),
-  );
+  const [events, setEvents] = useState<AuditEvent[]>([]);
   const [query, setQuery] = useState("");
   const [actionFilter, setActionFilter] = useState("ALL");
   const [targetFilter, setTargetFilter] = useState("ALL");
+
+  const [page, setPage] = useState(1);
+  const [totalEvents, setTotalEvents] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    setPage(1);
+  }, [query, actionFilter, targetFilter]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    setLoading(true);
+    setError("");
+
+    void apiAdminRepository
+      .getAuditEvents({
+        page,
+        limit: PAGE_SIZE,
+        search: query.trim() || undefined,
+        action: actionFilter !== "ALL" ? actionFilter : undefined,
+        targetType: targetFilter !== "ALL" ? targetFilter : undefined,
+      })
+      .then((result) => {
+        if (cancelled) return;
+
+        setEvents(result.items as AuditEvent[]);
+        setTotalEvents(result.pagination.total);
+        setTotalPages(Math.max(1, result.pagination.totalPages));
+      })
+      .catch((requestError) => {
+        if (cancelled) return;
+
+        setEvents([]);
+        setTotalEvents(0);
+        setTotalPages(1);
+        setError(
+          requestError instanceof Error
+            ? requestError.message
+            : "Failed to load audit events.",
+        );
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [page, query, actionFilter, targetFilter]);
 
   const actionOptions = useMemo(
     () =>
@@ -156,44 +214,6 @@ export default function AdminAudit() {
     [events],
   );
 
-  const filteredEvents = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
-
-    return events
-      .filter((event) => {
-        const metadataText = Object.entries(event.metadata ?? {})
-          .map(([key, value]) => `${key} ${String(value)}`)
-          .join(" ");
-
-        const searchableText = [
-          event.id,
-          event.actorId,
-          event.actorName,
-          event.action,
-          event.targetType,
-          event.targetId,
-          metadataText,
-        ]
-          .join(" ")
-          .toLowerCase();
-
-        const matchesQuery =
-          !normalizedQuery || searchableText.includes(normalizedQuery);
-
-        const matchesAction =
-          actionFilter === "ALL" || event.action === actionFilter;
-
-        const matchesTarget =
-          targetFilter === "ALL" || event.targetType === targetFilter;
-
-        return matchesQuery && matchesAction && matchesTarget;
-      })
-      .sort(
-        (a, b) =>
-          new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
-      );
-  }, [events, query, actionFilter, targetFilter]);
-
   const sensitiveCount = useMemo(
     () =>
       events.filter((event) =>
@@ -207,22 +227,33 @@ export default function AdminAudit() {
     [events],
   );
 
-  const latestEvent = filteredEvents[0];
+  const latestEvent = events[0];
+
+  const clearFilters = () => {
+    setQuery("");
+    setActionFilter("ALL");
+    setTargetFilter("ALL");
+    setPage(1);
+  };
 
   return (
     <div className="somi-admin-page somi-admin-audit-page">
+      {" "}
       <div className="somi-admin-inner">
+        {" "}
         <header className="somi-admin-header">
+          {" "}
           <div>
-            <p className="somi-admin-eyebrow">Governance</p>
-            <h1 className="somi-admin-title">Audit log</h1>
+            {" "}
+            <p className="somi-admin-eyebrow">Governance</p>{" "}
+            <h1 className="somi-admin-title">Audit log</h1>{" "}
             <p className="somi-admin-description">
               Review the administrative actions recorded across the platform.
-              Sensitive changes are highlighted for faster operational review.
-            </p>
-          </div>
+              Sensitive changes are highlighted for faster operational
+              review.{" "}
+            </p>{" "}
+          </div>{" "}
         </header>
-
         <div className="somi-admin-audit-summary">
           <div className="somi-admin-audit-summary-item">
             <div className="somi-admin-audit-summary-icon">
@@ -230,7 +261,7 @@ export default function AdminAudit() {
             </div>
             <div>
               <span>Total events</span>
-              <strong>{events.length}</strong>
+              <strong>{totalEvents}</strong>
             </div>
           </div>
 
@@ -266,7 +297,6 @@ export default function AdminAudit() {
             </div>
           </div>
         </div>
-
         <div className="somi-admin-audit-notice">
           <ShieldAlert size={17} />
           <div>
@@ -277,7 +307,6 @@ export default function AdminAudit() {
             </span>
           </div>
         </div>
-
         <section className="somi-admin-audit-toolbar">
           <div className="somi-admin-audit-search">
             <Search size={16} />
@@ -320,14 +349,23 @@ export default function AdminAudit() {
             </select>
           </label>
         </section>
-
+        {error && (
+          <div className="somi-admin-notice somi-admin-notice-warning">
+            <AlertTriangle size={17} />
+            <div>
+              <strong>Unable to load audit events.</strong>
+              <span>{error}</span>
+            </div>
+          </div>
+        )}
         <section className="somi-admin-audit-results">
           <div className="somi-admin-audit-results-header">
             <div>
               <p className="somi-admin-eyebrow">Activity record</p>
               <h2 className="somi-admin-audit-results-title">
-                {filteredEvents.length}{" "}
-                {filteredEvents.length === 1 ? "event" : "events"}
+                {loading
+                  ? "Loading..."
+                  : `${totalEvents} ${totalEvents === 1 ? "event" : "events"}`}
               </h2>
             </div>
 
@@ -335,18 +373,20 @@ export default function AdminAudit() {
               <button
                 type="button"
                 className="somi-admin-button somi-admin-button-secondary"
-                onClick={() => {
-                  setQuery("");
-                  setActionFilter("ALL");
-                  setTargetFilter("ALL");
-                }}
+                onClick={clearFilters}
               >
                 Clear filters
               </button>
             )}
           </div>
 
-          {filteredEvents.length === 0 ? (
+          {loading ? (
+            <div className="somi-admin-audit-empty">
+              <Activity size={22} />
+              <strong>Loading audit events</strong>
+              <span>Retrieving the latest administrative activity.</span>
+            </div>
+          ) : events.length === 0 ? (
             <div className="somi-admin-audit-empty">
               <Search size={22} />
               <strong>No audit events found</strong>
@@ -355,84 +395,122 @@ export default function AdminAudit() {
               </span>
             </div>
           ) : (
-            <div className="somi-admin-audit-list">
-              {filteredEvents.map((event) => {
-                const sensitive = SENSITIVE_ACTIONS.includes(
-                  event.action as AuditAction,
-                );
-                const metadata = formatMetadata(event.metadata ?? {});
-                const tone = actionTone(event.action);
+            <>
+              <div className="somi-admin-audit-list">
+                {events.map((event) => {
+                  const sensitive = SENSITIVE_ACTIONS.includes(
+                    event.action as AuditAction,
+                  );
+                  const metadata = formatMetadata(event.metadata ?? {});
+                  const tone = actionTone(event.action);
 
-                return (
-                  <article
-                    key={event.id}
-                    className={`somi-admin-audit-event ${
-                      sensitive ? "is-sensitive" : ""
-                    }`}
-                  >
-                    <div className={`somi-admin-audit-event-icon tone-${tone}`}>
-                      {eventIcon(event.action)}
-                    </div>
+                  return (
+                    <article
+                      key={event.id}
+                      className={`somi-admin-audit-event ${
+                        sensitive ? "is-sensitive" : ""
+                      }`}
+                    >
+                      <div
+                        className={`somi-admin-audit-event-icon tone-${tone}`}
+                      >
+                        {eventIcon(event.action)}
+                      </div>
 
-                    <div className="somi-admin-audit-event-main">
-                      <div className="somi-admin-audit-event-top">
-                        <div className="somi-admin-audit-event-heading">
-                          <span
-                            className={`somi-admin-audit-action tone-${tone}`}
+                      <div className="somi-admin-audit-event-main">
+                        <div className="somi-admin-audit-event-top">
+                          <div className="somi-admin-audit-event-heading">
+                            <span
+                              className={`somi-admin-audit-action tone-${tone}`}
+                            >
+                              {formatAction(event.action)}
+                            </span>
+
+                            {sensitive && (
+                              <span className="somi-admin-audit-sensitive">
+                                Sensitive
+                              </span>
+                            )}
+                          </div>
+
+                          <time
+                            className="somi-admin-audit-time"
+                            dateTime={event.timestamp}
                           >
-                            {formatAction(event.action)}
+                            {formatDate(event.timestamp)}
+                          </time>
+                        </div>
+
+                        <div className="somi-admin-audit-event-context">
+                          <span>
+                            <strong>
+                              {event.actorName ?? event.actorId ?? "Unknown"}
+                            </strong>{" "}
+                            performed this action on a{" "}
+                            <strong>
+                              {formatTargetType(event.targetType)}
+                            </strong>
                           </span>
 
-                          {sensitive && (
-                            <span className="somi-admin-audit-sensitive">
-                              Sensitive
-                            </span>
-                          )}
+                          <span className="somi-admin-audit-target">
+                            Target: {event.targetId ?? "—"}
+                          </span>
                         </div>
 
-                        <time
-                          className="somi-admin-audit-time"
-                          dateTime={event.timestamp}
-                        >
-                          {formatDate(event.timestamp)}
-                        </time>
-                      </div>
+                        {metadata && metadata.length > 0 && (
+                          <div className="somi-admin-audit-metadata">
+                            {metadata.map((item) => (
+                              <div
+                                key={`${event.id}-${item.key}`}
+                                className="somi-admin-audit-metadata-item"
+                              >
+                                <span>{item.key}</span>
+                                <strong>{item.value}</strong>
+                              </div>
+                            ))}
+                          </div>
+                        )}
 
-                      <div className="somi-admin-audit-event-context">
-                        <span>
-                          <strong>{event.actorName}</strong> performed this
-                          action on a{" "}
-                          <strong>{formatTargetType(event.targetType)}</strong>
-                        </span>
-
-                        <span className="somi-admin-audit-target">
-                          Target: {event.targetId}
-                        </span>
-                      </div>
-
-                      {metadata && metadata.length > 0 && (
-                        <div className="somi-admin-audit-metadata">
-                          {metadata.map((item) => (
-                            <div
-                              key={`${event.id}-${item.key}`}
-                              className="somi-admin-audit-metadata-item"
-                            >
-                              <span>{item.key}</span>
-                              <strong>{item.value}</strong>
-                            </div>
-                          ))}
+                        <div className="somi-admin-audit-event-footer">
+                          <span>Actor ID: {event.actorId ?? "—"}</span>
+                          <span>Event ID: {event.id}</span>
                         </div>
-                      )}
-
-                      <div className="somi-admin-audit-event-footer">
-                        <span>Actor ID: {event.actorId}</span>
-                        <span>Event ID: {event.id}</span>
                       </div>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
+                    </article>
+                  );
+                })}
+              </div>
+
+              {totalPages > 1 && (
+                <div className="somi-admin-audit-pagination">
+                  <button
+                    type="button"
+                    className="somi-admin-button somi-admin-button-secondary"
+                    disabled={page <= 1 || loading}
+                    onClick={() =>
+                      setPage((current) => Math.max(1, current - 1))
+                    }
+                  >
+                    Previous
+                  </button>
+
+                  <span>
+                    Page {page} of {totalPages}
+                  </span>
+
+                  <button
+                    type="button"
+                    className="somi-admin-button somi-admin-button-secondary"
+                    disabled={page >= totalPages || loading}
+                    onClick={() =>
+                      setPage((current) => Math.min(totalPages, current + 1))
+                    }
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </section>
       </div>

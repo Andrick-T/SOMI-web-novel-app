@@ -10,7 +10,7 @@ import {
   WalletCards,
   Wrench,
 } from "lucide-react";
-import { mockAdminRepository } from "../../features/admin/repository.ts";
+import { apiAdminRepository } from "../../features/admin/apiRepository.ts";
 import type { PlatformSettings } from "../../features/admin/types";
 
 type BooleanSettingKey =
@@ -38,13 +38,14 @@ function SettingToggle({
 }) {
   return (
     <label className={`somi-admin-setting-toggle${danger ? " is-danger" : ""}`}>
+      {" "}
       <span className="somi-admin-setting-toggle-copy">
-        <span className="somi-admin-setting-toggle-label">{label}</span>
+        {" "}
+        <span className="somi-admin-setting-toggle-label">{label}</span>{" "}
         <span className="somi-admin-setting-toggle-description">
-          {description}
-        </span>
+          {description}{" "}
+        </span>{" "}
       </span>
-
       <span className="somi-admin-switch">
         <input
           type="checkbox"
@@ -74,38 +75,74 @@ function SettingSection({
 }) {
   return (
     <section className="somi-admin-settings-section">
+      {" "}
       <div className="somi-admin-settings-section-header">
+        {" "}
         <div className="somi-admin-settings-section-icon">{icon}</div>
-
         <div>
           <p className="somi-admin-eyebrow">{eyebrow}</p>
           <h2 className="somi-admin-section-title">{title}</h2>
           <p className="somi-admin-section-description">{description}</p>
         </div>
       </div>
-
       <div className="somi-admin-settings-section-body">{children}</div>
     </section>
   );
 }
 
 export default function AdminSettings() {
-  const [settings, setSettings] = useState<PlatformSettings>(() =>
-    mockAdminRepository.getPlatformSettings(),
+  const [settings, setSettings] = useState<PlatformSettings | null>(null);
+  const [savedSettings, setSavedSettings] = useState<PlatformSettings | null>(
+    null,
   );
-  const [savedSettings, setSavedSettings] = useState<PlatformSettings>(() =>
-    mockAdminRepository.getPlatformSettings(),
-  );
+
   const [saved, setSaved] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    const current = mockAdminRepository.getPlatformSettings();
-    setSettings(current);
-    setSavedSettings(current);
+    let cancelled = false;
+
+    setLoading(true);
+    setError("");
+
+    void apiAdminRepository
+      .getPlatformSettings()
+      .then((current) => {
+        if (cancelled) return;
+
+        setSettings(current);
+        setSavedSettings(current);
+        setSaved(false);
+      })
+      .catch((requestError) => {
+        if (cancelled) return;
+
+        setSettings(null);
+        setSavedSettings(null);
+        setError(
+          requestError instanceof Error
+            ? requestError.message
+            : "Failed to load platform settings.",
+        );
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const hasChanges = useMemo(
-    () => JSON.stringify(settings) !== JSON.stringify(savedSettings),
+    () =>
+      settings !== null &&
+      savedSettings !== null &&
+      JSON.stringify(settings) !== JSON.stringify(savedSettings),
     [settings, savedSettings],
   );
 
@@ -113,50 +150,142 @@ export default function AdminSettings() {
     key: K,
     value: PlatformSettings[K],
   ) => {
-    setSettings((current) => ({
-      ...current,
-      [key]: value,
-    }));
+    setSettings((current) =>
+      current
+        ? {
+            ...current,
+            [key]: value,
+          }
+        : current,
+    );
+
     setSaved(false);
+    setError("");
   };
 
   const updateBooleanSetting = (key: BooleanSettingKey, value: boolean) => {
     updateSetting(key, value);
   };
 
-  const handleSave = () => {
-    const updated = mockAdminRepository.updatePlatformSettings(settings);
-    setSettings(updated);
-    setSavedSettings(updated);
-    setSaved(true);
+  const handleSave = async () => {
+    if (!settings || !hasChanges || saving) {
+      return;
+    }
+
+    setSaving(true);
+    setSaved(false);
+    setError("");
+
+    try {
+      const updated = await apiAdminRepository.updatePlatformSettings(settings);
+
+      setSettings(updated);
+      setSavedSettings(updated);
+      setSaved(true);
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Failed to save platform settings.",
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleReset = () => {
-    const current = mockAdminRepository.getPlatformSettings();
-    setSettings(current);
-    setSavedSettings(current);
+    if (!savedSettings) {
+      return;
+    }
+
+    setSettings(savedSettings);
     setSaved(false);
+    setError("");
   };
+
+  if (loading) {
+    return (
+      <div className="somi-admin-page somi-admin-settings-page">
+        {" "}
+        <div className="somi-admin-inner">
+          {" "}
+          <header className="somi-admin-header">
+            {" "}
+            <div>
+              {" "}
+              <p className="somi-admin-eyebrow">Configuration</p>{" "}
+              <h1 className="somi-admin-title">Platform settings</h1>{" "}
+              <p className="somi-admin-description">
+                Manage the operational rules, economy defaults, notifications,
+                and administrative security settings that shape SOMI.{" "}
+              </p>{" "}
+            </div>{" "}
+          </header>
+          <div className="somi-admin-notice">
+            <Settings2 size={17} />
+            <div>
+              <strong>Loading platform configuration.</strong>
+              <span>Retrieving the current settings from the SOMI API.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!settings) {
+    return (
+      <div className="somi-admin-page somi-admin-settings-page">
+        {" "}
+        <div className="somi-admin-inner">
+          {" "}
+          <header className="somi-admin-header">
+            {" "}
+            <div>
+              {" "}
+              <p className="somi-admin-eyebrow">Configuration</p>{" "}
+              <h1 className="somi-admin-title">Platform settings</h1>{" "}
+              <p className="somi-admin-description">
+                Manage the operational rules, economy defaults, notifications,
+                and administrative security settings that shape SOMI.{" "}
+              </p>{" "}
+            </div>{" "}
+          </header>
+          <div className="somi-admin-notice somi-admin-notice-warning">
+            <AlertTriangle size={18} />
+            <div>
+              <strong>Unable to load platform settings.</strong>
+              <span>{error || "The configuration could not be loaded."}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="somi-admin-page somi-admin-settings-page">
+      {" "}
       <div className="somi-admin-inner">
+        {" "}
         <header className="somi-admin-header">
+          {" "}
           <div>
-            <p className="somi-admin-eyebrow">Configuration</p>
-            <h1 className="somi-admin-title">Platform settings</h1>
+            {" "}
+            <p className="somi-admin-eyebrow">Configuration</p>{" "}
+            <h1 className="somi-admin-title">Platform settings</h1>{" "}
             <p className="somi-admin-description">
               Manage the operational rules, economy defaults, notifications, and
-              administrative security settings that shape SOMI.
-            </p>
+              administrative security settings that shape SOMI.{" "}
+            </p>{" "}
           </div>
-
           <div className="somi-admin-header-actions">
             {hasChanges && (
               <button
                 type="button"
                 className="somi-admin-button somi-admin-button-secondary"
                 onClick={handleReset}
+                disabled={saving}
               >
                 Discard changes
               </button>
@@ -165,28 +294,38 @@ export default function AdminSettings() {
             <button
               type="button"
               className="somi-admin-button somi-admin-button-primary"
-              onClick={handleSave}
-              disabled={!hasChanges}
+              onClick={() => void handleSave()}
+              disabled={!hasChanges || saving}
             >
               <Save size={16} />
-              {saved && !hasChanges ? "Saved" : "Save changes"}
+              {saving
+                ? "Saving..."
+                : saved && !hasChanges
+                  ? "Saved"
+                  : "Save changes"}
             </button>
           </div>
         </header>
-
+        {error && (
+          <div className="somi-admin-notice somi-admin-notice-warning">
+            <AlertTriangle size={17} />
+            <div>
+              <strong>Settings update issue.</strong>
+              <span>{error}</span>
+            </div>
+          </div>
+        )}
         {saved && !hasChanges && (
           <div className="somi-admin-notice somi-admin-notice-success">
             <Check size={17} />
             <div>
               <strong>Settings saved.</strong>
               <span>
-                The current configuration has been stored in the admin
-                repository.
+                The current configuration has been stored by the SOMI API.
               </span>
             </div>
           </div>
         )}
-
         {settings.maintenanceMode && (
           <div className="somi-admin-notice somi-admin-notice-warning">
             <AlertTriangle size={18} />
@@ -199,7 +338,6 @@ export default function AdminSettings() {
             </div>
           </div>
         )}
-
         <div className="somi-admin-settings-layout">
           <main className="somi-admin-settings-main">
             <SettingSection
@@ -477,7 +615,7 @@ export default function AdminSettings() {
               <p className="somi-admin-aside-description">
                 {hasChanges
                   ? "Review the modified settings and save them when you are ready."
-                  : "The page currently matches the platform configuration stored by the repository."}
+                  : "The page currently matches the platform configuration stored by the SOMI API."}
               </p>
 
               <div
