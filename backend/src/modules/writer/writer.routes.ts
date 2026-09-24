@@ -24,7 +24,7 @@ import {
   submitBook,
   getWriterSubmissions,
 } from "./writer.service.js";
-import { WRITER_PAYOUT_METHODS, SUPPORTED_WRITER_CURRENCIES } from "./writer.finance.js";
+import { WRITER_PAYOUT_METHODS, SUPPORTED_WRITER_CURRENCIES, WRITER_EXCHANGE_RATES_CFA } from "./writer.finance.js";
 
 const writerRouter = Router();
 
@@ -267,6 +267,23 @@ const writerKycDocumentTypeSchema = z.enum([
   "PASSPORT",
   "DRIVER_LICENSE",
 ]);
+
+writerRouter.get(
+  "/financial/rules",
+  asyncRoute(async (_req: AuthRequest, res) => {
+    res.json({
+      currencies: SUPPORTED_WRITER_CURRENCIES.map((currency) => ({
+        code: currency,
+        exchangeRateCfa: WRITER_EXCHANGE_RATES_CFA[currency],
+      })),
+      payoutMethods: WRITER_PAYOUT_METHODS,
+      coinsPerCfa: 4.2,
+      cfaPerCoin: 1 / 4.2,
+      minimumWithdrawalCoins: 21_000,
+      minimumWithdrawalCfa: 5_000,
+    });
+  }),
+);
 
 writerRouter.get(
   "/kyc",
