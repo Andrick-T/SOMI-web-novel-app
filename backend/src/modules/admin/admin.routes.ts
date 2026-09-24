@@ -81,7 +81,7 @@ const updatePlatformSettingsSchema = z
 
     coinConversionRate: z.number().positive().optional(),
 
-    minimumPurchase: z.number().int().min(0).optional(),
+    minimumPurchase: z.number().int().min(125).optional(),
 
     chapterPricingRules: z.string().trim().min(1).max(2000).optional(),
 
