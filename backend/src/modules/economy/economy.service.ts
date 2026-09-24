@@ -235,7 +235,7 @@ export async function handleVerifiedCinetPayEvent(event: CinetPayVerifiedEvent) 
   await prisma.payment.update({
     where: { id: payment.id },
     data: {
-      status: "SUCCESS",
+      status: "PROCESSING",
       providerReference: event.providerReference,
       paymentMethod: event.paymentMethod ?? payment.paymentMethod,
       verifiedAt: event.verifiedAt,
