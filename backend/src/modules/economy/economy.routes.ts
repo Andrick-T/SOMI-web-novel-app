@@ -5,7 +5,7 @@ import type { AuthRequest } from "../auth/auth.types.js";
 import { paginationSchema, purchaseSchema } from "./economy.schemas.js";
 import {
   getChapterEntitlement,
-  getCoinsForCustomPurchase,
+  coinPackages,
   getTransactions,
   getWallet,
   unlockChapter,
@@ -43,14 +43,15 @@ economyRouter.post(
   "/wallet/purchase",
   validate(purchaseSchema),
   asyncRoute(async (req: AuthRequest, res) => {
-    const amountCfa = req.body.amountCfa as number;
-    res
-      .status(202)
-      .json({
-        paymentRequired: true,
-        amountCfa,
-        coins: getCoinsForCustomPurchase(amountCfa),
-      });
+    const { packageId } = req.body as { packageId: keyof typeof coinPackages };
+    const packageConfig = coinPackages[packageId];
+
+    res.status(202).json({
+      paymentRequired: true,
+      packageId,
+      amountCfa: packageConfig.amountCfa,
+      coins: packageConfig.coins,
+    });
   }),
 );
 economyRouter.get(
