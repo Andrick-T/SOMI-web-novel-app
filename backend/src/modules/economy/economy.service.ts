@@ -491,46 +491,84 @@ export async function unlockChapter(
   }
 }
 
-export async function creditWalletFromTrustedPayment(
-  event: TrustedPaymentEvent,
-) {
-  const packageConfig = getPurchaseRule(event);
+export async function settleVerifiedPayment(paymentId: string) {
+  return prisma.$transaction(
+    async (tx) => {
+      const payment = await tx.payment.findUnique({
+        where: { id: paymentId },
+      });
 
-  return prisma.$transaction(async (tx) => {
-    const existing = await tx.walletTransaction.findFirst({
-      where: { reference: event.providerReference },
-    });
+      if (!payment) {
+        throw new AppError(404, "PAYMENT_NOT_FOUND", "Payment not found.");
+      }
 
-    if (existing) {
-      return existing;
-    }
+      if (payment.status === "FAILED" || payment.status === "CANCELLED" || payment.status === "EXPIRED") {
+        throw new AppError(
+          409,
+          "PAYMENT_NOT_SETTLEABLE",
+          "This payment cannot be settled.",
+        );
+      }
 
-    const wallet = await tx.wallet.upsert({
-      where: { userId: event.userId },
-      create: { userId: event.userId },
-      update: {},
-    });
+      if (payment.status === "SUCCESS") {
+        return {
+          paymentId: payment.id,
+          status: "SUCCESS",
+          alreadySettled: true,
+        };
+      }
 
-    const updated = await tx.wallet.update({
-      where: { id: wallet.id },
-      data: {
-        balance: { increment: packageConfig.coins },
-      },
-    });
+      const wallet = await tx.wallet.upsert({
+        where: { userId: payment.userId },
+        create: { userId: payment.userId },
+        update: {},
+      });
 
-    return tx.walletTransaction.create({
-      data: {
-        userId: event.userId,
-        type: "COIN_PURCHASE",
-        amount: packageConfig.amountCfa,
-        coins: packageConfig.coins,
-        status: COMPLETED,
-        reference: event.providerReference,
-        metadata: {
-          packageId: event.packageId,
-          balanceAfter: updated.balance,
+      const updatedWallet = await tx.wallet.update({
+        where: { id: wallet.id },
+        data: {
+          balance: { increment: payment.coins },
         },
-      },
-    });
-  });
+      });
+
+      const walletTransaction = await tx.walletTransaction.create({
+        data: {
+          userId: payment.userId,
+          type: "COIN_PURCHASE",
+          amount: payment.amountCfa ?? Number(payment.amount),
+          coins: payment.coins,
+          status: COMPLETED,
+          reference: payment.somiReference,
+          paymentId: payment.id,
+          metadata: {
+            packageId: payment.packageId,
+            provider: payment.provider,
+            providerReference: payment.providerReference,
+            balanceBefore: wallet.balance,
+            balanceAfter: updatedWallet.balance,
+          },
+        },
+      });
+
+      await tx.payment.update({
+        where: { id: payment.id },
+        data: {
+          status: "SUCCESS",
+        },
+      });
+
+      return {
+        paymentId: payment.id,
+        walletTransactionId: walletTransaction.id,
+        balance: updatedWallet.balance,
+        coins: payment.coins,
+        status: "SUCCESS",
+        alreadySettled: false,
+      };
+    },
+    {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+    },
+  );
 }
+
