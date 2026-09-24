@@ -9,6 +9,7 @@ import {
   coinPackages,
   getTransactions,
   getWallet,\n  getPayment,
+  getPaymentByReference,
   unlockChapter,
   createPaymentIntent,
   markPaymentFailed,
@@ -72,6 +73,13 @@ economyRouter.post(
 );
 
 economyRouter.use(requireAuth);
+
+economyRouter.get(
+  "/payments/reference/:somiReference",
+  asyncRoute(async (req: AuthRequest, res) => {
+    res.json(await getPaymentByReference(req.user!.id, String(req.params.somiReference)));
+  }),
+);
 
 economyRouter.get(
   "/wallet",
