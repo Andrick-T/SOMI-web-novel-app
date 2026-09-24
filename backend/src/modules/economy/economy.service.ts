@@ -492,48 +492,59 @@ export async function unlockChapter(
 }
 
 export async function settleVerifiedPayment(paymentId: string) {
-  return prisma.$transaction(
-    async (tx) => {
-      const payment = await tx.payment.findUnique({
-        where: { id: paymentId },
-      });
+  try {
+    return await prisma.$transaction(
+      async (tx) => {
+        const payment = await tx.payment.findUnique({
+          where: { id: paymentId },
+        });
 
-      if (!payment) {
-        throw new AppError(404, "PAYMENT_NOT_FOUND", "Payment not found.");
-      }
+        if (!payment) {
+          throw new AppError(404, "PAYMENT_NOT_FOUND", "Payment not found.");
+        }
 
-      if (payment.status === "FAILED" || payment.status === "CANCELLED" || payment.status === "EXPIRED") {
-        throw new AppError(
-          409,
-          "PAYMENT_NOT_SETTLEABLE",
-          "This payment cannot be settled.",
-        );
-      }
+        if (payment.status === "FAILED" || payment.status === "CANCELLED" || payment.status === "EXPIRED") {
+          throw new AppError(409, "PAYMENT_NOT_SETTLEABLE", "This payment cannot be settled.");
+        }
 
-      if (payment.status === "SUCCESS") {
-        return {
-          paymentId: payment.id,
-          status: "SUCCESS",
-          alreadySettled: true,
-        };
-      }
+        const claim = await tx.payment.updateMany({
+          where: {
+            id: payment.id,
+            status: { in: ["PENDING", "PROCESSING"] },
+          },
+          data: { status: "SUCCESS" },
+        });
 
-      const wallet = await tx.wallet.upsert({
-        where: { userId: payment.userId },
-        create: { userId: payment.userId },
-        update: {},
-      });
+        if (claim.count === 0) {
+          const settled = await tx.payment.findUnique({ where: { id: payment.id } });
+          if (settled?.status === "SUCCESS") {
+            const existing = await tx.walletTransaction.findUnique({
+              where: { paymentId: payment.id },
+            });
+            return {
+              paymentId: payment.id,
+              walletTransactionId: existing?.id ?? null,
+              balance: null,
+              coins: payment.coins,
+              status: "SUCCESS",
+              alreadySettled: true,
+            };
+          }
+          throw new AppError(409, "PAYMENT_NOT_SETTLEABLE", "This payment is not ready for settlement.");
+        }
 
-      const updatedWallet = await tx.wallet.update({
-        where: { id: wallet.id },
-        data: {
-          balance: { increment: payment.coins },
-        },
-      });
+        const wallet = await tx.wallet.upsert({
+          where: { userId: payment.userId },
+          create: { userId: payment.userId },
+          update: {},
+        });
 
-      let walletTransaction;
-      try {
-        walletTransaction = await tx.walletTransaction.create({
+        const updatedWallet = await tx.wallet.update({
+          where: { id: wallet.id },
+          data: { balance: { increment: payment.coins } },
+        });
+
+        const walletTransaction = await tx.walletTransaction.create({
           data: {
             userId: payment.userId,
             type: "COIN_PURCHASE",
@@ -551,51 +562,22 @@ export async function settleVerifiedPayment(paymentId: string) {
             },
           },
         });
-      } catch (error) {
-        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-          const existing = await tx.walletTransaction.findUnique({
-            where: { paymentId: payment.id },
-          });
 
-          if (existing) {
-            const settledPayment = await tx.payment.update({
-              where: { id: payment.id },
-              data: { status: "SUCCESS" },
-            });
-
-            return {
-              paymentId: settledPayment.id,
-              walletTransactionId: existing.id,
-              balance: updatedWallet.balance,
-              coins: payment.coins,
-              status: "SUCCESS",
-              alreadySettled: true,
-            };
-          }
-        }
-
-        throw error;
-      }
-
-      await tx.payment.update({
-        where: { id: payment.id },
-        data: {
+        return {
+          paymentId: payment.id,
+          walletTransactionId: walletTransaction.id,
+          balance: updatedWallet.balance,
+          coins: payment.coins,
           status: "SUCCESS",
-        },
-      });
-
-      return {
-        paymentId: payment.id,
-        walletTransactionId: walletTransaction.id,
-        balance: updatedWallet.balance,
-        coins: payment.coins,
-        status: "SUCCESS",
-        alreadySettled: false,
-      };
-    },
-    {
-      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
-    },
-  );
+          alreadySettled: false,
+        };
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") {
+      return settleVerifiedPayment(paymentId);
+    }
+    throw error;
+  }
 }
-
