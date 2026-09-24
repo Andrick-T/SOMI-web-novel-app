@@ -683,8 +683,7 @@ async function getWriterWithdrawalAvailableCoins(writerId: string) {
     prisma.writerEarning.aggregate({
       where: {
         writerId,
-        status: "AVAILABLE",
-      },
+        },
       _sum: { coins: true },
     }),
     prisma.withdrawalRequest.aggregate({
@@ -822,8 +821,7 @@ export async function requestWriterWithdrawal(
           tx.writerEarning.aggregate({
             where: {
               writerId: viewer.id,
-              status: "AVAILABLE",
-            },
+              },
             _sum: { coins: true },
           }),
           tx.withdrawalRequest.aggregate({
