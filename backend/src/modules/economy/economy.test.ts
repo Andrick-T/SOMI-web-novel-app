@@ -89,12 +89,12 @@ describe("Phase 7E economy integration", () => {
     const second = await request(app)
       .get("/api/v1/wallet")
       .set("Authorization", `Bearer ${reader.accessToken}`);
-    expect(second.body.wallet.balance).toBe(3150);
+    expect(second.body.wallet.balance).toBe(525);
   });
 
   it("uses exact package pricing, integer-safe custom pricing, and payment idempotency", async () => {
-    expect(getCoinsForCustomPurchase(100)).toBe(680);
-    expect(getCoinsForCustomPurchase(175)).toBe(1190);
+    expect(getCoinsForCustomPurchase(125)).toBe(525);
+    expect(getCoinsForCustomPurchase(175)).toBe(735);
 
     const reader = await createReader();
     const reference = `payment-${randomUUID()}`;
@@ -116,12 +116,12 @@ describe("Phase 7E economy integration", () => {
     const transactions = await prisma.walletTransaction.findMany({
       where: { userId: reader.userId },
     });
-    expect(wallet.balance).toBe(8000);
+    expect(wallet.balance).toBe(1785);
     expect(transactions).toHaveLength(1);
     await expect(
       creditWalletFromTrustedPayment({
         userId: reader.userId,
-        amountCfa: 99,
+        amountCfa: 124,
         providerReference: `payment-${randomUUID()}`,
         verified: true,
       }),
@@ -151,7 +151,7 @@ describe("Phase 7E economy integration", () => {
       .set("Authorization", `Bearer ${reader.accessToken}`)
       .send({ price: 1, coins: 1 });
     expect(first.status).toBe(200);
-    expect(first.body.balance).toBe(3030);
+    expect(first.body.balance).toBe(405);
 
     const second = await request(app)
       .post(`/api/v1/books/${chapter.bookId}/chapters/${chapter.id}/unlock`)
@@ -170,12 +170,12 @@ describe("Phase 7E economy integration", () => {
         userId_chapterId: { userId: reader.userId, chapterId: chapter.id },
       },
     });
-    expect(wallet.balance).toBe(3030);
+    expect(wallet.balance).toBe(405);
     expect(debit).toHaveLength(1);
     expect(debit[0].amount).toBe(-120);
     expect(
       debit[0].metadata as { balanceBefore: number; balanceAfter: number },
-    ).toEqual({ balanceBefore: 3150, balanceAfter: 3030 });
+    ).toEqual({ balanceBefore: 525, balanceAfter: 405 });
     expect(entitlement).not.toBeNull();
   });
 
