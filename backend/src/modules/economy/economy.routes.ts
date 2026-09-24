@@ -11,6 +11,7 @@ import {
   getWallet,
   unlockChapter,
   createPaymentIntent,
+  markPaymentFailed,
 } from "./economy.service.js";
 import { createCinetPayCheckout } from "./cinetpay.client.js";
 
@@ -64,30 +65,34 @@ economyRouter.post(
       );
     }
 
-    const checkout = await createCinetPayCheckout(
-      {
-        id: payment.paymentId,
-        somiReference: payment.somiReference,
-        amount: payment.amount,
-        currency: payment.currency,
-        coins: payment.coins,
-        packageId: payment.packageId,
-      },
-      {
-        apiKey: env.CINETPAY_API_KEY,
-        siteId: env.CINETPAY_SITE_ID,
-        apiUrl: env.CINETPAY_API_URL,
-        notifyUrl: env.CINETPAY_NOTIFY_URL,
-        returnUrl: env.CINETPAY_RETURN_URL,
-        channels: env.CINETPAY_CHANNELS,
-      },
-    );
+    try {
+      const checkout = await createCinetPayCheckout(
+        {
+          somiReference: payment.somiReference,
+          amount: payment.amount,
+          currency: payment.currency,
+          coins: payment.coins,
+          packageId: payment.packageId,
+        },
+        {
+          apiKey: env.CINETPAY_API_KEY,
+          siteId: env.CINETPAY_SITE_ID,
+          apiUrl: env.CINETPAY_API_URL,
+          notifyUrl: env.CINETPAY_NOTIFY_URL,
+          returnUrl: env.CINETPAY_RETURN_URL,
+          channels: env.CINETPAY_CHANNELS,
+        },
+      );
 
-    res.status(201).json({
-      ...payment,
-      checkoutUrl: checkout.paymentUrl,
-      paymentToken: checkout.paymentToken,
-    });
+      res.status(201).json({
+        ...payment,
+        checkoutUrl: checkout.paymentUrl,
+        paymentToken: checkout.paymentToken,
+      });
+    } catch (error) {
+      await markPaymentFailed(payment.paymentId);
+      throw error;
+    }
   }),
 );
 economyRouter.get(
