@@ -11,7 +11,7 @@ import {
   localizationSchema,
   writerProfileSchema,
 } from "./writer.schemas.js";
-import { readWriterImage, storeWriterImage } from "./writer.storage.js";
+import { readWriterImage, storeWriterImage, storeWriterKycDocument, readWriterKycDocument } from "./writer.storage.js";
 import {
   getWriterEarnings,
   getWriterEarningTransactions,
@@ -262,10 +262,11 @@ writerRouter.get(
    WRITER KYC
    ============================================================ */
 
-const writerKycSubmitSchema = z.object({
-  documentType: z.enum(["NATIONAL_ID", "PASSPORT", "DRIVER_LICENSE"]),
-  storageKey: z.string().trim().min(1).max(255),
-});
+const writerKycDocumentTypeSchema = z.enum([
+  "NATIONAL_ID",
+  "PASSPORT",
+  "DRIVER_LICENSE",
+]);
 
 writerRouter.get(
   "/kyc",
@@ -274,12 +275,7 @@ writerRouter.get(
       where: { writerId: req.user!.id },
       include: {
         documents: {
-          select: {
-            id: true,
-            documentType: true,
-            status: true,
-            createdAt: true,
-          },
+          select: { id: true, documentType: true, status: true, createdAt: true },
           orderBy: { createdAt: "desc" },
         },
       },
@@ -295,53 +291,79 @@ writerRouter.get(
             rejectionReason: kyc.rejectionReason,
             documents: kyc.documents,
           }
-        : {
-            status: "NOT_STARTED",
-            documents: [],
-          },
+        : { status: "NOT_STARTED", documents: [] },
     });
   }),
 );
 
 writerRouter.post(
-  "/kyc/documents",
-  validate(writerKycSubmitSchema),
+  "/kyc/documents/upload",
+  express.raw({ type: () => true, limit: "10mb" }),
   asyncRoute(async (req: AuthRequest, res) => {
-    const document = await prisma.$transaction(async (tx) => {
-      const kyc = await tx.writerKyc.upsert({
-        where: { writerId: req.user!.id },
-        create: { writerId: req.user!.id },
-        update: {},
-      });
+    const documentTypeResult = writerKycDocumentTypeSchema.safeParse(
+      req.headers["x-kyc-document-type"],
+    );
 
-      if (kyc.status === "APPROVED" || kyc.status === "PENDING") {
-        throw new AppError(
-          409,
-          "KYC_NOT_EDITABLE",
-          "KYC cannot be modified while it is pending or approved.",
-        );
-      }
+    if (!documentTypeResult.success) {
+      throw new AppError(400, "VALIDATION_ERROR", "A valid KYC document type is required.");
+    }
 
-      return tx.writerKycDocument.create({
-        data: {
-          writerId: req.user!.id,
-          kycId: kyc.id,
-          documentType: req.body.documentType,
-          storageKey: req.body.storageKey,
-          mimeType: "application/octet-stream",
-          sizeBytes: 0,
-          status: "PENDING",
-        },
-        select: {
-          id: true,
-          documentType: true,
-          status: true,
-          createdAt: true,
-        },
-      });
+    const kyc = await prisma.writerKyc.upsert({
+      where: { writerId: req.user!.id },
+      create: { writerId: req.user!.id },
+      update: {},
+    });
+
+    if (kyc.status === "APPROVED" || kyc.status === "PENDING") {
+      throw new AppError(
+        409,
+        "KYC_NOT_EDITABLE",
+        "KYC cannot be modified while it is pending or approved.",
+      );
+    }
+
+    const mimeType = String(req.headers["content-type"] ?? "").split(";")[0];
+    const buffer = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+    const stored = await storeWriterKycDocument(mimeType, buffer);
+
+    const document = await prisma.writerKycDocument.create({
+      data: {
+        writerId: req.user!.id,
+        kycId: kyc.id,
+        documentType: documentTypeResult.data,
+        storageKey: stored.storageKey,
+        mimeType,
+        sizeBytes: stored.sizeBytes,
+        status: "PENDING",
+      },
+      select: {
+        id: true,
+        documentType: true,
+        mimeType: true,
+        sizeBytes: true,
+        status: true,
+        createdAt: true,
+      },
     });
 
     return res.status(201).json({ document });
+  }),
+);
+
+writerRouter.get(
+  "/kyc/documents/:documentId",
+  asyncRoute(async (req: AuthRequest, res) => {
+    const document = await prisma.writerKycDocument.findFirst({
+      where: { id: String(req.params.documentId), writerId: req.user!.id },
+      select: { storageKey: true, mimeType: true, status: true },
+    });
+
+    if (!document || document.status === "REJECTED") {
+      throw new AppError(404, "KYC_DOCUMENT_NOT_FOUND", "KYC document not found.");
+    }
+
+    const data = await readWriterKycDocument(document.storageKey);
+    return res.type(document.mimeType).send(data);
   }),
 );
 
