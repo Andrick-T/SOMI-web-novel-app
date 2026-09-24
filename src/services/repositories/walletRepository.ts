@@ -74,6 +74,28 @@ const apiWalletRepository = {
 
     return response.transactions;
   },
+  async getPaymentByReference(somiReference: string) {
+    return apiAuthRepository.authorizedRequest<{
+      id: string;
+      somiReference: string;
+      providerReference?: string | null;
+      packageId?: string | null;
+      amount: number;
+      amountCfa?: number | null;
+      currency: string;
+      coins: number;
+      provider: string;
+      paymentMethod?: string | null;
+      status: string;
+      verifiedAt?: string | null;
+      expiresAt?: string | null;
+      createdAt: string;
+      updatedAt: string;
+    }>(
+      `/api/v1/payments/reference/${encodeURIComponent(somiReference)}`,
+    );
+  },
+
 
   async getEntitlement(
     bookId: string,
