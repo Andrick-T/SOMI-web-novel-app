@@ -31,7 +31,8 @@ export default function PaymentReturnPage({ navigate, coins }: CommonProps) {
     "";
   const [payment, setPayment] = useState<PaymentState | null>(null);
   const [error, setError] = useState("");
-  const [checking, setChecking] = useState(true);\n  const [walletBalance, setWalletBalance] = useState(coins);
+  const [checking, setChecking] = useState(true);
+  const [walletBalance, setWalletBalance] = useState(coins);
 
   const checkPayment = async () => {
     if (!reference || !useApiEconomy) {
@@ -157,7 +158,13 @@ export default function PaymentReturnPage({ navigate, coins }: CommonProps) {
                 Check again
               </button>
             )}
-            <button type="button" onClick={() => navigate("wallet")}
+            <button type="button" onClick={() => {
+                if (isSuccess) {
+                  window.location.assign(`/wallet?coinsAdded=${payment?.coins ?? 0}`);
+                  return;
+                }
+                navigate("wallet");
+              }}
               className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 bg-[#e8a84c] px-4 text-xs font-bold uppercase tracking-[0.14em] text-[#17120c] transition hover:bg-[#f0b45b]">
               {isSuccess ? "Go to wallet" : "Back to wallet"}
             </button>
