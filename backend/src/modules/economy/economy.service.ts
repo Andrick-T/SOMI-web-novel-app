@@ -210,6 +210,34 @@ export async function cancelPayment(userId: string, paymentId: string) {
   };
 }
 
+export async function getPaymentByReference(userId: string, somiReference: string) {
+  const payment = await prisma.payment.findFirst({
+    where: { userId, somiReference },
+  });
+
+  if (!payment) {
+    throw new AppError(404, "PAYMENT_NOT_FOUND", "Payment not found.");
+  }
+
+  return {
+    id: payment.id,
+    somiReference: payment.somiReference,
+    providerReference: payment.providerReference,
+    packageId: payment.packageId,
+    amount: Number(payment.amount),
+    amountCfa: payment.amountCfa,
+    currency: payment.currency,
+    coins: payment.coins,
+    provider: payment.provider,
+    paymentMethod: payment.paymentMethod,
+    status: payment.status,
+    verifiedAt: payment.verifiedAt?.toISOString() ?? null,
+    expiresAt: payment.expiresAt?.toISOString() ?? null,
+    createdAt: payment.createdAt.toISOString(),
+    updatedAt: payment.updatedAt.toISOString(),
+  };
+}
+
 export async function getPayment(userId: string, paymentId: string) {
   const payment = await prisma.payment.findFirst({
     where: { id: paymentId, userId },
