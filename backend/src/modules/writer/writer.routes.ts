@@ -24,6 +24,7 @@ import {
   submitBook,
   getWriterSubmissions,
 } from "./writer.service.js";
+import { WRITER_PAYOUT_METHODS, SUPPORTED_WRITER_CURRENCIES } from "./writer.finance.js";
 
 const writerRouter = Router();
 
@@ -253,6 +254,138 @@ writerRouter.get(
         unlocks: unlockCounts.get(book.id) ?? 0,
       })),
     });
+  }),
+);
+
+
+/* ============================================================
+   WRITER KYC
+   ============================================================ */
+
+const writerKycSubmitSchema = z.object({
+  documentType: z.enum(["NATIONAL_ID", "PASSPORT", "DRIVER_LICENSE"]),
+  storageKey: z.string().trim().min(1).max(255),
+});
+
+writerRouter.get(
+  "/kyc",
+  asyncRoute(async (req: AuthRequest, res) => {
+    const kyc = await prisma.writerKyc.findUnique({
+      where: { writerId: req.user!.id },
+      include: {
+        documents: {
+          select: {
+            id: true,
+            documentType: true,
+            status: true,
+            createdAt: true,
+          },
+          orderBy: { createdAt: "desc" },
+        },
+      },
+    });
+
+    return res.json({
+      kyc: kyc
+        ? {
+            id: kyc.id,
+            status: kyc.status,
+            submittedAt: kyc.submittedAt,
+            reviewedAt: kyc.reviewedAt,
+            rejectionReason: kyc.rejectionReason,
+            documents: kyc.documents,
+          }
+        : {
+            status: "NOT_STARTED",
+            documents: [],
+          },
+    });
+  }),
+);
+
+writerRouter.post(
+  "/kyc/documents",
+  validate(writerKycSubmitSchema),
+  asyncRoute(async (req: AuthRequest, res) => {
+    const document = await prisma.$transaction(async (tx) => {
+      const kyc = await tx.writerKyc.upsert({
+        where: { writerId: req.user!.id },
+        create: { writerId: req.user!.id },
+        update: {},
+      });
+
+      if (kyc.status === "APPROVED" || kyc.status === "PENDING") {
+        throw new AppError(
+          409,
+          "KYC_NOT_EDITABLE",
+          "KYC cannot be modified while it is pending or approved.",
+        );
+      }
+
+      return tx.writerKycDocument.create({
+        data: {
+          writerId: req.user!.id,
+          kycId: kyc.id,
+          documentType: req.body.documentType,
+          storageKey: req.body.storageKey,
+          mimeType: "application/octet-stream",
+          sizeBytes: 0,
+          status: "PENDING",
+        },
+        select: {
+          id: true,
+          documentType: true,
+          status: true,
+          createdAt: true,
+        },
+      });
+    });
+
+    return res.status(201).json({ document });
+  }),
+);
+
+writerRouter.post(
+  "/kyc/submit",
+  asyncRoute(async (req: AuthRequest, res) => {
+    const kyc = await prisma.writerKyc.findUnique({
+      where: { writerId: req.user!.id },
+      include: { documents: true },
+    });
+
+    if (!kyc || kyc.documents.length === 0) {
+      throw new AppError(
+        400,
+        "KYC_DOCUMENTS_REQUIRED",
+        "At least one KYC document is required before submission.",
+      );
+    }
+
+    if (kyc.status === "PENDING") {
+      throw new AppError(409, "KYC_ALREADY_PENDING", "KYC is already pending review.");
+    }
+
+    if (kyc.status === "APPROVED") {
+      throw new AppError(409, "KYC_ALREADY_APPROVED", "KYC is already approved.");
+    }
+
+    const updated = await prisma.writerKyc.update({
+      where: { id: kyc.id },
+      data: {
+        status: "PENDING",
+        submittedAt: new Date(),
+        reviewedAt: null,
+        reviewedBy: null,
+        rejectionReason: null,
+      },
+      include: {
+        documents: {
+          select: { id: true, documentType: true, status: true, createdAt: true },
+        },
+      },
+    });
+
+    return res.json({ kyc: updated });
   }),
 );
 
