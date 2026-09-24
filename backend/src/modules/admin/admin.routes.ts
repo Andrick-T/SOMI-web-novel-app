@@ -1,6 +1,7 @@
 import { Router, type RequestHandler } from "express";
 import { z } from "zod";
 import { validate } from "../../common/middleware/validate.js";
+import { AppError } from "../../common/errors/http-error.js";
 import type { AuthRequest } from "../auth/auth.types.js";
 import { requireAuth, requireRole } from "../auth/auth.middleware.js";
 import { updateBookSchema } from "../content/content.schemas.js";
@@ -281,7 +282,7 @@ adminRouter.get(
     const kyc = await getAdminWriterKyc(String(req.params.writerId));
 
     if (!kyc) {
-      throw new Error("KYC_NOT_FOUND");
+      throw new AppError(404, "KYC_NOT_FOUND", "Writer KYC record not found.");
     }
 
     res.json({ kyc });
