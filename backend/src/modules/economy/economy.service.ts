@@ -134,6 +134,18 @@ export async function createPaymentIntent(
 
 
 
+export async function markPaymentFailed(paymentId: string) {
+  await prisma.payment.updateMany({
+    where: {
+      id: paymentId,
+      status: "PENDING",
+    },
+    data: {
+      status: "FAILED",
+    },
+  });
+}
+
 export async function getWallet(userId: string) {
   const wallet = await prisma.wallet.findUnique({
     where: { userId },
