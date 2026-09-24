@@ -12,14 +12,63 @@ import {
   unlockChapter,
   createPaymentIntent,
   markPaymentFailed,
+  handleVerifiedCinetPayEvent,
 } from "./economy.service.js";
-import { createCinetPayCheckout } from "./cinetpay.client.js";
+import { createCinetPayCheckout, verifyCinetPayTransaction } from "./cinetpay.client.js";
 
 const asyncRoute =
   (handler: RequestHandler): RequestHandler =>
   (req, res, next) =>
     Promise.resolve(handler(req, res, next)).catch(next);
 export const economyRouter = Router();
+// CinetPay calls this endpoint directly; it must remain outside requireAuth.
+economyRouter.post(
+  "/payments/cinetpay/notify",
+  asyncRoute(async (req, res) => {
+    const { env } = await import("../../config/env.js");
+    if (!env.CINETPAY_API_KEY || !env.CINETPAY_SITE_ID) {
+      throw new AppError(503, "PAYMENT_PROVIDER_NOT_CONFIGURED", "Payment provider is not configured.");
+    }
+
+    const body = req.body as Record<string, unknown>;
+    const transactionId = String(body.cpm_trans_id ?? body.transaction_id ?? "").trim();
+    if (!transactionId) {
+      throw new AppError(400, "INVALID_PAYMENT_NOTIFICATION", "Missing CinetPay transaction reference.");
+    }
+
+    const verified = await verifyCinetPayTransaction(transactionId, {
+      apiKey: env.CINETPAY_API_KEY,
+      siteId: env.CINETPAY_SITE_ID,
+    });
+
+    const data = verified.data;
+    if (!data?.amount || !data.currency || !data.status) {
+      throw new AppError(502, "INVALID_PROVIDER_RESPONSE", "CinetPay verification response is incomplete.");
+    }
+
+    const amount = Number(data.amount);
+    if (!Number.isFinite(amount)) {
+      throw new AppError(502, "INVALID_PROVIDER_AMOUNT", "CinetPay returned an invalid amount.");
+    }
+
+    const status = String(data.status).toUpperCase();
+    const normalizedStatus = status === "ACCEPTED" ? "ACCEPTED" : status === "REFUSED" ? "REFUSED" : "PENDING";
+    const somiReference = String(data.metadata ?? data.description ?? transactionId).trim();
+
+    const result = await handleVerifiedCinetPayEvent({
+      somiReference,
+      providerReference: transactionId,
+      status: normalizedStatus,
+      amount,
+      currency: String(data.currency).toUpperCase(),
+      paymentMethod: data.payment_method ?? null,
+      verifiedAt: new Date(),
+    });
+
+    res.status(200).json({ received: true, ...result });
+  }),
+);
+
 economyRouter.use(requireAuth);
 
 economyRouter.get(
