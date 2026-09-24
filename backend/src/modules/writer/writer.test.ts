@@ -5,6 +5,7 @@ import { createApp } from "../../app.js";
 import { prisma } from "../../config/database.js";
 import { creditWalletFromTrustedPayment } from "../economy/economy.service.js";
 import { calculateWriterEarningCoins } from "./writer.service.js";
+import { calculateWriterPayout, coinsToCfa, coinsToCurrency } from "./writer.finance.js";
 
 const app = createApp();
 const password = "Somi-writer-password-123";
@@ -13,6 +14,42 @@ const created = {
   books: [] as string[],
   chapters: [] as string[],
 };
+
+describe("writer multi-currency calculations", () => {
+  it("keeps coin-to-CFA conversion precise and rounds payout amounts to two decimals", () => {
+    expect(coinsToCfa(21_000)).toBeCloseTo(5_000, 10);
+    expect(coinsToCurrency(21_000, "XAF")).toBeCloseTo(5_000, 10);
+    expect(coinsToCurrency(21_000, "USD")).toBeCloseTo(9.090909, 5);
+    expect(coinsToCurrency(21_000, "EUR")).toBeCloseTo(7.692307, 5);
+    expect(coinsToCurrency(21_000, "CAD")).toBeCloseTo(12.376237, 5);
+
+    expect(calculateWriterPayout(21_000, "XAF")).toMatchObject({
+      coins: 21_000,
+      amountCfa: 5_000,
+      currency: "XAF",
+      exchangeRateCfa: 1,
+      amount: 5_000,
+    });
+
+    expect(calculateWriterPayout(21_000, "USD")).toMatchObject({
+      currency: "USD",
+      exchangeRateCfa: 550,
+      amount: 9.09,
+    });
+
+    expect(calculateWriterPayout(21_000, "EUR")).toMatchObject({
+      currency: "EUR",
+      exchangeRateCfa: 650,
+      amount: 7.69,
+    });
+
+    expect(calculateWriterPayout(21_000, "CAD")).toMatchObject({
+      currency: "CAD",
+      exchangeRateCfa: 404,
+      amount: 12.38,
+    });
+  });
+});
 
 describe("writer earning calculation", () => {
   it("applies the 65 percent share with floor rounding", () => {
