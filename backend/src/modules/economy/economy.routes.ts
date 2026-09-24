@@ -9,7 +9,7 @@ import {
   coinPackages,
   getTransactions,
   getWallet,\n  getPayment,
-  getPaymentByReference,
+  getPaymentByReference,\n  getPaymentHistory,
   unlockChapter,
   createPaymentIntent,
   markPaymentFailed,
