@@ -82,7 +82,7 @@ export function getCoinsFromCfa(amountCfa: number): number {
   ]);
   if (exactPackages.has(amountCfa)) return exactPackages.get(amountCfa)!;
 
-  return Math.max(0, Math.round(amountCfa * 6.8));
+  return Math.max(0, Math.floor((amountCfa * 21 + 2) / 5));
 }
 
 export function createWallet({
@@ -100,7 +100,7 @@ export function createWallet({
 }
 
 export function canAffordChapter(balance: number, priceCoins: number): boolean {
-  return priceCoins >= 0 && balance >= priceCoins;
+  return Number.isInteger(priceCoins) && priceCoins > 0 && Number.isInteger(balance) && balance >= priceCoins;
 }
 
 export function createTransaction({
