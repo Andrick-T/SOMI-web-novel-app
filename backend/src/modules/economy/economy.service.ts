@@ -242,7 +242,7 @@ export async function handleVerifiedCinetPayEvent(event: CinetPayVerifiedEvent) 
     },
   });
 
-  return { status: "SUCCESS", paymentId: payment.id };
+  return settleVerifiedPayment(payment.id);
 }
 
 export async function getWallet(userId: string) {
