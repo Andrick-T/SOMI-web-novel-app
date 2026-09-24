@@ -100,7 +100,18 @@ export default function WalletPage({
   const [showPayModal, setShowPayModal] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [error, setError] = useState<string | null>(null);\n  const [coinsAdded, setCoinsAdded] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+  const [coinsAdded, setCoinsAdded] = useState(0);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const added = Number(params.get("coinsAdded") ?? 0);
+    if (!Number.isFinite(added) || added <= 0) return;
+    setCoinsAdded(added);
+    window.history.replaceState({}, "", "/wallet");
+    const timer = window.setTimeout(() => setCoinsAdded(0), 1600);
+    return () => window.clearTimeout(timer);
+  }, []);
   const [transactionHistory, setTransactionHistory] = useState<
     Array<{ id: string; type: string; coins: number; createdAt: string }>
   >([]);
@@ -208,7 +219,16 @@ export default function WalletPage({
 
   return (
     <div className="relative flex min-h-full flex-col bg-[var(--color-background)]">
-      {coinsAdded > 0 && (\n        <div className="pointer-events-none fixed inset-0 z-[100] flex items-center justify-center">\n          <div className="somi-coins-added rounded-full border border-[rgba(232,168,76,0.45)] bg-[rgba(13,11,24,0.92)] px-6 py-4 text-center shadow-2xl backdrop-blur-sm animate-[somi-coins-pop_900ms_ease-out_forwards]">\n            <div className="text-2xl font-bold text-[var(--color-accent-primary)]">+{coinsAdded.toLocaleString()}</div>\n            <div className="mt-1 text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--color-text-muted)]">Somi Coins added</div>\n          </div>\n        </div>\n      )}\n\n      <div className="px-5 pb-6 pt-12">
+      {coinsAdded > 0 && (
+        <div className="pointer-events-none fixed inset-0 z-[100] flex items-center justify-center">
+          <div className="somi-coins-added rounded-full border border-[rgba(232,168,76,0.45)] bg-[rgba(13,11,24,0.92)] px-6 py-4 text-center shadow-2xl backdrop-blur-sm animate-[somi-coins-pop_900ms_ease-out_forwards]">
+            <div className="text-2xl font-bold text-[var(--color-accent-primary)]">+{coinsAdded.toLocaleString()}</div>
+            <div className="mt-1 text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--color-text-muted)]">Somi Coins added</div>
+          </div>
+        </div>
+      )}
+
+      <div className="px-5 pb-6 pt-12">
         <p className="somi-eyebrow">Story economy</p>
         <h1 className="font-display text-2xl font-bold text-[var(--color-text-primary)]">
           Wallet
