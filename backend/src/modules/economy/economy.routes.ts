@@ -1,5 +1,6 @@
 import { Router, type RequestHandler } from "express";
 import { validate } from "../../common/middleware/validate.js";
+import { AppError } from "../../common/errors/http-error.js";
 import { requireAuth } from "../auth/auth.middleware.js";
 import type { AuthRequest } from "../auth/auth.types.js";
 import { paginationSchema, purchaseSchema } from "./economy.schemas.js";
@@ -10,6 +11,7 @@ import {
   getWallet,
   unlockChapter,
   createPaymentIntent,
+  createCinetPayCheckout,
 } from "./economy.service.js";
 
 const asyncRoute =
@@ -45,7 +47,47 @@ economyRouter.post(
   validate(purchaseSchema),
   asyncRoute(async (req: AuthRequest, res) => {
     const { packageId } = req.body as { packageId: keyof typeof coinPackages };
-    res.status(201).json(await createPaymentIntent(req.user!.id, packageId));
+    const payment = await createPaymentIntent(req.user!.id, packageId);
+
+    const { env } = await import("../../config/env.js");
+
+    if (
+      !env.CINETPAY_API_KEY ||
+      !env.CINETPAY_SITE_ID ||
+      !env.CINETPAY_NOTIFY_URL ||
+      !env.CINETPAY_RETURN_URL
+    ) {
+      throw new AppError(
+        503,
+        "PAYMENT_PROVIDER_NOT_CONFIGURED",
+        "Payment provider is not configured.",
+      );
+    }
+
+    const checkout = await createCinetPayCheckout(
+      {
+        id: payment.paymentId,
+        somiReference: payment.somiReference,
+        amount: payment.amount,
+        currency: payment.currency,
+        coins: payment.coins,
+        packageId: payment.packageId,
+      },
+      {
+        apiKey: env.CINETPAY_API_KEY,
+        siteId: env.CINETPAY_SITE_ID,
+        apiUrl: env.CINETPAY_API_URL,
+        notifyUrl: env.CINETPAY_NOTIFY_URL,
+        returnUrl: env.CINETPAY_RETURN_URL,
+        channels: env.CINETPAY_CHANNELS,
+      },
+    );
+
+    res.status(201).json({
+      ...payment,
+      checkoutUrl: checkout.paymentUrl,
+      paymentToken: checkout.paymentToken,
+    });
   }),
 );
 economyRouter.get(
