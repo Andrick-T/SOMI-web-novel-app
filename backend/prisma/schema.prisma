@@ -28,6 +28,7 @@ model User {
   comments Comment[]
   entitlements      ChapterEntitlement[]
   transactions      WalletTransaction[]
+  payments          Payment[]
   writerProfile     WriterProfile?
   writerSubmissions WriterSubmission[]
   writerEarnings    WriterEarning[]
@@ -237,9 +238,38 @@ model WalletTransaction {
   status    String   @default("PENDING")
   reference String?  @unique
   metadata  Json?
+  paymentId String?  @unique
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  payment Payment? @relation(fields: [paymentId], references: [id])
+}
+
+model Payment {
+  id                  String    @id @default(uuid())
+  userId              String
+  packageId           String?
+  amount              Decimal   @db.Decimal(18, 2)
+  currency            String    @db.VarChar(3)
+  amountCfa           Int?
+  coins               Int
+  somiReference       String    @unique
+  providerReference   String?   @unique
+  provider            String    @default("CINETPAY")
+  paymentMethod       String?
+  status              String    @default("PENDING")
+  verifiedAt          DateTime?
+  expiresAt           DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  metadata            Json?
+  walletTransaction   WalletTransaction?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status, createdAt])
+  @@index([provider, status])
+  @@index([expiresAt])
 }
 
 model ChapterEntitlement {
