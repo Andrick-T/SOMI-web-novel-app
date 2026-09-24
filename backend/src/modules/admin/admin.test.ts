@@ -700,3 +700,184 @@ describe("Phase 7H admin audit endpoints", () => {
     );
   });
 });
+
+
+describe("E14.5 writer withdrawal administration", () => {
+  it("executes the withdrawal lifecycle, releases failed funds, and requires support after three failures", async () => {
+    const suffix = `e145-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const writer = await prisma.user.create({
+      data: {
+        email: `e145-writer-${suffix}@example.test`,
+        username: `e145-writer-${suffix}`,
+        passwordHash: "placeholder-hash",
+        role: "WRITER",
+        status: "ACTIVE",
+        profile: { create: { displayName: "E14.5 Writer" } },
+        writerProfile: {
+          create: {
+            preferredCurrency: "USD",
+            payoutMethod: "MTN_MOBILE_MONEY",
+            payoutAccount: "237670000000",
+            payoutAccountName: "E14.5 Writer",
+          },
+        },
+        writerKyc: {
+          create: {
+            status: "APPROVED",
+            submittedAt: new Date(),
+            reviewedAt: new Date(),
+            reviewedBy: adminUserId,
+          },
+        },
+      },
+    });
+
+    const book = await prisma.book.create({
+      data: {
+        title: "E14.5 Book",
+        slug: `e145-book-${suffix}`,
+        authorId: writer.id,
+        status: "PUBLISHED",
+      },
+    });
+
+    const chapter = await prisma.chapter.create({
+      data: {
+        bookId: book.id,
+        title: "E14.5 Chapter",
+        number: 1,
+        content: "E14.5",
+        status: "PUBLISHED",
+        accessType: "PREMIUM",
+        price: 21000,
+      },
+    });
+
+    await prisma.writerEarning.create({
+      data: {
+        writerId: writer.id,
+        bookId: book.id,
+        chapterId: chapter.id,
+        sourceTransactionId: `e145-source-${suffix}`,
+        coins: 42_000,
+        status: "AVAILABLE",
+      },
+    });
+
+    const writerToken = createAccessToken(writer.id, writer.role);
+
+    const requestWithdrawal = await request(app)
+      .post("/api/v1/writer/withdrawals")
+      .set("Authorization", `Bearer ${writerToken}`)
+      .send({ coins: 21_000 });
+
+    expect(requestWithdrawal.status).toBe(201);
+    expect(requestWithdrawal.body.withdrawal.status).toBe("PENDING");
+    expect(requestWithdrawal.body.withdrawal.currency).toBe("USD");
+    expect(requestWithdrawal.body.withdrawal.exchangeRateCfa).toBe(550);
+    expect(requestWithdrawal.body.withdrawal.amount).toBe(9.09);
+
+    const secondRequest = await request(app)
+      .post("/api/v1/writer/withdrawals")
+      .set("Authorization", `Bearer ${writerToken}`)
+      .send({ coins: 21_001 });
+    expect(secondRequest.status).toBe(201);
+
+    const list = await request(app)
+      .get("/api/v1/admin/withdrawals")
+      .query({ writerId: writer.id })
+      .set("Authorization", `Bearer ${adminToken}`);
+    expect(list.status).toBe(200);
+    expect(list.body.items).toHaveLength(2);
+
+    const firstId = requestWithdrawal.body.withdrawal.id;
+
+    const processing = await request(app)
+      .post(`/api/v1/admin/withdrawals/${firstId}/process`)
+      .set("Authorization", `Bearer ${adminToken}`);
+    expect(processing.status).toBe(200);
+    expect(processing.body.withdrawal.status).toBe("PROCESSING");
+
+    const complete = await request(app)
+      .post(`/api/v1/admin/withdrawals/${firstId}/complete`)
+      .set("Authorization", `Bearer ${adminToken}`);
+    expect(complete.status).toBe(200);
+    expect(complete.body.withdrawal.status).toBe("COMPLETED");
+
+    const invalidComplete = await request(app)
+      .post(`/api/v1/admin/withdrawals/${firstId}/complete`)
+      .set("Authorization", `Bearer ${adminToken}`);
+    expect(invalidComplete.status).toBe(409);
+    expect(invalidComplete.body.error.code).toBe("WITHDRAWAL_INVALID_STATE");
+
+    const third = await request(app)
+      .post("/api/v1/writer/withdrawals")
+      .set("Authorization", `Bearer ${writerToken}`)
+      .send({ coins: 1000 });
+    expect(third.status).toBe(422);
+    expect(third.body.error.code).toBe("WITHDRAWAL_BELOW_MINIMUM");
+
+    const failedWithdrawal = await request(app)
+      .post(`/api/v1/admin/withdrawals/${requestWithdrawal.body.withdrawal.id}/fail`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ failureMessage: "too late" });
+    expect(failedWithdrawal.status).toBe(409);
+
+    const failedRequest = await request(app)
+      .post("/api/v1/writer/withdrawals")
+      .set("Authorization", `Bearer ${writerToken}`)
+      .send({ coins: 21_000 });
+    expect(failedRequest.status).toBe(201);
+
+    const failedId = failedRequest.body.withdrawal.id;
+
+    const failWithoutReason = await request(app)
+      .post(`/api/v1/admin/withdrawals/${failedId}/fail`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({});
+    expect(failWithoutReason.status).toBe(400);
+    expect(failWithoutReason.body.error.code).toBe("WITHDRAWAL_FAILURE_REASON_REQUIRED");
+
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      const toProcessing = await request(app)
+        .post(`/api/v1/admin/withdrawals/${failedId}/process`)
+        .set("Authorization", `Bearer ${adminToken}`);
+      expect(toProcessing.status).toBe(200);
+
+      const failed = await request(app)
+        .post(`/api/v1/admin/withdrawals/${failedId}/fail`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ failureMessage: `failure ${attempt}` });
+      expect(failed.status).toBe(200);
+      expect(failed.body.withdrawal.status).toBe("FAILED");
+      expect(failed.body.withdrawal.failureCount).toBe(attempt);
+      expect(failed.body.supportRequired).toBe(attempt >= 3);
+    }
+
+    const summary = await request(app)
+      .get("/api/v1/writer/withdrawals/summary")
+      .set("Authorization", `Bearer ${writerToken}`);
+    expect(summary.status).toBe(200);
+    expect(summary.body.availableCoins).toBe(21_000);
+    expect(summary.body.eligible).toBe(true);
+
+    await prisma.auditEvent.deleteMany({
+      where: { targetId: { in: [firstId, failedId] } },
+    });
+    await prisma.withdrawalRequest.deleteMany({ where: { writerId: writer.id } });
+    await prisma.writerEarning.deleteMany({ where: { writerId: writer.id } });
+    await prisma.chapter.delete({ where: { id: chapter.id } });
+    await prisma.book.delete({ where: { id: book.id } });
+    await prisma.user.delete({ where: { id: writer.id } });
+  });
+
+  it("rejects withdrawal administration for unauthenticated and non-admin callers", async () => {
+    const unauthenticated = await request(app).get("/api/v1/admin/withdrawals");
+    expect(unauthenticated.status).toBe(401);
+
+    const nonAdmin = await request(app)
+      .get("/api/v1/admin/withdrawals")
+      .set("Authorization", `Bearer ${readerToken}`);
+    expect(nonAdmin.status).toBe(403);
+  });
+});
