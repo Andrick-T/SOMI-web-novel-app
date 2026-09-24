@@ -106,6 +106,10 @@ export const assetMetadataSchema = z.object({
 /**
  * Writer profile mutation schema.
  */
+export const withdrawalRequestSchema = z.object({
+  coins: z.number().int().min(21_000),
+});
+
 export const writerProfileSchema = z.object({
   displayName: z.string().trim().max(100).nullable().optional(),
 
