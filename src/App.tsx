@@ -46,6 +46,7 @@ const BookDetailPage = lazy(() => import("./pages/BookDetailPage"));
 const ReaderPage = lazy(() => import("./pages/ReaderPage"));
 const LibraryPage = lazy(() => import("./pages/LibraryPage"));
 const WalletPage = lazy(() => import("./pages/WalletPage"));
+const PaymentReturnPage = lazy(() => import("./pages/PaymentReturnPage"));
 const ProfilePage = lazy(() => import("./pages/ProfilePage"));
 const AuthPage = lazy(() => import("./pages/AuthPage"));
 
