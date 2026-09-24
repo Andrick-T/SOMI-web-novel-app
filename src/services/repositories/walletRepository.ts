@@ -67,7 +67,7 @@ const apiWalletRepository = {
     return response.wallet;
   },
 
-  async getTransactions(): Promise<WalletTransaction[]> {
+  async purchase(packageId: string) {\n    return apiAuthRepository.authorizedRequest<{ paymentId: string; somiReference: string; packageId: string; amount: number; currency: string; coins: number; provider: string; status: string; expiresAt: string | null; checkoutUrl: string; paymentToken: string }>("/api/v1/wallet/purchase", { method: "POST", body: JSON.stringify({ packageId }) });\n  },\n\n  async getTransactions(): Promise<WalletTransaction[]> {
     const response = await apiAuthRepository.authorizedRequest<{
       transactions: WalletTransaction[];
     }>("/api/v1/wallet/transactions");
