@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { SUPPORTED_WRITER_CURRENCIES, WRITER_PAYOUT_METHODS } from "./writer.finance.js";
 
 export const languageCodeSchema = z.enum(["en", "fr"]);
 
@@ -115,4 +116,9 @@ export const writerProfileSchema = z.object({
   avatar: z.string().url().nullable().optional(),
 
   banner: z.string().url().nullable().optional(),
+
+  preferredCurrency: z.enum(SUPPORTED_WRITER_CURRENCIES).default("XAF"),
+  payoutMethod: z.enum(WRITER_PAYOUT_METHODS).nullable().optional(),
+  payoutAccount: z.string().trim().max(255).nullable().optional(),
+  payoutAccountName: z.string().trim().max(150).nullable().optional(),
 });
