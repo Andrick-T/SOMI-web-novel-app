@@ -2,6 +2,14 @@ import { Prisma } from "@prisma/client";
 import { AppError } from "../../common/errors/http-error.js";
 import { prisma } from "../../config/database.js";
 import type { AuthPrincipal } from "../auth/auth.types.js";
+import {
+  ACTIVE_WRITER_WITHDRAWAL_STATUSES,
+  calculateWriterPayout,
+  MINIMUM_WRITER_WITHDRAWAL_COINS,
+  isSupportedWriterCurrency,
+  type WriterPayoutMethod,
+  type WriterCurrency,
+} from "./writer.finance.js";
 
 export const WRITER_SHARE_PERCENTAGE = 65;
 
@@ -627,6 +635,256 @@ export async function getWriterEarningTransactions(
       createdAt: true,
     },
   });
+}
+
+
+const serializeWithdrawal = (withdrawal: {
+  id: string;
+  writerId: string;
+  status: string;
+  coins: number;
+  amountCfa: Prisma.Decimal;
+  currency: string;
+  exchangeRateCfa: Prisma.Decimal;
+  amount: Prisma.Decimal;
+  payoutMethod: string;
+  payoutAccount: string;
+  payoutAccountName: string | null;
+  failureCount: number;
+  failureMessage: string | null;
+  reviewedBy: string | null;
+  reviewedAt: Date | null;
+  processedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}) => ({
+  id: withdrawal.id,
+  writerId: withdrawal.writerId,
+  status: withdrawal.status,
+  coins: withdrawal.coins,
+  amountCfa: Number(withdrawal.amountCfa),
+  currency: withdrawal.currency,
+  exchangeRateCfa: Number(withdrawal.exchangeRateCfa),
+  amount: Number(withdrawal.amount),
+  payoutMethod: withdrawal.payoutMethod,
+  payoutAccount: withdrawal.payoutAccount,
+  payoutAccountName: withdrawal.payoutAccountName,
+  failureCount: withdrawal.failureCount,
+  failureMessage: withdrawal.failureMessage,
+  reviewedBy: withdrawal.reviewedBy,
+  reviewedAt: withdrawal.reviewedAt?.toISOString() ?? null,
+  processedAt: withdrawal.processedAt?.toISOString() ?? null,
+  createdAt: withdrawal.createdAt.toISOString(),
+  updatedAt: withdrawal.updatedAt.toISOString(),
+});
+
+async function getWriterWithdrawalAvailableCoins(writerId: string) {
+  const [earnings, withdrawals] = await Promise.all([
+    prisma.writerEarning.aggregate({
+      where: {
+        writerId,
+        status: "AVAILABLE",
+      },
+      _sum: { coins: true },
+    }),
+    prisma.withdrawalRequest.aggregate({
+      where: {
+        writerId,
+        status: {
+          in: ["PENDING", "PROCESSING", "COMPLETED"],
+        },
+      },
+      _sum: { coins: true },
+    }),
+  ]);
+
+  return Math.max(
+    0,
+    (earnings._sum.coins ?? 0) - (withdrawals._sum.coins ?? 0),
+  );
+}
+
+export async function getWriterWithdrawalSummary(
+  writer: AuthPrincipal | undefined,
+) {
+  const viewer = assertWriter(writer);
+  const availableCoins = await getWriterWithdrawalAvailableCoins(viewer.id);
+
+  return {
+    availableCoins,
+    minimumCoins: MINIMUM_WRITER_WITHDRAWAL_COINS,
+    eligible: availableCoins >= MINIMUM_WRITER_WITHDRAWAL_COINS,
+  };
+}
+
+export async function getWriterWithdrawals(
+  writer: AuthPrincipal | undefined,
+) {
+  const viewer = assertWriter(writer);
+
+  const withdrawals = await prisma.withdrawalRequest.findMany({
+    where: {
+      writerId: viewer.id,
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+
+  return withdrawals.map(serializeWithdrawal);
+}
+
+export async function requestWriterWithdrawal(
+  writer: AuthPrincipal | undefined,
+  input: {
+    coins: number;
+  },
+) {
+  const viewer = assertWriter(writer);
+
+  if (!Number.isInteger(input.coins) || input.coins < MINIMUM_WRITER_WITHDRAWAL_COINS) {
+    throw new AppError(
+      422,
+      "WITHDRAWAL_BELOW_MINIMUM",
+      `A withdrawal requires at least ${MINIMUM_WRITER_WITHDRAWAL_COINS} coins.`,
+    );
+  }
+
+  const profile = await prisma.writerProfile.findUnique({
+    where: { userId: viewer.id },
+    select: {
+      preferredCurrency: true,
+      payoutMethod: true,
+      payoutAccount: true,
+      payoutAccountName: true,
+    },
+  });
+
+  if (!profile) {
+    throw new AppError(
+      422,
+      "PAYOUT_PROFILE_REQUIRED",
+      "Complete your payout profile before requesting a withdrawal.",
+    );
+  }
+
+  if (!isSupportedWriterCurrency(profile.preferredCurrency)) {
+    throw new AppError(
+      422,
+      "INVALID_PAYOUT_CURRENCY",
+      "The configured payout currency is not supported.",
+    );
+  }
+
+  if (!profile.payoutMethod || !profile.payoutAccount) {
+    throw new AppError(
+      422,
+      "PAYOUT_PROFILE_REQUIRED",
+      "A payout method and payout account are required.",
+    );
+  }
+
+  const payoutMethods: readonly string[] = [
+    "ORANGE_MONEY",
+    "MTN_MOBILE_MONEY",
+    "PAYPAL",
+  ];
+  if (!payoutMethods.includes(profile.payoutMethod)) {
+    throw new AppError(
+      422,
+      "INVALID_PAYOUT_METHOD",
+      "The configured payout method is not supported.",
+    );
+  }
+
+  const kyc = await prisma.writerKyc.findUnique({
+    where: { writerId: viewer.id },
+    select: { status: true },
+  });
+
+  if (!kyc || kyc.status !== "APPROVED") {
+    throw new AppError(
+      409,
+      "KYC_NOT_APPROVED",
+      "KYC approval is required before requesting a withdrawal.",
+    );
+  }
+
+  const payout = calculateWriterPayout(
+    input.coins,
+    profile.preferredCurrency as WriterCurrency,
+  );
+
+  try {
+    const withdrawal = await prisma.$transaction(
+      async (tx) => {
+        const [earnings, reserved] = await Promise.all([
+          tx.writerEarning.aggregate({
+            where: {
+              writerId: viewer.id,
+              status: "AVAILABLE",
+            },
+            _sum: { coins: true },
+          }),
+          tx.withdrawalRequest.aggregate({
+            where: {
+              writerId: viewer.id,
+              status: {
+                in: ["PENDING", "PROCESSING", "COMPLETED"],
+              },
+            },
+            _sum: { coins: true },
+          }),
+        ]);
+
+        const availableCoins = Math.max(
+          0,
+          (earnings._sum.coins ?? 0) - (reserved._sum.coins ?? 0),
+        );
+
+        if (input.coins > availableCoins) {
+          throw new AppError(
+            409,
+            "INSUFFICIENT_AVAILABLE_EARNINGS",
+            "The requested withdrawal exceeds your available earnings.",
+            [{ availableCoins }],
+          );
+        }
+
+        return tx.withdrawalRequest.create({
+          data: {
+            writerId: viewer.id,
+            status: "PENDING",
+            coins: input.coins,
+            amountCfa: payout.amountCfa.toFixed(6),
+            currency: payout.currency,
+            exchangeRateCfa: payout.exchangeRateCfa.toFixed(6),
+            amount: payout.amount.toFixed(6),
+            payoutMethod: profile.payoutMethod as WriterPayoutMethod,
+            payoutAccount: profile.payoutAccount,
+            payoutAccountName: profile.payoutAccountName ?? null,
+          },
+        });
+      },
+      {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      },
+    );
+
+    return serializeWithdrawal(withdrawal);
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      (error.code === "P2034" || error.code === "P2002")
+    ) {
+      throw new AppError(
+        409,
+        "WITHDRAWAL_CONFLICT",
+        "Another withdrawal operation is being processed. Please try again.",
+      );
+    }
+    throw error;
+  }
 }
 
 export async function attributeWriterEarning(sourceTransactionId: string) {
