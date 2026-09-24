@@ -8,7 +8,7 @@ import {
   getChapterEntitlement,
   coinPackages,
   getTransactions,
-  getWallet,\n  findPaymentBySomiReference,
+  getWallet,\n  getPayment,
   unlockChapter,
   createPaymentIntent,
   markPaymentFailed,
