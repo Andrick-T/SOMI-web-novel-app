@@ -27,6 +27,8 @@ import {
   getWriterWithdrawalSummary,
   getWriterWithdrawals,
   requestWriterWithdrawal,
+  getWriterSupportTickets,
+  createWriterSupportTicket,
 } from "./writer.service.js";
 import { WRITER_PAYOUT_METHODS, SUPPORTED_WRITER_CURRENCIES, WRITER_EXCHANGE_RATES_CFA } from "./writer.finance.js";
 
@@ -482,6 +484,33 @@ writerRouter.post(
   asyncRoute(async (req: AuthRequest, res) => {
     const withdrawal = await requestWriterWithdrawal(req.user, req.body);
     return res.status(201).json({ withdrawal });
+  }),
+);
+
+/* ============================================================
+   WRITER SUPPORT
+   ============================================================ */
+
+const supportTicketSchema = z.object({
+  category: z.string().trim().min(2).max(50),
+  subject: z.string().trim().min(3).max(255),
+  body: z.string().trim().min(1).max(5000),
+  withdrawalId: z.string().uuid().optional(),
+});
+
+writerRouter.get(
+  "/support/tickets",
+  asyncRoute(async (req: AuthRequest, res) => {
+    res.json({ tickets: await getWriterSupportTickets(req.user) });
+  }),
+);
+
+writerRouter.post(
+  "/support/tickets",
+  validate(supportTicketSchema),
+  asyncRoute(async (req: AuthRequest, res) => {
+    const ticket = await createWriterSupportTicket(req.user, req.body);
+    res.status(201).json({ ticket });
   }),
 );
 
