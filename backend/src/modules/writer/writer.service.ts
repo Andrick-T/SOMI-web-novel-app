@@ -732,6 +732,79 @@ export async function getWriterWithdrawals(
   return withdrawals.map(serializeWithdrawal);
 }
 
+
+export async function getWriterSupportTickets(writer: AuthPrincipal | undefined) {
+  const viewer = assertWriter(writer);
+  return prisma.supportTicket.findMany({
+    where: { userId: viewer.id },
+    orderBy: { updatedAt: "desc" },
+    include: {
+      messages: {
+        orderBy: { createdAt: "asc" },
+        select: {
+          id: true,
+          senderId: true,
+          body: true,
+          createdAt: true,
+        },
+      },
+    },
+  });
+}
+
+export async function createWriterSupportTicket(
+  writer: AuthPrincipal | undefined,
+  input: {
+    category: string;
+    subject: string;
+    body: string;
+    withdrawalId?: string;
+  },
+) {
+  const viewer = assertWriter(writer);
+  const category = input.category.trim().toUpperCase();
+  const subject = input.subject.trim();
+  const body = input.body.trim();
+
+  if (!category || !subject || !body) {
+    throw new AppError(400, "SUPPORT_TICKET_INVALID", "Category, subject and message are required.");
+  }
+
+  if (input.withdrawalId) {
+    const withdrawal = await prisma.withdrawalRequest.findFirst({
+      where: { id: input.withdrawalId, writerId: viewer.id },
+      select: { id: true },
+    });
+    if (!withdrawal) {
+      throw new AppError(404, "WITHDRAWAL_NOT_FOUND", "Withdrawal request not found.");
+    }
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const ticket = await tx.supportTicket.create({
+      data: {
+        userId: viewer.id,
+        category,
+        subject,
+        relatedWithdrawalId: input.withdrawalId ?? null,
+        messages: {
+          create: {
+            senderId: viewer.id,
+            body,
+          },
+        },
+      },
+      include: {
+        messages: {
+          orderBy: { createdAt: "asc" },
+          select: { id: true, senderId: true, body: true, createdAt: true },
+        },
+      },
+    });
+    return ticket;
+  });
+}
+
 export async function requestWriterWithdrawal(
   writer: AuthPrincipal | undefined,
   input: {
