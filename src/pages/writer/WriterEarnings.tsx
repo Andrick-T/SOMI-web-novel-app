@@ -101,6 +101,14 @@ export default function WriterEarnings({}: CommonProps) {
   const [financialRules, setFinancialRules] = useState<FinancialRules | null>(null);
   const [withdrawalSummary, setWithdrawalSummary] = useState({ availableCoins: 0, minimumCoins: 21000, eligible: false });
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
+  const [financialProfile, setFinancialProfile] = useState<{
+    preferredCurrency: "XAF" | "USD" | "EUR" | "CAD";
+    payoutMethod: "ORANGE_MONEY" | "MTN_MOBILE_MONEY" | "PAYPAL" | null;
+    payoutAccount: string | null;
+    payoutAccountName: string | null;
+  } | null>(null);
+  const [kyc, setKyc] = useState<{ status: string; rejectionReason?: string | null; documents: Array<{ id: string; documentType: string; status: string; createdAt: string }> } | null>(null);
+  const [profileSaving, setProfileSaving] = useState(false);
   const [withdrawalCoins, setWithdrawalCoins] = useState(21000);
   const [withdrawalMessage, setWithdrawalMessage] = useState("");
   const [withdrawalLoading, setWithdrawalLoading] = useState(false);
@@ -133,8 +141,10 @@ export default function WriterEarnings({}: CommonProps) {
       apiWriterRepository.getFinancialRules(),
       apiWriterRepository.getWithdrawalSummary(),
       apiWriterRepository.getWithdrawals(),
+      apiWriterRepository.getWriterFinancialProfile(),
+      apiWriterRepository.getKyc(),
     ])
-       .then(([earnings, transactionResult, writerBooks, rules, withdrawalResult, withdrawalList]) => {
+       .then(([earnings, transactionResult, writerBooks, rules, withdrawalResult, withdrawalList, withdrawalProfile, kycResult]) => {
         if (cancelled) return;
 
         setSummary(earnings);
@@ -149,6 +159,8 @@ export default function WriterEarnings({}: CommonProps) {
         setFinancialRules(rules);
         setWithdrawalSummary(withdrawalResult);
         setWithdrawals(withdrawalList.withdrawals);
+        setFinancialProfile(withdrawalProfile);
+        setKyc(kycResult.kyc);
       })
       .catch((caught) => {
         if (cancelled) return;
@@ -343,6 +355,63 @@ export default function WriterEarnings({}: CommonProps) {
 
         {useApiWriterContent && (
           <>
+            <section className="somi-writer-section">
+              <div className="somi-c5-section-heading">
+                <div><p className="somi-writer-eyebrow">Payment setup</p><h2 className="somi-c5-section-title">Payout profile & verification</h2></div>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <form
+                  className="rounded-xl border border-[var(--color-border-default)] p-4"
+                  onSubmit={async (event) => {
+                    event.preventDefault();
+                    if (!financialProfile) return;
+                    setProfileSaving(true);
+                    setWithdrawalMessage("");
+                    try {
+                      const saved = await apiWriterRepository.saveWriterFinancialProfile(financialProfile);
+                      setFinancialProfile(saved as typeof financialProfile);
+                      setWithdrawalMessage("Payout profile saved.");
+                    } catch (error) {
+                      setWithdrawalMessage(error instanceof Error ? error.message : "Unable to save payout profile.");
+                    } finally {
+                      setProfileSaving(false);
+                    }
+                  }}
+                >
+                  <p className="mb-4 text-sm font-semibold">Payment destination</p>
+                  <div className="grid gap-3">
+                    <label className="text-sm"><span className="mb-1 block text-xs text-[var(--color-text-muted)]">Currency</span>
+                      <select value={financialProfile?.preferredCurrency ?? "XAF"} onChange={(e) => setFinancialProfile((p) => p ? { ...p, preferredCurrency: e.target.value as typeof p.preferredCurrency } : p)} className="w-full rounded-lg border border-[var(--color-border-default)] bg-[var(--color-active-surface)] px-3 py-2.5">
+                        {financialRules?.currencies.map((currency) => <option key={currency.code} value={currency.code}>{currency.code}</option>)}
+                      </select>
+                    </label>
+                    <label className="text-sm"><span className="mb-1 block text-xs text-[var(--color-text-muted)]">Payout method</span>
+                      <select value={financialProfile?.payoutMethod ?? ""} onChange={(e) => setFinancialProfile((p) => p ? { ...p, payoutMethod: (e.target.value || null) as typeof p.payoutMethod } : p)} className="w-full rounded-lg border border-[var(--color-border-default)] bg-[var(--color-active-surface)] px-3 py-2.5">
+                        <option value="">Select method</option>
+                        {financialRules?.payoutMethods.map((method) => <option key={method} value={method}>{method.replaceAll("_", " ")}</option>)}
+                      </select>
+                    </label>
+                    <label className="text-sm"><span className="mb-1 block text-xs text-[var(--color-text-muted)]">Account / phone / email</span>
+                      <input value={financialProfile?.payoutAccount ?? ""} onChange={(e) => setFinancialProfile((p) => p ? { ...p, payoutAccount: e.target.value || null } : p)} className="w-full rounded-lg border border-[var(--color-border-default)] bg-[var(--color-active-surface)] px-3 py-2.5" />
+                    </label>
+                    <label className="text-sm"><span className="mb-1 block text-xs text-[var(--color-text-muted)]">Account holder name</span>
+                      <input value={financialProfile?.payoutAccountName ?? ""} onChange={(e) => setFinancialProfile((p) => p ? { ...p, payoutAccountName: e.target.value || null } : p)} className="w-full rounded-lg border border-[var(--color-border-default)] bg-[var(--color-active-surface)] px-3 py-2.5" />
+                    </label>
+                  </div>
+                  <button type="submit" disabled={profileSaving} className="somi-writer-primary-action mt-4 disabled:opacity-50"><Settings2 size={15} />{profileSaving ? "Saving..." : "Save payment setup"}</button>
+                </form>
+                <div className="rounded-xl border border-[var(--color-border-default)] p-4">
+                  <div className="flex items-center gap-2"><LifeBuoy size={17} /><p className="text-sm font-semibold">Identity verification</p></div>
+                  <div className="mt-4 flex items-center gap-2 text-sm">
+                    {kyc?.status === "APPROVED" ? <CheckCircle2 size={17} /> : <AlertCircle size={17} />}
+                    <span>Status: {statusLabel(kyc?.status ?? "NOT_STARTED")}</span>
+                  </div>
+                  <p className="mt-3 text-xs text-[var(--color-text-muted)]">KYC approval is required before a payout can be requested.</p>
+                  {kyc?.rejectionReason && <p className="mt-3 text-xs">{kyc.rejectionReason}</p>}
+                </div>
+              </div>
+            </section>
+
             <section className="somi-writer-section">
               <div className="somi-c5-insight">
                 <div>
