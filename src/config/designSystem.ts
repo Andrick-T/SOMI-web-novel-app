@@ -31,6 +31,8 @@ export const navigation = {
     { page: "admin-reports" as Page, label: "Reports" },
     { page: "admin-economy" as Page, label: "Economy" },
     { page: "admin-transactions" as Page, label: "Transactions" },
+    { page: "admin-withdrawals" as Page, label: "Withdrawals" },
+    { page: "admin-support" as Page, label: "Support" },
     { page: "admin-audit" as Page, label: "Audit" },
     { page: "admin-settings" as Page, label: "Settings" },
   ],
