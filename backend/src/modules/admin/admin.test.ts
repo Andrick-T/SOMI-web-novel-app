@@ -881,3 +881,110 @@ describe("E14.5 writer withdrawal administration", () => {
     expect(nonAdmin.status).toBe(403);
   });
 });
+
+
+describe("E14.6 support and failure escalation", () => {
+  it("automatically creates a high-priority support ticket after the third withdrawal failure", async () => {
+    const suffix = `e146-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const writer = await prisma.user.create({
+      data: {
+        email: `e146-writer-${suffix}@example.test`,
+        username: `e146-writer-${suffix}`,
+        passwordHash: "placeholder-hash",
+        role: "WRITER",
+        status: "ACTIVE",
+        profile: { create: { displayName: "E14.6 Writer" } },
+      },
+    });
+
+    const withdrawal = await prisma.withdrawalRequest.create({
+      data: {
+        writerId: writer.id,
+        status: "PROCESSING",
+        coins: 21_000,
+        amountCfa: "5000",
+        currency: "USD",
+        exchangeRateCfa: "550",
+        amount: "9.09",
+        payoutMethod: "MTN_MOBILE_MONEY",
+        payoutAccount: "237670000000",
+      },
+    });
+
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      const failed = await failAdminWithdrawal({
+        withdrawalId: withdrawal.id,
+        actorId: adminUserId,
+        failureMessage: `failure ${attempt}`,
+      });
+
+      expect(failed.failureCount).toBe(attempt);
+
+      if (attempt < 3) {
+        await prisma.withdrawalRequest.update({
+          where: { id: withdrawal.id },
+          data: { status: "PROCESSING" },
+        });
+      }
+    }
+
+    const ticket = await prisma.supportTicket.findFirst({
+      where: { relatedWithdrawalId: withdrawal.id },
+      include: { messages: true },
+    });
+
+    expect(ticket).not.toBeNull();
+    expect(ticket?.category).toBe("WITHDRAWAL_FAILURE");
+    expect(ticket?.priority).toBe("HIGH");
+    expect(ticket?.status).toBe("OPEN");
+    expect(ticket?.messages).toHaveLength(1);
+
+    await prisma.supportTicket.deleteMany({ where: { relatedWithdrawalId: withdrawal.id } });
+    await prisma.withdrawalRequest.delete({ where: { id: withdrawal.id } });
+    await prisma.user.delete({ where: { id: writer.id } });
+  });
+
+  it("allows an admin to reply to and resolve a support ticket", async () => {
+    const suffix = `e146-support-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const writer = await prisma.user.create({
+      data: {
+        email: `e146-support-${suffix}@example.test`,
+        username: `e146-support-${suffix}`,
+        passwordHash: "placeholder-hash",
+        role: "WRITER",
+        status: "ACTIVE",
+      },
+    });
+
+    const ticket = await prisma.supportTicket.create({
+      data: {
+        userId: writer.id,
+        category: "WITHDRAWAL_FAILURE",
+        subject: "Payment issue",
+        priority: "HIGH",
+        messages: {
+          create: { senderId: writer.id, body: "I need help with my withdrawal." },
+        },
+      },
+    });
+
+    const reply = await replyToSupportTicket({
+      ticketId: ticket.id,
+      actorId: adminUserId,
+      body: "We are reviewing your withdrawal.",
+    });
+
+    expect(reply.body).toBe("We are reviewing your withdrawal.");
+
+    const resolved = await updateSupportTicket({
+      ticketId: ticket.id,
+      actorId: adminUserId,
+      status: "RESOLVED",
+    });
+
+    expect(resolved.status).toBe("RESOLVED");
+
+    await prisma.supportTicket.delete({ where: { id: ticket.id } });
+    await prisma.user.delete({ where: { id: writer.id } });
+  });
+});
