@@ -34,6 +34,8 @@ model User {
   writerSubmissions WriterSubmission[]
   writerEarnings    WriterEarning[]
   writerAssets      WriterAsset[]
+  supportTickets    SupportTicket[]
+  supportMessages   SupportMessage[] @relation("SupportMessageSender")
 }
 
 model AuthSession {
@@ -499,4 +501,40 @@ model AuditEvent {
   targetId   String?
   metadata   Json?
   createdAt  DateTime @default(now())
+}
+
+
+model SupportTicket {
+  id          String   @id @default(uuid())
+  userId      String
+  category    String
+  subject     String   @db.VarChar(255)
+  status      String   @default("OPEN")
+  priority    String   @default("NORMAL")
+  relatedWithdrawalId String?
+  relatedKycId String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages SupportMessage[]
+
+  @@index([userId, status, createdAt])
+  @@index([status, priority, createdAt])
+  @@index([relatedWithdrawalId])
+  @@index([relatedKycId])
+}
+
+model SupportMessage {
+  id        String   @id @default(uuid())
+  ticketId  String
+  senderId  String
+  body      String   @db.Text
+  createdAt DateTime @default(now())
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  sender User          @relation("SupportMessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId, createdAt])
+  @@index([senderId, createdAt])
 }
