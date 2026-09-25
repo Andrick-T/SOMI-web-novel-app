@@ -25,6 +25,8 @@ export type Page =
   | "admin-reports"
   | "admin-economy"
   | "admin-transactions"
+  | "admin-withdrawals"
+  | "admin-support"
   | "admin-audit"
   | "admin-settings";
 
