@@ -68,6 +68,8 @@ const AdminContentDetail = lazy(
 const AdminReports = lazy(() => import("./pages/admin/AdminReports"));
 const AdminEconomy = lazy(() => import("./pages/admin/AdminEconomy"));
 const AdminTransactions = lazy(() => import("./pages/admin/AdminTransactions"));
+const AdminWithdrawals = lazy(() => import("./pages/admin/AdminWithdrawals"));
+const AdminSupport = lazy(() => import("./pages/admin/AdminSupport"));
 const AdminAudit = lazy(() => import("./pages/admin/AdminAudit"));
 const AdminSettings = lazy(() => import("./pages/admin/AdminSettings"));
 const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
@@ -97,6 +99,8 @@ const ADMIN_PAGES: Page[] = [
   "admin-reports",
   "admin-economy",
   "admin-transactions",
+  "admin-withdrawals",
+  "admin-support",
   "admin-audit",
   "admin-settings",
 ];
@@ -919,6 +923,10 @@ function AppShell() {
                       />
 
                       <Route path="/admin/economy" element={<AdminEconomy />} />
+
+                      <Route path="/admin/economy/withdrawals" element={<AdminWithdrawals />} />
+
+                      <Route path="/admin/support" element={<AdminSupport />} />
 
                       <Route
                         path="/admin/economy/transactions"
