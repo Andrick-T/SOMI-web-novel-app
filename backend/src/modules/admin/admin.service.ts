@@ -1315,6 +1315,99 @@ export async function getAdminWithdrawalFailureSummary(writerId: string) {
   };
 }
 
+
+/* -------------------------------------------------------------------------- */
+/* Support tickets                                                            */
+/* -------------------------------------------------------------------------- */
+
+export async function getAdminSupportTickets(args: {
+  status?: string;
+  priority?: string;
+  page?: number;
+  limit?: number;
+}) {
+  const page = clampPage(args.page ?? 1);
+  const limit = clampLimit(args.limit ?? 20);
+  const where: Prisma.SupportTicketWhereInput = {
+    ...(args.status && args.status !== "ALL" ? { status: args.status } : {}),
+    ...(args.priority && args.priority !== "ALL" ? { priority: args.priority } : {}),
+  };
+
+  const [items, total] = await Promise.all([
+    prisma.supportTicket.findMany({
+      where,
+      orderBy: { updatedAt: "desc" },
+      skip: (page - 1) * limit,
+      take: limit,
+      include: {
+        user: { select: { id: true, email: true, username: true } },
+        messages: {
+          orderBy: { createdAt: "asc" },
+          select: { id: true, senderId: true, body: true, createdAt: true },
+        },
+      },
+    }),
+    prisma.supportTicket.count({ where }),
+  ]);
+
+  return {
+    items,
+    pagination: { page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) },
+  };
+}
+
+export async function replyToSupportTicket(args: {
+  ticketId: string;
+  actorId: string;
+  body: string;
+}) {
+  const body = args.body.trim();
+  if (!body) {
+    throw new AppError(400, "SUPPORT_MESSAGE_REQUIRED", "A support message is required.");
+  }
+
+  const ticket = await prisma.supportTicket.findUnique({ where: { id: args.ticketId } });
+  if (!ticket) throw new AppError(404, "SUPPORT_TICKET_NOT_FOUND", "Support ticket not found.");
+  if (ticket.status === "CLOSED") {
+    throw new AppError(409, "SUPPORT_TICKET_CLOSED", "Closed support tickets cannot receive replies.");
+  }
+
+  return prisma.supportMessage.create({
+    data: { ticketId: ticket.id, senderId: args.actorId, body },
+  });
+}
+
+export async function updateSupportTicket(args: {
+  ticketId: string;
+  actorId: string;
+  status?: string;
+  priority?: string;
+}) {
+  const allowedStatuses = ["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"];
+  const allowedPriorities = ["LOW", "NORMAL", "HIGH", "URGENT"];
+  if (args.status && !allowedStatuses.includes(args.status)) {
+    throw new AppError(400, "INVALID_SUPPORT_STATUS", "Invalid support ticket status.");
+  }
+  if (args.priority && !allowedPriorities.includes(args.priority)) {
+    throw new AppError(400, "INVALID_SUPPORT_PRIORITY", "Invalid support priority.");
+  }
+
+  const ticket = await prisma.supportTicket.update({
+    where: { id: args.ticketId },
+    data: {
+      ...(args.status ? { status: args.status } : {}),
+      ...(args.priority ? { priority: args.priority } : {}),
+    },
+  }).catch((error) => {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
+      throw new AppError(404, "SUPPORT_TICKET_NOT_FOUND", "Support ticket not found.");
+    }
+    throw error;
+  });
+
+  return ticket;
+}
+
 /* -------------------------------------------------------------------------- */
 /* Audit                                                                      */
 /* -------------------------------------------------------------------------- */
