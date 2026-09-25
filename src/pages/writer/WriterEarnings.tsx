@@ -5,6 +5,11 @@ import {
   Coins,
   RefreshCw,
   Wallet,
+  ArrowDownToLine,
+  CheckCircle2,
+  AlertCircle,
+  Settings2,
+  LifeBuoy,
 } from "lucide-react";
 import type { CommonProps } from "../../types";
 import { writerRepository } from "../../features/writer";
@@ -26,6 +31,34 @@ type EarningTransaction = {
   coins: number;
   status: string;
   createdAt: string;
+};
+
+
+
+type FinancialRules = {
+  currencies: Array<{ code: "XAF" | "USD" | "EUR" | "CAD"; exchangeRateCfa: number }>;
+  payoutMethods: Array<"ORANGE_MONEY" | "MTN_MOBILE_MONEY" | "PAYPAL">;
+  coinsPerCfa: number;
+  cfaPerCoin: number;
+  minimumWithdrawalCoins: number;
+  minimumWithdrawalCfa: number;
+};
+
+type Withdrawal = {
+  id: string;
+  status: "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED";
+  coins: number;
+  amountCfa: number;
+  currency: string;
+  exchangeRateCfa: number;
+  amount: number;
+  payoutMethod: string;
+  payoutAccount: string;
+  payoutAccountName: string | null;
+  failureCount: number;
+  failureMessage: string | null;
+  createdAt: string;
+  updatedAt: string;
 };
 
 const formatCoins = (value: number) =>
@@ -65,6 +98,13 @@ export default function WriterEarnings({}: CommonProps) {
   const [transactions, setTransactions] = useState<EarningTransaction[]>([]);
 
   const [books, setBooks] = useState<Array<{ id: string; title: string }>>([]);
+  const [financialRules, setFinancialRules] = useState<FinancialRules | null>(null);
+  const [withdrawalSummary, setWithdrawalSummary] = useState({ availableCoins: 0, minimumCoins: 21000, eligible: false });
+  const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
+  const [withdrawalCoins, setWithdrawalCoins] = useState(21000);
+  const [withdrawalMessage, setWithdrawalMessage] = useState("");
+  const [withdrawalLoading, setWithdrawalLoading] = useState(false);
+
 
   const [loading, setLoading] = useState(useApiWriterContent);
   const [loadError, setLoadError] = useState("");
@@ -90,8 +130,11 @@ export default function WriterEarnings({}: CommonProps) {
       apiWriterRepository.getEarnings(),
       apiWriterRepository.getEarningTransactions(),
       apiWriterRepository.getWriterBooks(),
+      apiWriterRepository.getFinancialRules(),
+      apiWriterRepository.getWithdrawalSummary(),
+      apiWriterRepository.getWithdrawals(),
     ])
-      .then(([earnings, transactionResult, writerBooks]) => {
+       .then(([earnings, transactionResult, writerBooks, rules, withdrawalResult, withdrawalList]) => {
         if (cancelled) return;
 
         setSummary(earnings);
@@ -103,6 +146,9 @@ export default function WriterEarnings({}: CommonProps) {
             title: book.title,
           })),
         );
+        setFinancialRules(rules);
+        setWithdrawalSummary(withdrawalResult);
+        setWithdrawals(withdrawalList.withdrawals);
       })
       .catch((caught) => {
         if (cancelled) return;
@@ -293,6 +339,108 @@ export default function WriterEarnings({}: CommonProps) {
               ))}
             </div>
           )}
+        </section>
+
+        {useApiWriterContent && (
+          <>
+            <section className="somi-writer-section">
+              <div className="somi-c5-insight">
+                <div>
+                  <p className="somi-writer-eyebrow">Payout</p>
+                  <h2 className="somi-c5-section-title">Turn available coins into a payout.</h2>
+                </div>
+                <p>
+                  Minimum withdrawal: {financialRules?.minimumWithdrawalCoins.toLocaleString() ?? "21,000"} coins
+                  {" "}({financialRules?.minimumWithdrawalCfa.toLocaleString() ?? "5,000"} XAF).
+                </p>
+              </div>
+
+              <div className="somi-writer-stats">
+                <div className="somi-writer-stat">
+                  <div className="somi-writer-stat-label"><Wallet size={16} />Available</div>
+                  <div className="somi-writer-stat-value">{formatCoins(withdrawalSummary.availableCoins)} <span className="text-xs">coins</span></div>
+                  <p className="somi-writer-stat-sub">{withdrawalSummary.eligible ? "Eligible for withdrawal" : "Not yet eligible"}</p>
+                </div>
+                <div className="somi-writer-stat">
+                  <div className="somi-writer-stat-label"><ArrowDownToLine size={16} />Minimum</div>
+                  <div className="somi-writer-stat-value">{formatCoins(withdrawalSummary.minimumCoins)}</div>
+                  <p className="somi-writer-stat-sub">coins required</p>
+                </div>
+              </div>
+
+              {withdrawalMessage && <div className="somi-writer-notice"><p className="somi-writer-notice-text">{withdrawalMessage}</p></div>}
+
+              <form
+                className="somi-writer-section"
+                onSubmit={async (event) => {
+                  event.preventDefault();
+                  setWithdrawalMessage("");
+                  setWithdrawalLoading(true);
+                  try {
+                    const result = await apiWriterRepository.requestWithdrawal(withdrawalCoins);
+                    setWithdrawals((current) => [result.withdrawal as Withdrawal, ...current]);
+                    const [nextSummary] = await Promise.all([
+                      apiWriterRepository.getWithdrawalSummary(),
+                      apiWriterRepository.getEarnings(),
+                    ]);
+                    setWithdrawalSummary(nextSummary);
+                    setWithdrawalMessage("Withdrawal request submitted successfully.");
+                  } catch (error) {
+                    setWithdrawalMessage(error instanceof Error ? error.message : "Unable to submit withdrawal.");
+                  } finally {
+                    setWithdrawalLoading(false);
+                  }
+                }}
+              >
+                <div className="flex flex-wrap items-end gap-3">
+                  <label className="min-w-[220px] flex-1 text-sm">
+                    <span className="mb-2 block text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">Coins to withdraw</span>
+                    <input
+                      type="number"
+                      min={withdrawalSummary.minimumCoins}
+                      max={withdrawalSummary.availableCoins}
+                      step={1}
+                      value={withdrawalCoins}
+                      onChange={(event) => setWithdrawalCoins(Number(event.target.value))}
+                      className="w-full rounded-lg border border-[var(--color-border-default)] bg-[var(--color-active-surface)] px-3 py-2.5 text-sm"
+                    />
+                  </label>
+                  <button
+                    type="submit"
+                    disabled={withdrawalLoading || !withdrawalSummary.eligible || withdrawalCoins < withdrawalSummary.minimumCoins || withdrawalCoins > withdrawalSummary.availableCoins}
+                    className="somi-writer-primary-action disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <ArrowDownToLine size={15} />
+                    {withdrawalLoading ? "Submitting..." : "Request payout"}
+                  </button>
+                </div>
+              </form>
+            </section>
+
+            <section className="somi-writer-section">
+              <div className="somi-c5-section-heading">
+                <div><p className="somi-writer-eyebrow">Payout history</p><h2 className="somi-c5-section-title">Recent withdrawals</h2></div>
+              </div>
+              {withdrawals.length === 0 ? (
+                <div className="somi-c5-empty">No withdrawal requests yet.</div>
+              ) : (
+                <div className="somi-c5-transactions">
+                  {withdrawals.map((withdrawal) => (
+                    <article key={withdrawal.id} className="somi-c5-transaction">
+                      <div className="somi-c5-transaction-main">
+                        <p className="somi-c5-transaction-title">{withdrawal.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {withdrawal.currency}</p>
+                        <p className="somi-c5-transaction-meta">{formatCoins(withdrawal.coins)} coins · {formatDate(withdrawal.createdAt)}</p>
+                        {withdrawal.status === "FAILED" && <p className="mt-1 text-xs">{withdrawal.failureMessage}</p>}
+                      </div>
+                      <span className="somi-c5-transaction-status">{statusLabel(withdrawal.status)}</span>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
+          </>
+        )}
+
         </section>
 
         <section className="somi-writer-section">
