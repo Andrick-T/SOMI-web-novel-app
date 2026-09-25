@@ -109,6 +109,15 @@ export default function WriterEarnings({}: CommonProps) {
   } | null>(null);
   const [kyc, setKyc] = useState<{ status: string; rejectionReason?: string | null; documents: Array<{ id: string; documentType: string; status: string; createdAt: string }> } | null>(null);
   const [profileSaving, setProfileSaving] = useState(false);
+  const [supportTickets, setSupportTickets] = useState<Array<{
+    id: string; category: string; subject: string; status: string; priority: string;
+    relatedWithdrawalId: string | null; createdAt: string; updatedAt: string;
+    messages: Array<{ id: string; senderId: string; body: string; createdAt: string }>;
+  }>>([]);
+  const [supportSubject, setSupportSubject] = useState("");
+  const [supportBody, setSupportBody] = useState("");
+  const [supportWithdrawalId, setSupportWithdrawalId] = useState("");
+  const [supportLoading, setSupportLoading] = useState(false);
   const [withdrawalCoins, setWithdrawalCoins] = useState(21000);
   const [withdrawalMessage, setWithdrawalMessage] = useState("");
   const [withdrawalLoading, setWithdrawalLoading] = useState(false);
@@ -143,8 +152,9 @@ export default function WriterEarnings({}: CommonProps) {
       apiWriterRepository.getWithdrawals(),
       apiWriterRepository.getWriterFinancialProfile(),
       apiWriterRepository.getKyc(),
+      apiWriterRepository.getSupportTickets(),
     ])
-       .then(([earnings, transactionResult, writerBooks, rules, withdrawalResult, withdrawalList, withdrawalProfile, kycResult]) => {
+       .then(([earnings, transactionResult, writerBooks, rules, withdrawalResult, withdrawalList, withdrawalProfile, kycResult, supportResult]) => {
         if (cancelled) return;
 
         setSummary(earnings);
@@ -161,6 +171,7 @@ export default function WriterEarnings({}: CommonProps) {
         setWithdrawals(withdrawalList.withdrawals);
         setFinancialProfile(withdrawalProfile);
         setKyc(kycResult.kyc);
+        setSupportTickets(supportResult.tickets ?? []);
       })
       .catch((caught) => {
         if (cancelled) return;
@@ -490,6 +501,19 @@ export default function WriterEarnings({}: CommonProps) {
               <div className="somi-c5-section-heading">
                 <div><p className="somi-writer-eyebrow">Payout history</p><h2 className="somi-c5-section-title">Recent withdrawals</h2></div>
               </div>
+              {withdrawals.some((withdrawal) => withdrawal.status === "FAILED") && (
+                <div className="mb-4 rounded-xl border border-[var(--color-border-default)] p-4">
+                  <div className="flex items-start gap-3">
+                    <AlertCircle size={18} />
+                    <div>
+                      <p className="text-sm font-semibold">A withdrawal needs attention</p>
+                      <p className="mt-1 text-xs text-[var(--color-text-muted)]">
+                        If a withdrawal failed, you can contact support and attach the affected request.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
               {withdrawals.length === 0 ? (
                 <div className="somi-c5-empty">No withdrawal requests yet.</div>
               ) : (
@@ -506,6 +530,81 @@ export default function WriterEarnings({}: CommonProps) {
                   ))}
                 </div>
               )}
+
+            <section className="somi-writer-section">
+              <div className="somi-c5-section-heading">
+                <div>
+                  <p className="somi-writer-eyebrow">Support</p>
+                  <h2 className="somi-c5-section-title">Payment support</h2>
+                </div>
+              </div>
+              <div className="grid gap-5 lg:grid-cols-[1fr_1.3fr]">
+                <form
+                  className="rounded-xl border border-[var(--color-border-default)] p-4"
+                  onSubmit={async (event) => {
+                    event.preventDefault();
+                    if (!supportSubject.trim() || !supportBody.trim()) return;
+                    setSupportLoading(true);
+                    setWithdrawalMessage("");
+                    try {
+                      const result = await apiWriterRepository.createSupportTicket({
+                        category: "WITHDRAWAL_FAILURE",
+                        subject: supportSubject,
+                        body: supportBody,
+                        withdrawalId: supportWithdrawalId || undefined,
+                      }) as { ticket: typeof supportTickets[number] };
+                      setSupportTickets((current) => [result.ticket, ...current]);
+                      setSupportSubject("");
+                      setSupportBody("");
+                      setSupportWithdrawalId("");
+                      setWithdrawalMessage("Support ticket created.");
+                    } catch (error) {
+                      setWithdrawalMessage(error instanceof Error ? error.message : "Unable to create support ticket.");
+                    } finally {
+                      setSupportLoading(false);
+                    }
+                  }}
+                >
+                  <p className="mb-4 text-sm font-semibold">Contact support</p>
+                  <div className="grid gap-3">
+                    <label className="text-sm"><span className="mb-1 block text-xs text-[var(--color-text-muted)]">Related withdrawal</span>
+                      <select value={supportWithdrawalId} onChange={(e) => setSupportWithdrawalId(e.target.value)} className="w-full rounded-lg border border-[var(--color-border-default)] bg-[var(--color-active-surface)] px-3 py-2.5">
+                        <option value="">No specific withdrawal</option>
+                        {withdrawals.map((withdrawal) => <option key={withdrawal.id} value={withdrawal.id}>{withdrawal.amount.toFixed(2)} {withdrawal.currency} — {statusLabel(withdrawal.status)}</option>)}
+                      </select>
+                    </label>
+                    <input required value={supportSubject} onChange={(e) => setSupportSubject(e.target.value)} placeholder="Subject" className="w-full rounded-lg border border-[var(--color-border-default)] bg-[var(--color-active-surface)] px-3 py-2.5 text-sm" />
+                    <textarea required value={supportBody} onChange={(e) => setSupportBody(e.target.value)} placeholder="Describe the issue..." rows={5} className="w-full resize-y rounded-lg border border-[var(--color-border-default)] bg-[var(--color-active-surface)] px-3 py-2.5 text-sm" />
+                  </div>
+                  <button type="submit" disabled={supportLoading} className="somi-writer-primary-action mt-4 disabled:opacity-50">
+                    <LifeBuoy size={15} />{supportLoading ? "Sending..." : "Contact support"}
+                  </button>
+                </form>
+                <div className="space-y-3">
+                  {supportTickets.length === 0 ? (
+                    <div className="somi-c5-empty">No support conversations yet.</div>
+                  ) : supportTickets.map((ticket) => (
+                    <article key={ticket.id} className="rounded-xl border border-[var(--color-border-default)] p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-semibold">{ticket.subject}</p>
+                          <p className="mt-1 text-xs text-[var(--color-text-muted)]">
+                            {ticket.priority} · {ticket.status}{ticket.relatedWithdrawalId ? " · linked to withdrawal" : ""}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-4 space-y-2">
+                        {ticket.messages.map((message) => (
+                          <div key={message.id} className="rounded-lg bg-[var(--color-active-surface)] p-3 text-sm">
+                            <p>{message.body}</p>
+                            <p className="mt-1 text-[10px] text-[var(--color-text-muted)]">{formatDate(message.createdAt)}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </div>
             </section>
           </>
         )}
