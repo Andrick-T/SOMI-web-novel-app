@@ -28,6 +28,22 @@ type ApiPlatformSettings = PlatformSettings & {
   updatedAt?: string;
 };
 
+
+export type AdminWithdrawal = {
+  id: string; writerId: string; status: "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED";
+  coins: number; amountCfa: number; currency: string; exchangeRateCfa: number; amount: number;
+  payoutMethod: string; payoutAccount: string; payoutAccountName: string | null;
+  failureCount: number; failureMessage: string | null; createdAt: string; updatedAt: string;
+  writer?: { id: string; email: string; username: string; profile?: { displayName: string | null } | null };
+};
+export type AdminSupportTicket = {
+  id: string; userId: string; category: string; subject: string;
+  status: "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED";
+  priority: "LOW" | "NORMAL" | "HIGH" | "URGENT"; relatedWithdrawalId: string | null;
+  createdAt: string; updatedAt: string; user: { id: string; email: string; username: string };
+  messages: Array<{ id: string; senderId: string; body: string; createdAt: string }>;
+};
+
 class ApiAdminRepository {
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
     return apiAuthRepository.authorizedRequest<T>(path, {
@@ -38,6 +54,34 @@ class ApiAdminRepository {
         ...init.headers,
       },
     });
+  }
+
+
+  async getWithdrawals(params?: { page?: number; limit?: number; status?: string; writerId?: string }) {
+    const q = new URLSearchParams();
+    if (params?.page) q.set("page", String(params.page)); if (params?.limit) q.set("limit", String(params.limit));
+    if (params?.status && params.status !== "ALL") q.set("status", params.status); if (params?.writerId) q.set("writerId", params.writerId);
+    const suffix = q.toString() ? "?" + q.toString() : "";
+    return this.request<{ items: AdminWithdrawal[]; pagination: { page: number; limit: number; total: number; totalPages: number } }>("/api/v1/admin/withdrawals" + suffix);
+  }
+  async getWithdrawal(id: string) { return (await this.request<{ withdrawal: AdminWithdrawal }>("/api/v1/admin/withdrawals/" + id)).withdrawal; }
+  async processWithdrawal(id: string) { return (await this.request<{ withdrawal: AdminWithdrawal }>("/api/v1/admin/withdrawals/" + id + "/process", { method: "POST" })).withdrawal; }
+  async completeWithdrawal(id: string) { return (await this.request<{ withdrawal: AdminWithdrawal }>("/api/v1/admin/withdrawals/" + id + "/complete", { method: "POST" })).withdrawal; }
+  async failWithdrawal(id: string, failureMessage: string) {
+    return this.request<{ withdrawal: AdminWithdrawal; supportRequired: boolean }>("/api/v1/admin/withdrawals/" + id + "/fail", { method: "POST", body: JSON.stringify({ failureMessage }) });
+  }
+  async getSupportTickets(params?: { page?: number; limit?: number; status?: string; priority?: string }) {
+    const q = new URLSearchParams();
+    if (params?.page) q.set("page", String(params.page)); if (params?.limit) q.set("limit", String(params.limit));
+    if (params?.status && params.status !== "ALL") q.set("status", params.status); if (params?.priority && params.priority !== "ALL") q.set("priority", params.priority);
+    const suffix = q.toString() ? "?" + q.toString() : "";
+    return this.request<{ items: AdminSupportTicket[]; pagination: { page: number; limit: number; total: number; totalPages: number } }>("/api/v1/admin/support/tickets" + suffix);
+  }
+  async replySupportTicket(id: string, body: string) {
+    return (await this.request<{ message: AdminSupportTicket["messages"][number] }>("/api/v1/admin/support/tickets/" + id + "/messages", { method: "POST", body: JSON.stringify({ body }) })).message;
+  }
+  async updateSupportTicket(id: string, update: { status?: AdminSupportTicket["status"]; priority?: AdminSupportTicket["priority"] }) {
+    return (await this.request<{ ticket: AdminSupportTicket }>("/api/v1/admin/support/tickets/" + id, { method: "PATCH", body: JSON.stringify(update) })).ticket;
   }
 
   async getAuditEvents(params?: {
