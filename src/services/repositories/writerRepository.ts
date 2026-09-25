@@ -386,6 +386,122 @@ class ApiWriterRepository {
     return this.request("/api/v1/writer/submissions");
   }
 
+  async getFinancialRules() {
+    return this.request<{
+      currencies: Array<{ code: "XAF" | "USD" | "EUR" | "CAD"; exchangeRateCfa: number }>;
+      payoutMethods: Array<"ORANGE_MONEY" | "MTN_MOBILE_MONEY" | "PAYPAL">;
+      coinsPerCfa: number;
+      cfaPerCoin: number;
+      minimumWithdrawalCoins: number;
+      minimumWithdrawalCfa: number;
+    }>("/api/v1/writer/financial/rules");
+  }
+
+  async getWriterFinancialProfile() {
+    const result = await this.request<{ profile: {
+      preferredCurrency: "XAF" | "USD" | "EUR" | "CAD";
+      payoutMethod: "ORANGE_MONEY" | "MTN_MOBILE_MONEY" | "PAYPAL" | null;
+      payoutAccount: string | null;
+      payoutAccountName: string | null;
+    } | null }>("/api/v1/writer/profile");
+    return result.profile;
+  }
+
+  async saveWriterFinancialProfile(input: {
+    preferredCurrency: "XAF" | "USD" | "EUR" | "CAD";
+    payoutMethod: "ORANGE_MONEY" | "MTN_MOBILE_MONEY" | "PAYPAL" | null;
+    payoutAccount: string | null;
+    payoutAccountName: string | null;
+  }) {
+    const result = await this.request<{ profile: Record<string, unknown> }>("/api/v1/writer/profile", {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    });
+    return result.profile;
+  }
+
+  async getKyc() {
+    return this.request<{ kyc: {
+      id?: string;
+      status: "NOT_STARTED" | "PENDING" | "APPROVED" | "REJECTED";
+      rejectionReason?: string | null;
+      documents: Array<{ id: string; documentType: string; status: string; createdAt: string }>;
+    } }>("/api/v1/writer/kyc");
+  }
+
+  async getWithdrawalSummary() {
+    return this.request<{ availableCoins: number; minimumCoins: number; eligible: boolean }>(
+      "/api/v1/writer/withdrawals/summary",
+    );
+  }
+
+  async getWithdrawals() {
+    return this.request<{ withdrawals: Array<{
+      id: string;
+      status: "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED";
+      coins: number;
+      amountCfa: number;
+      currency: string;
+      exchangeRateCfa: number;
+      amount: number;
+      payoutMethod: string;
+      payoutAccount: string;
+      payoutAccountName: string | null;
+      failureCount: number;
+      failureMessage: string | null;
+      createdAt: string;
+      updatedAt: string;
+    }> }>("/api/v1/writer/withdrawals");
+  }
+
+  async requestWithdrawal(coins: number) {
+    return this.request<{ withdrawal: {
+      id: string;
+      status: string;
+      coins: number;
+      amountCfa: number;
+      currency: string;
+      exchangeRateCfa: number;
+      amount: number;
+      payoutMethod: string;
+      payoutAccount: string;
+      payoutAccountName: string | null;
+      failureCount: number;
+      failureMessage: string | null;
+      createdAt: string;
+      updatedAt: string;
+    } }>("/api/v1/writer/withdrawals", {
+      method: "POST",
+      body: JSON.stringify({ coins }),
+    });
+  }
+
+  async getSupportTickets() {
+    return this.request<{ tickets: Array<{
+      id: string;
+      category: string;
+      subject: string;
+      status: string;
+      priority: string;
+      relatedWithdrawalId: string | null;
+      createdAt: string;
+      updatedAt: string;
+      messages: Array<{ id: string; senderId: string; body: string; createdAt: string }>;
+    }> }>("/api/v1/writer/support/tickets");
+  }
+
+  async createSupportTicket(input: {
+    category: string;
+    subject: string;
+    body: string;
+    withdrawalId?: string;
+  }) {
+    return this.request("/api/v1/writer/support/tickets", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  }
+
   async getEarnings() {
     return this.request<{
       totalCoins: number;
