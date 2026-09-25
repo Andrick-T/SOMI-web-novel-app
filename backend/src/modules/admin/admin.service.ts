@@ -1282,7 +1282,7 @@ export async function failAdminWithdrawal(args: {
 
     const nextFailureCount = current.failureCount + 1;
 
-    return tx.withdrawalRequest.update({
+    const updated = await tx.withdrawalRequest.update({
       where: { id: current.id },
       data: {
         status: "FAILED",
@@ -1293,6 +1293,36 @@ export async function failAdminWithdrawal(args: {
         processedAt: new Date(),
       },
     });
+
+    if (nextFailureCount >= 3) {
+      const existingTicket = await tx.supportTicket.findFirst({
+        where: {
+          userId: current.writerId,
+          relatedWithdrawalId: current.id,
+          status: { in: ["OPEN", "IN_PROGRESS"] },
+        },
+      });
+
+      if (!existingTicket) {
+        await tx.supportTicket.create({
+          data: {
+            userId: current.writerId,
+            category: "WITHDRAWAL_FAILURE",
+            subject: "Assistance required after repeated withdrawal failures",
+            priority: "HIGH",
+            relatedWithdrawalId: current.id,
+            messages: {
+              create: {
+                senderId: args.actorId,
+                body: `Withdrawal has failed ${nextFailureCount} times. Latest failure: ${reason}`,
+              },
+            },
+          },
+        });
+      }
+    }
+
+    return updated;
   });
 
   return mapAdminWithdrawal(updated);
