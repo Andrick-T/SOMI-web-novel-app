@@ -26,6 +26,9 @@ import {
   processAdminWithdrawal,
   completeAdminWithdrawal,
   failAdminWithdrawal,
+  getAdminSupportTickets,
+  replyToSupportTicket,
+  updateSupportTicket,
 } from "./admin.service.js";
 
 const asyncRoute =
@@ -276,6 +279,77 @@ adminRouter.get(
   }),
 );
 
+
+/* -------------------------------------------------------------------------- */
+/* Support tickets                                                            */
+/* -------------------------------------------------------------------------- */
+
+adminRouter.get(
+  "/support/tickets",
+  validate(
+    z.object({
+      page: z.coerce.number().int().min(1).default(1),
+      limit: z.coerce.number().int().min(1).max(100).default(20),
+      status: z.string().optional(),
+      priority: z.string().optional(),
+    }),
+    "query",
+  ),
+  asyncRoute(async (req, res) => {
+    res.json(await getAdminSupportTickets({
+      page: req.query.page as number,
+      limit: req.query.limit as number,
+      status: req.query.status as string | undefined,
+      priority: req.query.priority as string | undefined,
+    }));
+  }),
+);
+
+adminRouter.post(
+  "/support/tickets/:ticketId/messages",
+  validate(z.object({ body: z.string().trim().min(1).max(5000) })),
+  asyncRoute(async (req: AuthRequest, res) => {
+    const message = await replyToSupportTicket({
+      ticketId: String(req.params.ticketId),
+      actorId: req.user!.id,
+      body: req.body.body,
+    });
+    await recordAdminAuditEvent({
+      actorId: req.user!.id,
+      actorName: req.user!.email,
+      action: "SUPPORT_TICKET_REPLIED",
+      targetType: "SUPPORT_TICKET",
+      targetId: String(req.params.ticketId),
+      metadata: {},
+    });
+    res.status(201).json({ message });
+  }),
+);
+
+adminRouter.patch(
+  "/support/tickets/:ticketId",
+  validate(z.object({
+    status: z.enum(["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"]).optional(),
+    priority: z.enum(["LOW", "NORMAL", "HIGH", "URGENT"]).optional(),
+  })),
+  asyncRoute(async (req: AuthRequest, res) => {
+    const ticket = await updateSupportTicket({
+      ticketId: String(req.params.ticketId),
+      actorId: req.user!.id,
+      status: req.body.status,
+      priority: req.body.priority,
+    });
+    await recordAdminAuditEvent({
+      actorId: req.user!.id,
+      actorName: req.user!.email,
+      action: "SUPPORT_TICKET_UPDATED",
+      targetType: "SUPPORT_TICKET",
+      targetId: ticket.id,
+      metadata: { status: ticket.status, priority: ticket.priority },
+    });
+    res.json({ ticket });
+  }),
+);
 
 /* -------------------------------------------------------------------------- */
 /* Writer withdrawals                                                        */
