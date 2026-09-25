@@ -1763,6 +1763,24 @@ export async function reviewAdminWriterKyc(args: {
     );
   }
 
+  if (args.approved) {
+    const requiredIdentityTypes = ["NATIONAL_ID", "PASSPORT", "DRIVER_LICENSE"];
+    const hasValidIdentityDocument = kyc.documents.some(
+      (document) =>
+        requiredIdentityTypes.includes(document.documentType) &&
+        document.sizeBytes > 0 &&
+        document.storageKey.trim().length > 0,
+    );
+
+    if (!hasValidIdentityDocument) {
+      throw new AppError(
+        422,
+        "KYC_DOCUMENTS_INCOMPLETE",
+        "At least one valid identity document is required before KYC approval.",
+      );
+    }
+  }
+
   const status = args.approved ? "APPROVED" : "REJECTED";
 
   return prisma.$transaction(async (tx) => {
