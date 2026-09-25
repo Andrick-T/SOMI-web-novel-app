@@ -61,6 +61,16 @@ const links: {
     icon: FileText,
   },
   {
+    page: "admin-withdrawals",
+    label: "Withdrawals",
+    icon: Coins,
+  },
+  {
+    page: "admin-support",
+    label: "Payment Support",
+    icon: BadgeAlert,
+  },
+  {
     page: "admin-audit",
     label: "Audit Log",
     icon: FileText,
