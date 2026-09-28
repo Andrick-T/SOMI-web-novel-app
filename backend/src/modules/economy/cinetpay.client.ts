@@ -340,105 +340,169 @@ export async function createCinetPayPayment(
 
 /**
  * ============================================================
- * Compatibility bridge — temporary
+ * E14.9.7 — CinetPay server-side payment verification
  * ============================================================
  *
- * Cette fonction est conservée temporairement parce que la route
- * /payments/cinetpay/notify actuelle utilise encore l'ancien
- * mécanisme de vérification CinetPay v2.
- *
- * Elle sera supprimée lors de E14.9.6 / E14.9.7, lorsque la
- * notification passera définitivement par :
+ * CinetPay v1 verification flow:
  *
  *   OAuth
  *      ↓
  *   GET /v1/payment/{merchant_transaction_id}
  *
- * Ne pas utiliser cette fonction pour le nouveau flux
- * d'initialisation E14.9.3.
+ * The response is provider data only.
+ *
+ * IMPORTANT:
+ * This function does NOT settle the SOMI payment.
+ * Settlement remains the responsibility of the payment service
+ * after the provider response has been validated.
  */
 
-type LegacyCinetPayVerificationResponse = {
-  code?: number;
+type CinetPayPaymentStatusResponse = {
+  code: number;
+  status?: string;
   message?: string;
-  data?: {
-    amount?: number | string;
-    currency?: string;
-    status?: string;
-    metadata?: string;
-    description?: string;
-    payment_method?: string | null;
-  };
+  merchant_transaction_id?: string;
+  transaction_id?: string;
+  user?: {
+    name?: string | null;
+    email?: string | null;
+    phone_number?: string | null;
+  } | null;
+  payment_method?: string | null;
 };
 
-export async function verifyCinetPayTransaction(
-  transactionId: string,
+export type CinetPayPaymentVerification = {
+  code: number;
+  status: string;
+  merchantTransactionId: string;
+  providerReference: string;
+  paymentMethod: string | null;
+};
+
+export async function verifyCinetPayPayment(
+  merchantTransactionId: string,
   config: {
     apiKey: string;
-    siteId: string;
+    apiPassword: string;
+    apiBaseUrl: string;
   },
-): Promise<LegacyCinetPayVerificationResponse> {
-  if (!transactionId.trim()) {
+): Promise<CinetPayPaymentVerification> {
+  const reference = merchantTransactionId.trim();
+
+  if (!reference) {
     throw new AppError(
       422,
       "INVALID_PAYMENT_REFERENCE",
-      "The CinetPay transaction reference is required.",
+      "The CinetPay merchant transaction reference is required.",
     );
   }
 
-  if (!config.apiKey.trim() || !config.siteId.trim()) {
+  if (reference.length > 30) {
     throw new AppError(
-      503,
-      "PAYMENT_PROVIDER_NOT_CONFIGURED",
-      "CinetPay verification credentials are not configured.",
+      422,
+      "INVALID_PAYMENT_REFERENCE",
+      "The CinetPay merchant transaction reference is too long.",
     );
   }
 
-  const verificationUrl = "https://api-checkout.cinetpay.com/v2/payment/check";
+  const token = await getCinetPayAccessToken({
+    apiKey: config.apiKey,
+    apiPassword: config.apiPassword,
+    apiBaseUrl: config.apiBaseUrl,
+  });
+
+  const baseUrl = config.apiBaseUrl.replace(/\/+$/, "");
+
+  const verificationUrl = `${baseUrl}/v1/payment/${encodeURIComponent(
+    reference,
+  )}`;
 
   let response: Response;
 
   try {
     response = await fetch(verificationUrl, {
-      method: "POST",
+      method: "GET",
       headers: {
-        "Content-Type": "application/json",
         Accept: "application/json",
+        Authorization: `${token.tokenType} ${token.accessToken}`,
         "User-Agent": "SOMI-Payment-Service/1.0",
       },
-      body: JSON.stringify({
-        apikey: config.apiKey,
-        site_id: config.siteId,
-        transaction_id: transactionId,
-      }),
     });
   } catch {
     throw new AppError(
       502,
       "PAYMENT_PROVIDER_UNAVAILABLE",
-      "Unable to connect to the CinetPay verification service.",
+      "Unable to connect to the CinetPay payment verification service.",
     );
   }
 
-  let body: LegacyCinetPayVerificationResponse;
+  let body: CinetPayPaymentStatusResponse;
 
   try {
-    body = (await response.json()) as LegacyCinetPayVerificationResponse;
+    body = (await response.json()) as CinetPayPaymentStatusResponse;
   } catch {
     throw new AppError(
       502,
       "PAYMENT_PROVIDER_INVALID_RESPONSE",
-      "CinetPay returned an invalid verification response.",
+      "CinetPay returned an invalid payment verification response.",
     );
   }
 
   if (!response.ok) {
+    if (response.status === 401 || response.status === 403) {
+      clearCinetPayAccessToken();
+    }
+
     throw new AppError(
       502,
       "PAYMENT_PROVIDER_ERROR",
-      body.message ?? "CinetPay transaction verification failed.",
+      body.message ?? "CinetPay payment verification failed.",
     );
   }
 
-  return body;
+  const returnedReference = body.merchant_transaction_id?.trim();
+
+  if (!returnedReference) {
+    throw new AppError(
+      502,
+      "PAYMENT_PROVIDER_INVALID_RESPONSE",
+      "CinetPay did not return a merchant transaction reference.",
+    );
+  }
+
+  if (returnedReference !== reference) {
+    throw new AppError(
+      409,
+      "PAYMENT_PROVIDER_REFERENCE_MISMATCH",
+      "CinetPay returned a different merchant transaction reference.",
+    );
+  }
+
+  const providerReference = body.transaction_id?.trim();
+
+  if (!providerReference) {
+    throw new AppError(
+      502,
+      "PAYMENT_PROVIDER_INVALID_RESPONSE",
+      "CinetPay did not return a provider transaction reference.",
+    );
+  }
+
+  const status = body.status?.trim().toUpperCase();
+
+  if (!status) {
+    throw new AppError(
+      502,
+      "PAYMENT_PROVIDER_INVALID_RESPONSE",
+      "CinetPay did not return a payment status.",
+    );
+  }
+
+  return {
+    code: body.code,
+    status,
+    merchantTransactionId: returnedReference,
+    providerReference,
+    paymentMethod: body.payment_method?.trim() || null,
+  };
 }

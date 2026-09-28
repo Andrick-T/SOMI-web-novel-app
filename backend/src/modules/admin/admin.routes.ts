@@ -324,6 +324,7 @@ adminRouter.post(
       actorId: req.user!.id,
       body: req.body.body,
     });
+
     await recordAdminAuditEvent({
       actorId: req.user!.id,
       actorName: req.user!.email,
@@ -332,6 +333,7 @@ adminRouter.post(
       targetId: String(req.params.ticketId),
       metadata: {},
     });
+
     res.status(201).json({ message });
   }),
 );
@@ -351,6 +353,7 @@ adminRouter.patch(
       status: req.body.status,
       priority: req.body.priority,
     });
+
     await recordAdminAuditEvent({
       actorId: req.user!.id,
       actorName: req.user!.email,
@@ -359,6 +362,7 @@ adminRouter.patch(
       targetId: ticket.id,
       metadata: { status: ticket.status, priority: ticket.priority },
     });
+
     res.json({ ticket });
   }),
 );
@@ -385,9 +389,12 @@ adminRouter.get(
     const result = await getAdminWithdrawals({
       page,
       limit,
-      status: typeof req.query.status === "string" ? req.query.status : undefined,
-      writerId: typeof req.query.writerId === "string" ? req.query.writerId : undefined,
+      status:
+        typeof req.query.status === "string" ? req.query.status : undefined,
+      writerId:
+        typeof req.query.writerId === "string" ? req.query.writerId : undefined,
     });
+
     res.json(result);
   }),
 );
@@ -447,14 +454,14 @@ adminRouter.post(
   "/withdrawals/:withdrawalId/fail",
   validate(
     z.object({
-      failureMessage: z.string().trim().min(1).max(2000),
+      failureMessage: z.string().trim().max(2000).optional(),
     }),
   ),
   asyncRoute(async (req: AuthRequest, res) => {
     const withdrawal = await failAdminWithdrawal({
       withdrawalId: String(req.params.withdrawalId),
       actorId: req.user!.id,
-      failureMessage: req.body.failureMessage,
+      failureMessage: req.body.failureMessage ?? "",
     });
 
     await recordAdminAuditEvent({
@@ -557,6 +564,7 @@ adminRouter.get(
 /* -------------------------------------------------------------------------- */
 /* Platform settings                                                          */
 /* -------------------------------------------------------------------------- */
+
 adminRouter.get(
   "/settings",
   asyncRoute(async (_req, res) => {

@@ -1084,7 +1084,6 @@ export async function getAdminBookDetail(bookId: string): Promise<unknown> {
   });
 }
 
-
 /* -------------------------------------------------------------------------- */
 /* Writer withdrawals                                                        */
 /* -------------------------------------------------------------------------- */
@@ -1171,7 +1170,11 @@ export async function getAdminWithdrawal(withdrawalId: string) {
   });
 
   if (!withdrawal) {
-    throw new AppError(404, "WITHDRAWAL_NOT_FOUND", "Withdrawal request not found.");
+    throw new AppError(
+      404,
+      "WITHDRAWAL_NOT_FOUND",
+      "Withdrawal request not found.",
+    );
   }
 
   return mapAdminWithdrawal(withdrawal);
@@ -1187,14 +1190,18 @@ export async function processAdminWithdrawal(args: {
     });
 
     if (!current) {
-      throw new AppError(404, "WITHDRAWAL_NOT_FOUND", "Withdrawal request not found.");
+      throw new AppError(
+        404,
+        "WITHDRAWAL_NOT_FOUND",
+        "Withdrawal request not found.",
+      );
     }
 
-    if (current.status !== "PENDING") {
+    if (current.status !== "PENDING" && current.status !== "FAILED") {
       throw new AppError(
         409,
         "WITHDRAWAL_INVALID_STATE",
-        "Only pending withdrawals can move to processing.",
+        "Only pending or failed withdrawals can move to processing.",
       );
     }
 
@@ -1204,6 +1211,7 @@ export async function processAdminWithdrawal(args: {
         status: "PROCESSING",
         reviewedBy: args.actorId,
         reviewedAt: new Date(),
+        processedAt: null,
         failureMessage: null,
       },
     });
@@ -1222,7 +1230,11 @@ export async function completeAdminWithdrawal(args: {
     });
 
     if (!current) {
-      throw new AppError(404, "WITHDRAWAL_NOT_FOUND", "Withdrawal request not found.");
+      throw new AppError(
+        404,
+        "WITHDRAWAL_NOT_FOUND",
+        "Withdrawal request not found.",
+      );
     }
 
     if (current.status !== "PROCESSING") {
@@ -1269,7 +1281,11 @@ export async function failAdminWithdrawal(args: {
     });
 
     if (!current) {
-      throw new AppError(404, "WITHDRAWAL_NOT_FOUND", "Withdrawal request not found.");
+      throw new AppError(
+        404,
+        "WITHDRAWAL_NOT_FOUND",
+        "Withdrawal request not found.",
+      );
     }
 
     if (current.status !== "PROCESSING") {
@@ -1345,7 +1361,6 @@ export async function getAdminWithdrawalFailureSummary(writerId: string) {
   };
 }
 
-
 /* -------------------------------------------------------------------------- */
 /* Support tickets                                                            */
 /* -------------------------------------------------------------------------- */
@@ -1360,7 +1375,9 @@ export async function getAdminSupportTickets(args: {
   const limit = clampLimit(args.limit ?? 20);
   const where: Prisma.SupportTicketWhereInput = {
     ...(args.status && args.status !== "ALL" ? { status: args.status } : {}),
-    ...(args.priority && args.priority !== "ALL" ? { priority: args.priority } : {}),
+    ...(args.priority && args.priority !== "ALL"
+      ? { priority: args.priority }
+      : {}),
   };
 
   const [items, total] = await Promise.all([
@@ -1382,7 +1399,12 @@ export async function getAdminSupportTickets(args: {
 
   return {
     items,
-    pagination: { page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) },
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / limit)),
+    },
   };
 }
 
@@ -1393,13 +1415,28 @@ export async function replyToSupportTicket(args: {
 }) {
   const body = args.body.trim();
   if (!body) {
-    throw new AppError(400, "SUPPORT_MESSAGE_REQUIRED", "A support message is required.");
+    throw new AppError(
+      400,
+      "SUPPORT_MESSAGE_REQUIRED",
+      "A support message is required.",
+    );
   }
 
-  const ticket = await prisma.supportTicket.findUnique({ where: { id: args.ticketId } });
-  if (!ticket) throw new AppError(404, "SUPPORT_TICKET_NOT_FOUND", "Support ticket not found.");
+  const ticket = await prisma.supportTicket.findUnique({
+    where: { id: args.ticketId },
+  });
+  if (!ticket)
+    throw new AppError(
+      404,
+      "SUPPORT_TICKET_NOT_FOUND",
+      "Support ticket not found.",
+    );
   if (ticket.status === "CLOSED") {
-    throw new AppError(409, "SUPPORT_TICKET_CLOSED", "Closed support tickets cannot receive replies.");
+    throw new AppError(
+      409,
+      "SUPPORT_TICKET_CLOSED",
+      "Closed support tickets cannot receive replies.",
+    );
   }
 
   return prisma.supportMessage.create({
@@ -1416,24 +1453,41 @@ export async function updateSupportTicket(args: {
   const allowedStatuses = ["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"];
   const allowedPriorities = ["LOW", "NORMAL", "HIGH", "URGENT"];
   if (args.status && !allowedStatuses.includes(args.status)) {
-    throw new AppError(400, "INVALID_SUPPORT_STATUS", "Invalid support ticket status.");
+    throw new AppError(
+      400,
+      "INVALID_SUPPORT_STATUS",
+      "Invalid support ticket status.",
+    );
   }
   if (args.priority && !allowedPriorities.includes(args.priority)) {
-    throw new AppError(400, "INVALID_SUPPORT_PRIORITY", "Invalid support priority.");
+    throw new AppError(
+      400,
+      "INVALID_SUPPORT_PRIORITY",
+      "Invalid support priority.",
+    );
   }
 
-  const ticket = await prisma.supportTicket.update({
-    where: { id: args.ticketId },
-    data: {
-      ...(args.status ? { status: args.status } : {}),
-      ...(args.priority ? { priority: args.priority } : {}),
-    },
-  }).catch((error) => {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
-      throw new AppError(404, "SUPPORT_TICKET_NOT_FOUND", "Support ticket not found.");
-    }
-    throw error;
-  });
+  const ticket = await prisma.supportTicket
+    .update({
+      where: { id: args.ticketId },
+      data: {
+        ...(args.status ? { status: args.status } : {}),
+        ...(args.priority ? { priority: args.priority } : {}),
+      },
+    })
+    .catch((error) => {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2025"
+      ) {
+        throw new AppError(
+          404,
+          "SUPPORT_TICKET_NOT_FOUND",
+          "Support ticket not found.",
+        );
+      }
+      throw error;
+    });
 
   return ticket;
 }
@@ -1713,13 +1767,18 @@ export async function updateAdminPlatformSettings(args: {
   return mapPlatformSettings(updated);
 }
 
-
 export async function getAdminWriterKyc(writerId: string) {
   return prisma.writerKyc.findUnique({
     where: { writerId },
     include: {
       writer: {
-        select: { id: true, email: true, username: true, role: true, status: true },
+        select: {
+          id: true,
+          email: true,
+          username: true,
+          role: true,
+          status: true,
+        },
       },
       documents: {
         select: {
@@ -1752,7 +1811,11 @@ export async function reviewAdminWriterKyc(args: {
   }
 
   if (kyc.status !== "PENDING") {
-    throw new AppError(409, "KYC_INVALID_STATE", "Only pending KYC can be reviewed.");
+    throw new AppError(
+      409,
+      "KYC_INVALID_STATE",
+      "Only pending KYC can be reviewed.",
+    );
   }
 
   if (!args.approved && !args.rejectionReason?.trim()) {
