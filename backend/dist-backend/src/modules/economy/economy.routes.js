@@ -3,50 +3,74 @@ import { validate } from "../../common/middleware/validate.js";
 import { AppError } from "../../common/errors/http-error.js";
 import { requireAuth } from "../auth/auth.middleware.js";
 import { paginationSchema, purchaseSchema } from "./economy.schemas.js";
-import { getChapterEntitlement, getTransactions, getWallet, getPaymentByReference, unlockChapter, createPaymentIntent, markPaymentFailed, handleVerifiedCinetPayEvent, } from "./economy.service.js";
-import { createCinetPayCheckout, verifyCinetPayTransaction, } from "./cinetpay.client.js";
+import { getChapterEntitlement, getTransactions, getWallet, getPaymentByReference, unlockChapter, createPaymentIntent, markPaymentFailed, persistCinetPayInitialization, } from "./economy.service.js";
+import { createCinetPayPayment, } from "./cinetpay.client.js";
 const asyncRoute = (handler) => (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
 export const economyRouter = Router();
 // CinetPay calls this endpoint directly; it must remain outside requireAuth.
+// CinetPay calls this endpoint directly; it must remain outside requireAuth.
 economyRouter.post("/payments/cinetpay/notify", asyncRoute(async (req, res) => {
-    const { env } = await import("../../config/env.js");
-    if (!env.CINETPAY_API_KEY || !env.CINETPAY_SITE_ID) {
-        throw new AppError(503, "PAYMENT_PROVIDER_NOT_CONFIGURED", "Payment provider is not configured.");
-    }
     const body = req.body;
-    const transactionId = String(body.cpm_trans_id ?? body.transaction_id ?? "").trim();
-    if (!transactionId) {
-        throw new AppError(400, "INVALID_PAYMENT_NOTIFICATION", "Missing CinetPay transaction reference.");
+    /*
+     * CinetPay notifications are not trusted financial events.
+     *
+     * The notification only tells SOMI that something happened.
+     * The server-side verification step is responsible for confirming
+     * the real payment status, amount, currency and provider reference.
+     */
+    const merchantTransactionId = String(body.merchant_transaction_id ??
+        body.merchantTransactionId ??
+        body.cpm_trans_id ??
+        "").trim();
+    if (!merchantTransactionId) {
+        throw new AppError(400, "INVALID_PAYMENT_NOTIFICATION", "Missing CinetPay merchant transaction reference.");
     }
-    const verified = await verifyCinetPayTransaction(transactionId, {
-        apiKey: env.CINETPAY_API_KEY,
-        siteId: env.CINETPAY_SITE_ID,
+    /*
+     * The merchant transaction ID is the SOMI payment reference
+     * created during createPaymentIntent().
+     */
+    const payment = await getPaymentByReference("", merchantTransactionId).catch(() => null);
+    /*
+     * We deliberately do not trust the notification payload for:
+     *
+     * - amount
+     * - currency
+     * - status
+     * - payment method
+     * - provider transaction ID
+     *
+     * Those values must come from CinetPay's server-side verification.
+     *
+     * E14.9.7 will connect this notification to:
+     *
+     *   OAuth
+     *      ↓
+     *   GET /v1/payment/{merchant_transaction_id}
+     *      ↓
+     *   provider response validation
+     *      ↓
+     *   handleVerifiedCinetPayEvent()
+     */
+    if (!payment) {
+        /*
+         * Return 200 for an unknown notification so CinetPay does not
+         * repeatedly retry a notification for a payment that SOMI
+         * does not recognize.
+         *
+         * No financial operation is performed.
+         */
+        res.status(200).json({
+            received: true,
+            processed: false,
+        });
+        return;
+    }
+    res.status(200).json({
+        received: true,
+        processed: false,
+        paymentId: payment.id,
+        status: payment.status,
     });
-    const data = verified.data;
-    if (!data?.amount || !data.currency || !data.status) {
-        throw new AppError(502, "INVALID_PROVIDER_RESPONSE", "CinetPay verification response is incomplete.");
-    }
-    const amount = Number(data.amount);
-    if (!Number.isFinite(amount)) {
-        throw new AppError(502, "INVALID_PROVIDER_AMOUNT", "CinetPay returned an invalid amount.");
-    }
-    const status = String(data.status).toUpperCase();
-    const normalizedStatus = status === "ACCEPTED"
-        ? "ACCEPTED"
-        : status === "REFUSED"
-            ? "REFUSED"
-            : "PENDING";
-    const somiReference = String(data.metadata ?? data.description ?? transactionId).trim();
-    const result = await handleVerifiedCinetPayEvent({
-        somiReference,
-        providerReference: transactionId,
-        status: normalizedStatus,
-        amount,
-        currency: String(data.currency).toUpperCase(),
-        paymentMethod: data.payment_method ?? null,
-        verifiedAt: new Date(),
-    });
-    res.status(200).json({ received: true, ...result });
 }));
 economyRouter.use(requireAuth);
 economyRouter.get("/payments/reference/:somiReference", asyncRoute(async (req, res) => {
@@ -63,16 +87,24 @@ economyRouter.get("/wallet/transactions", validate(paginationSchema, "query"), a
 }));
 economyRouter.post("/wallet/purchase", validate(purchaseSchema), asyncRoute(async (req, res) => {
     const { packageId } = req.body;
+    /*
+     * SOMI creates the payment intent first.
+     *
+     * The payment remains PENDING.
+     * No wallet credit occurs here.
+     */
     const payment = await createPaymentIntent(req.user.id, packageId);
     const { env } = await import("../../config/env.js");
     if (!env.CINETPAY_API_KEY ||
-        !env.CINETPAY_SITE_ID ||
+        !env.CINETPAY_API_PASSWORD ||
+        !env.CINETPAY_API_BASE_URL ||
         !env.CINETPAY_NOTIFY_URL ||
-        !env.CINETPAY_RETURN_URL) {
+        !env.CINETPAY_RETURN_URL ||
+        !env.CINETPAY_FAILED_URL) {
         throw new AppError(503, "PAYMENT_PROVIDER_NOT_CONFIGURED", "Payment provider is not configured.");
     }
     try {
-        const checkout = await createCinetPayCheckout({
+        const checkout = await createCinetPayPayment({
             somiReference: payment.somiReference,
             amount: payment.amount,
             currency: payment.currency,
@@ -80,23 +112,47 @@ economyRouter.post("/wallet/purchase", validate(purchaseSchema), asyncRoute(asyn
             packageId: payment.packageId,
         }, {
             apiKey: env.CINETPAY_API_KEY,
-            siteId: env.CINETPAY_SITE_ID,
-            apiUrl: env.CINETPAY_API_URL,
-            notifyUrl: env.CINETPAY_NOTIFY_URL,
-            returnUrl: (() => {
+            apiPassword: env.CINETPAY_API_PASSWORD,
+            apiBaseUrl: env.CINETPAY_API_BASE_URL,
+            successUrl: (() => {
                 const url = new URL(env.CINETPAY_RETURN_URL);
                 url.searchParams.set("reference", payment.somiReference);
                 return url.toString();
             })(),
-            channels: env.CINETPAY_CHANNELS,
+            failedUrl: (() => {
+                const url = new URL(env.CINETPAY_FAILED_URL);
+                url.searchParams.set("reference", payment.somiReference);
+                return url.toString();
+            })(),
+            notifyUrl: env.CINETPAY_NOTIFY_URL,
+            /*
+             * CinetPay v1 uses the singular `channel` field.
+             * We retain the existing configuration value for now.
+             */
+            channel: env.CINETPAY_CHANNELS,
+        });
+        await persistCinetPayInitialization(payment.paymentId, {
+            paymentToken: checkout.paymentToken,
+            paymentUrl: checkout.paymentUrl,
         });
         res.status(201).json({
             ...payment,
+            /*
+             * Keep the existing SOMI frontend contract.
+             */
             checkoutUrl: checkout.paymentUrl,
             paymentToken: checkout.paymentToken,
         });
     }
     catch (error) {
+        /*
+         * CinetPay initialization failed.
+         *
+         * The SOMI payment intent must not remain indefinitely PENDING
+         * when initialization itself failed.
+         *
+         * No coins have been credited.
+         */
         await markPaymentFailed(payment.paymentId);
         throw error;
     }

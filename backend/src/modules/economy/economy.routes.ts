@@ -21,17 +21,13 @@ import {
   persistCinetPayInitialization,
   getPaymentBySomiReference,
 } from "./economy.service.js";
-import {
-  createCinetPayPayment,
-  verifyCinetPayTransaction,
-} from "./cinetpay.client.js";
+import { createCinetPayPayment } from "./cinetpay.client.js";
 
 const asyncRoute =
   (handler: RequestHandler): RequestHandler =>
   (req, res, next) =>
     Promise.resolve(handler(req, res, next)).catch(next);
 export const economyRouter = Router();
-// CinetPay calls this endpoint directly; it must remain outside requireAuth.
 // CinetPay calls this endpoint directly; it must remain outside requireAuth.
 economyRouter.post(
   "/payments/cinetpay/notify",
@@ -64,10 +60,7 @@ economyRouter.post(
      * The merchant transaction ID is the SOMI payment reference
      * created during createPaymentIntent().
      */
-    const payment = await getPaymentByReference(
-      "",
-      merchantTransactionId,
-    ).catch(() => null);
+    const payment = await getPaymentBySomiReference(merchantTransactionId);
 
     /*
      * We deliberately do not trust the notification payload for:

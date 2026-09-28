@@ -76,6 +76,34 @@ export async function createPaymentIntent(userId, packageId) {
         expiresAt: payment.expiresAt?.toISOString() ?? null,
     };
 }
+export async function persistCinetPayInitialization(paymentId, data) {
+    if (!data.paymentToken.trim()) {
+        throw new AppError(422, "INVALID_PAYMENT_PROVIDER_TOKEN", "CinetPay payment token is required.");
+    }
+    if (!data.paymentUrl.trim()) {
+        throw new AppError(422, "INVALID_PAYMENT_PROVIDER_URL", "CinetPay payment URL is required.");
+    }
+    const payment = await prisma.payment.findUnique({
+        where: {
+            id: paymentId,
+        },
+    });
+    if (!payment) {
+        throw new AppError(404, "PAYMENT_NOT_FOUND", "Payment not found.");
+    }
+    if (payment.status !== "PENDING") {
+        throw new AppError(409, "PAYMENT_NOT_INITIALIZABLE", "This payment is no longer awaiting provider initialization.");
+    }
+    return prisma.payment.update({
+        where: {
+            id: paymentId,
+        },
+        data: {
+            providerPaymentToken: data.paymentToken,
+            providerPaymentUrl: data.paymentUrl,
+        },
+    });
+}
 /**
  * Mark a pending payment as failed.
  *
@@ -874,4 +902,23 @@ export async function settleVerifiedPayment(paymentId, attempt = 0) {
 function isPrismaConflict(error) {
     return (error instanceof Prisma.PrismaClientKnownRequestError &&
         (error.code === "P2002" || error.code === "P2034"));
+}
+export async function getPaymentBySomiReference(somiReference) {
+    const payment = await prisma.payment.findUnique({
+        where: {
+            somiReference,
+        },
+        select: {
+            id: true,
+            userId: true,
+            somiReference: true,
+            amount: true,
+            currency: true,
+            coins: true,
+            provider: true,
+            providerReference: true,
+            status: true,
+        },
+    });
+    return payment;
 }
