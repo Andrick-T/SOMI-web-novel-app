@@ -261,6 +261,8 @@ model Payment {
   somiReference     String             @unique
   providerReference String?            @unique
   provider          String             @default("CINETPAY")
+  providerPaymentToken String?
+  providerPaymentUrl   String?
   paymentMethod     String?
   status            String             @default("PENDING")
   verifiedAt        DateTime?

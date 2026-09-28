@@ -931,7 +931,7 @@ export async function requestWriterWithdrawal(
             exchangeRateCfa: payout.exchangeRateCfa.toFixed(6),
             amount: payout.amount.toFixed(6),
             payoutMethod: profile.payoutMethod as WriterPayoutMethod,
-            payoutAccount: profile.payoutAccount,
+            payoutAccount: profile.payoutAccount as string,
             payoutAccountName: profile.payoutAccountName ?? null,
           },
         });

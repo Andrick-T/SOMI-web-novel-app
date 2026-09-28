@@ -97,6 +97,58 @@ export async function createPaymentIntent(
   };
 }
 
+export async function persistCinetPayInitialization(
+  paymentId: string,
+  data: {
+    paymentToken: string;
+    paymentUrl: string;
+  },
+) {
+  if (!data.paymentToken.trim()) {
+    throw new AppError(
+      422,
+      "INVALID_PAYMENT_PROVIDER_TOKEN",
+      "CinetPay payment token is required.",
+    );
+  }
+
+  if (!data.paymentUrl.trim()) {
+    throw new AppError(
+      422,
+      "INVALID_PAYMENT_PROVIDER_URL",
+      "CinetPay payment URL is required.",
+    );
+  }
+
+  const payment = await prisma.payment.findUnique({
+    where: {
+      id: paymentId,
+    },
+  });
+
+  if (!payment) {
+    throw new AppError(404, "PAYMENT_NOT_FOUND", "Payment not found.");
+  }
+
+  if (payment.status !== "PENDING") {
+    throw new AppError(
+      409,
+      "PAYMENT_NOT_INITIALIZABLE",
+      "This payment is no longer awaiting provider initialization.",
+    );
+  }
+
+  return prisma.payment.update({
+    where: {
+      id: paymentId,
+    },
+    data: {
+      providerPaymentToken: data.paymentToken,
+      providerPaymentUrl: data.paymentUrl,
+    },
+  });
+}
+
 /**
  * Mark a pending payment as failed.
  *

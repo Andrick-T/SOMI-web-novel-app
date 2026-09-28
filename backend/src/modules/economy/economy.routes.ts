@@ -18,9 +18,10 @@ import {
   handleVerifiedCinetPayEvent,
   cancelPayment,
   expirePendingPayments,
+  persistCinetPayInitialization,
 } from "./economy.service.js";
 import {
-  createCinetPayCheckout,
+  createCinetPayPayment,
   verifyCinetPayTransaction,
 } from "./cinetpay.client.js";
 
@@ -141,16 +142,27 @@ economyRouter.post(
   "/wallet/purchase",
   validate(purchaseSchema),
   asyncRoute(async (req: AuthRequest, res) => {
-    const { packageId } = req.body as { packageId: keyof typeof coinPackages };
+    const { packageId } = req.body as {
+      packageId: keyof typeof coinPackages;
+    };
+
+    /*
+     * SOMI creates the payment intent first.
+     *
+     * The payment remains PENDING.
+     * No wallet credit occurs here.
+     */
     const payment = await createPaymentIntent(req.user!.id, packageId);
 
     const { env } = await import("../../config/env.js");
 
     if (
       !env.CINETPAY_API_KEY ||
-      !env.CINETPAY_SITE_ID ||
+      !env.CINETPAY_API_PASSWORD ||
+      !env.CINETPAY_API_BASE_URL ||
       !env.CINETPAY_NOTIFY_URL ||
-      !env.CINETPAY_RETURN_URL
+      !env.CINETPAY_RETURN_URL ||
+      !env.CINETPAY_FAILED_URL
     ) {
       throw new AppError(
         503,
@@ -160,7 +172,7 @@ economyRouter.post(
     }
 
     try {
-      const checkout = await createCinetPayCheckout(
+      const checkout = await createCinetPayPayment(
         {
           somiReference: payment.somiReference,
           amount: payment.amount,
@@ -170,25 +182,56 @@ economyRouter.post(
         },
         {
           apiKey: env.CINETPAY_API_KEY,
-          siteId: env.CINETPAY_SITE_ID,
-          apiUrl: env.CINETPAY_API_URL,
-          notifyUrl: env.CINETPAY_NOTIFY_URL,
-          returnUrl: (() => {
+          apiPassword: env.CINETPAY_API_PASSWORD,
+          apiBaseUrl: env.CINETPAY_API_BASE_URL,
+
+          successUrl: (() => {
             const url = new URL(env.CINETPAY_RETURN_URL!);
             url.searchParams.set("reference", payment.somiReference);
             return url.toString();
           })(),
-          channels: env.CINETPAY_CHANNELS,
+
+          failedUrl: (() => {
+            const url = new URL(env.CINETPAY_FAILED_URL!);
+            url.searchParams.set("reference", payment.somiReference);
+            return url.toString();
+          })(),
+
+          notifyUrl: env.CINETPAY_NOTIFY_URL,
+
+          /*
+           * CinetPay v1 uses the singular `channel` field.
+           * We retain the existing configuration value for now.
+           */
+          channel: env.CINETPAY_CHANNELS,
         },
       );
 
+      await persistCinetPayInitialization(payment.paymentId, {
+        paymentToken: checkout.paymentToken,
+        paymentUrl: checkout.paymentUrl,
+      });
+
       res.status(201).json({
         ...payment,
+
+        /*
+         * Keep the existing SOMI frontend contract.
+         */
         checkoutUrl: checkout.paymentUrl,
         paymentToken: checkout.paymentToken,
       });
     } catch (error) {
+      /*
+       * CinetPay initialization failed.
+       *
+       * The SOMI payment intent must not remain indefinitely PENDING
+       * when initialization itself failed.
+       *
+       * No coins have been credited.
+       */
       await markPaymentFailed(payment.paymentId);
+
       throw error;
     }
   }),

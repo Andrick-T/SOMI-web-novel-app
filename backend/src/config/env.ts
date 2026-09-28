@@ -43,6 +43,7 @@ const envSchema = z.object({
   CINETPAY_NOTIFY_URL: z.string().url().optional(),
 
   CINETPAY_RETURN_URL: z.string().url().optional(),
+  CINETPAY_FAILED_URL: z.string().url().optional(),
 
   /*
    * Legacy CinetPay v2 configuration.

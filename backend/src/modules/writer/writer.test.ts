@@ -3,9 +3,16 @@ import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createApp } from "../../app.js";
 import { prisma } from "../../config/database.js";
-import { creditWalletFromTrustedPayment } from "../economy/economy.service.js";
+import {
+  createPaymentIntent,
+  handleVerifiedCinetPayEvent,
+} from "../economy/economy.service.js";
 import { calculateWriterEarningCoins } from "./writer.service.js";
-import { calculateWriterPayout, coinsToCfa, coinsToCurrency } from "./writer.finance.js";
+import {
+  calculateWriterPayout,
+  coinsToCfa,
+  coinsToCurrency,
+} from "./writer.finance.js";
 
 const app = createApp();
 const password = "Somi-writer-password-123";
@@ -610,13 +617,23 @@ describe("Phase 7F Writer workflow", () => {
     created.users.push(readerId);
 
     /*
-     * Fund the reader through the trusted-payment service.
+     * Fund the reader through the real trusted-payment settlement flow.
+     *
+     * The fixture creates a persisted SOMI payment intent and then simulates
+     * a provider-verified ACCEPTED event. This keeps the test aligned with
+     * the current E14 payment architecture without bypassing the wallet
+     * settlement logic.
      */
-    await creditWalletFromTrustedPayment({
-      userId: readerId,
-      packageId: "starter",
+    const fundingPayment = await createPaymentIntent(readerId, "starter");
+
+    await handleVerifiedCinetPayEvent({
+      somiReference: fundingPayment.somiReference,
       providerReference: `earnings-isolation-payment-${Date.now()}`,
-      verified: true,
+      status: "ACCEPTED",
+      amount: fundingPayment.amount,
+      currency: fundingPayment.currency,
+      paymentMethod: "TEST",
+      verifiedAt: new Date(),
     });
 
     /*
