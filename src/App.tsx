@@ -945,6 +945,16 @@ function AppShell() {
                       />
                     </Route>
 
+                    <Route
+                      path="/payment/success"
+                      element={<PaymentReturnPage {...commonProps} />}
+                    />
+
+                    <Route
+                      path="/payment/failed"
+                      element={<PaymentReturnPage {...commonProps} />}
+                    />
+
                     <Route path="*" element={<NotFoundPage />} />
                   </Routes>
                 </Suspense>

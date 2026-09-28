@@ -72,7 +72,13 @@ export const pageFromPath = (pathname: string): Page => {
   }
   if (pathname === "/library") return "library";
   if (pathname === "/wallet") return "wallet";
-  if (pathname === "/payment/return") return "payment-return" as Page;
+  if (
+    pathname === "/payment/success" ||
+    pathname === "/payment/failed" ||
+    pathname === "/payment/return"
+  )
+    return "payment-return" as Page;
+
   if (pathname === "/payment/history") return "payment-history" as Page;
   if (pathname === "/profile") return "profile";
   if (pathname === "/auth") return "auth";

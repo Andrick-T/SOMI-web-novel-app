@@ -19,6 +19,7 @@ import {
   cancelPayment,
   expirePendingPayments,
   persistCinetPayInitialization,
+  getPaymentBySomiReference,
 } from "./economy.service.js";
 import {
   createCinetPayPayment,
@@ -31,75 +32,85 @@ const asyncRoute =
     Promise.resolve(handler(req, res, next)).catch(next);
 export const economyRouter = Router();
 // CinetPay calls this endpoint directly; it must remain outside requireAuth.
+// CinetPay calls this endpoint directly; it must remain outside requireAuth.
 economyRouter.post(
   "/payments/cinetpay/notify",
   asyncRoute(async (req, res) => {
-    const { env } = await import("../../config/env.js");
-    if (!env.CINETPAY_API_KEY || !env.CINETPAY_SITE_ID) {
-      throw new AppError(
-        503,
-        "PAYMENT_PROVIDER_NOT_CONFIGURED",
-        "Payment provider is not configured.",
-      );
-    }
-
     const body = req.body as Record<string, unknown>;
-    const transactionId = String(
-      body.cpm_trans_id ?? body.transaction_id ?? "",
+
+    /*
+     * CinetPay notifications are not trusted financial events.
+     *
+     * The notification only tells SOMI that something happened.
+     * The server-side verification step is responsible for confirming
+     * the real payment status, amount, currency and provider reference.
+     */
+    const merchantTransactionId = String(
+      body.merchant_transaction_id ??
+        body.merchantTransactionId ??
+        body.cpm_trans_id ??
+        "",
     ).trim();
-    if (!transactionId) {
+
+    if (!merchantTransactionId) {
       throw new AppError(
         400,
         "INVALID_PAYMENT_NOTIFICATION",
-        "Missing CinetPay transaction reference.",
+        "Missing CinetPay merchant transaction reference.",
       );
     }
 
-    const verified = await verifyCinetPayTransaction(transactionId, {
-      apiKey: env.CINETPAY_API_KEY,
-      siteId: env.CINETPAY_SITE_ID,
+    /*
+     * The merchant transaction ID is the SOMI payment reference
+     * created during createPaymentIntent().
+     */
+    const payment = await getPaymentByReference(
+      "",
+      merchantTransactionId,
+    ).catch(() => null);
+
+    /*
+     * We deliberately do not trust the notification payload for:
+     *
+     * - amount
+     * - currency
+     * - status
+     * - payment method
+     * - provider transaction ID
+     *
+     * Those values must come from CinetPay's server-side verification.
+     *
+     * E14.9.7 will connect this notification to:
+     *
+     *   OAuth
+     *      ↓
+     *   GET /v1/payment/{merchant_transaction_id}
+     *      ↓
+     *   provider response validation
+     *      ↓
+     *   handleVerifiedCinetPayEvent()
+     */
+    if (!payment) {
+      /*
+       * Return 200 for an unknown notification so CinetPay does not
+       * repeatedly retry a notification for a payment that SOMI
+       * does not recognize.
+       *
+       * No financial operation is performed.
+       */
+      res.status(200).json({
+        received: true,
+        processed: false,
+      });
+      return;
+    }
+
+    res.status(200).json({
+      received: true,
+      processed: false,
+      paymentId: payment.id,
+      status: payment.status,
     });
-
-    const data = verified.data;
-    if (!data?.amount || !data.currency || !data.status) {
-      throw new AppError(
-        502,
-        "INVALID_PROVIDER_RESPONSE",
-        "CinetPay verification response is incomplete.",
-      );
-    }
-
-    const amount = Number(data.amount);
-    if (!Number.isFinite(amount)) {
-      throw new AppError(
-        502,
-        "INVALID_PROVIDER_AMOUNT",
-        "CinetPay returned an invalid amount.",
-      );
-    }
-
-    const status = String(data.status).toUpperCase();
-    const normalizedStatus =
-      status === "ACCEPTED"
-        ? "ACCEPTED"
-        : status === "REFUSED"
-          ? "REFUSED"
-          : "PENDING";
-    const somiReference = String(
-      data.metadata ?? data.description ?? transactionId,
-    ).trim();
-
-    const result = await handleVerifiedCinetPayEvent({
-      somiReference,
-      providerReference: transactionId,
-      status: normalizedStatus,
-      amount,
-      currency: String(data.currency).toUpperCase(),
-      paymentMethod: data.payment_method ?? null,
-      verifiedAt: new Date(),
-    });
-
-    res.status(200).json({ received: true, ...result });
   }),
 );
 

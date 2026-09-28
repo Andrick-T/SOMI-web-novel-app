@@ -1168,3 +1168,24 @@ function isPrismaConflict(error: unknown): boolean {
     (error.code === "P2002" || error.code === "P2034")
   );
 }
+
+export async function getPaymentBySomiReference(somiReference: string) {
+  const payment = await prisma.payment.findUnique({
+    where: {
+      somiReference,
+    },
+    select: {
+      id: true,
+      userId: true,
+      somiReference: true,
+      amount: true,
+      currency: true,
+      coins: true,
+      provider: true,
+      providerReference: true,
+      status: true,
+    },
+  });
+
+  return payment;
+}
