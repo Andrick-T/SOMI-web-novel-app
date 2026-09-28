@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createApp } from "../../app.js";
 import { prisma } from "../../config/database.js";
 import { createAccessToken } from "../auth/auth.crypto.js";
+import { failAdminWithdrawal, replyToSupportTicket, updateSupportTicket, } from "./admin.service.js";
 const app = createApp();
 let adminUserId = "";
 let readerUserId = "";
@@ -55,6 +56,13 @@ beforeAll(async () => {
     readerToken = createAccessToken(reader.id, reader.role);
 });
 afterAll(async () => {
+    await prisma.auditEvent.deleteMany({
+        where: {
+            actorId: {
+                in: [adminUserId, readerUserId],
+            },
+        },
+    });
     await prisma.user.deleteMany({
         where: {
             id: { in: [adminUserId, readerUserId] },
@@ -245,7 +253,6 @@ describe("Phase 7H admin foundation read endpoints", () => {
         expect(transactions.body.items.some((item) => item.type === "CHAPTER_UNLOCK")).toBe(true);
         expect(transactions.body.items[0]).not.toHaveProperty("passwordHash");
         expect(transactions.body.items[0].currency).toBe("SOMI");
-        // Clean up dependent records before deleting the writer.
         await prisma.writerEarning.deleteMany({
             where: { writerId: writer.id },
         });
@@ -299,9 +306,555 @@ describe("Phase 7H admin foundation read endpoints", () => {
             .send({ status: "UNPUBLISHED" });
         expect(unpublish.status).toBe(200);
         expect(unpublish.body.book.status).toBe("UNPUBLISHED");
-        // The book references the writer through authorId, so delete it first.
         await prisma.book.delete({
             where: { id: book.id },
+        });
+        await prisma.user.delete({
+            where: { id: writer.id },
+        });
+    });
+});
+describe("Phase 7H admin platform settings", () => {
+    it("allows an admin to read platform settings", async () => {
+        const response = await request(app)
+            .get("/api/v1/admin/settings")
+            .set("Authorization", `Bearer ${adminToken}`);
+        expect(response.status).toBe(200);
+        expect(response.body).toHaveProperty("settings");
+        expect(response.body.settings).toEqual(expect.objectContaining({
+            platformName: expect.any(String),
+            supportEmail: expect.any(String),
+            maintenanceMode: expect.any(Boolean),
+            moderationEnabled: expect.any(Boolean),
+            writerRegistrationEnabled: expect.any(Boolean),
+            autoPublishEnabled: expect.any(Boolean),
+            coinConversionRate: expect.any(Number),
+            minimumPurchase: expect.any(Number),
+            chapterPricingRules: expect.any(String),
+            emailNotifications: expect.any(Boolean),
+            moderationNotifications: expect.any(Boolean),
+            paymentNotifications: expect.any(Boolean),
+            sessionPolicy: expect.any(String),
+            adminSessionTimeoutMinutes: expect.any(Number),
+            suspiciousActivityMonitoring: expect.any(Boolean),
+        }));
+        expect(response.body.settings).not.toHaveProperty("password");
+        expect(response.body.settings).not.toHaveProperty("passwordHash");
+        expect(response.body.settings).not.toHaveProperty("refreshTokenHash");
+    });
+    it("rejects unauthenticated access to platform settings", async () => {
+        const response = await request(app).get("/api/v1/admin/settings");
+        expect(response.status).toBe(401);
+    });
+    it("rejects non-admin access to platform settings", async () => {
+        const response = await request(app)
+            .get("/api/v1/admin/settings")
+            .set("Authorization", `Bearer ${readerToken}`);
+        expect(response.status).toBe(403);
+    });
+    it("allows an admin to update platform settings", async () => {
+        const response = await request(app)
+            .patch("/api/v1/admin/settings")
+            .set("Authorization", `Bearer ${adminToken}`)
+            .send({
+            platformName: "SOMI Test",
+            maintenanceMode: true,
+        });
+        expect(response.status).toBe(200);
+        expect(response.body).toHaveProperty("settings");
+        expect(response.body.settings).toEqual(expect.objectContaining({
+            platformName: "SOMI Test",
+            maintenanceMode: true,
+        }));
+    });
+    it("persists platform settings after update", async () => {
+        await request(app)
+            .patch("/api/v1/admin/settings")
+            .set("Authorization", `Bearer ${adminToken}`)
+            .send({
+            platformName: "SOMI Persistence Test",
+            maintenanceMode: true,
+        })
+            .expect(200);
+        const response = await request(app)
+            .get("/api/v1/admin/settings")
+            .set("Authorization", `Bearer ${adminToken}`)
+            .expect(200);
+        expect(response.body.settings).toEqual(expect.objectContaining({
+            platformName: "SOMI Persistence Test",
+            maintenanceMode: true,
+        }));
+    });
+    it("preserves unrelated settings during a partial update", async () => {
+        const initialResponse = await request(app)
+            .get("/api/v1/admin/settings")
+            .set("Authorization", `Bearer ${adminToken}`)
+            .expect(200);
+        const initialSettings = initialResponse.body.settings;
+        const response = await request(app)
+            .patch("/api/v1/admin/settings")
+            .set("Authorization", `Bearer ${adminToken}`)
+            .send({
+            platformName: "SOMI Partial Update Test",
+        })
+            .expect(200);
+        expect(response.body.settings).toEqual(expect.objectContaining({
+            platformName: "SOMI Partial Update Test",
+            maintenanceMode: initialSettings.maintenanceMode,
+            moderationEnabled: initialSettings.moderationEnabled,
+            writerRegistrationEnabled: initialSettings.writerRegistrationEnabled,
+            autoPublishEnabled: initialSettings.autoPublishEnabled,
+            coinConversionRate: initialSettings.coinConversionRate,
+            minimumPurchase: initialSettings.minimumPurchase,
+            chapterPricingRules: initialSettings.chapterPricingRules,
+            emailNotifications: initialSettings.emailNotifications,
+            moderationNotifications: initialSettings.moderationNotifications,
+            paymentNotifications: initialSettings.paymentNotifications,
+            sessionPolicy: initialSettings.sessionPolicy,
+            adminSessionTimeoutMinutes: initialSettings.adminSessionTimeoutMinutes,
+            suspiciousActivityMonitoring: initialSettings.suspiciousActivityMonitoring,
+        }));
+    });
+    it("rejects an empty settings update", async () => {
+        const response = await request(app)
+            .patch("/api/v1/admin/settings")
+            .set("Authorization", `Bearer ${adminToken}`)
+            .send({});
+        expect(response.status).toBe(400);
+    });
+    it("rejects invalid settings values", async () => {
+        const response = await request(app)
+            .patch("/api/v1/admin/settings")
+            .set("Authorization", `Bearer ${adminToken}`)
+            .send({
+            platformName: "",
+            supportEmail: "not-an-email",
+            coinConversionRate: 0,
+            minimumPurchase: -100,
+            adminSessionTimeoutMinutes: 0,
+        });
+        expect(response.status).toBe(400);
+    });
+    it("creates a SETTING_CHANGED audit event when settings change", async () => {
+        const currentResponse = await request(app)
+            .get("/api/v1/admin/settings")
+            .set("Authorization", `Bearer ${adminToken}`)
+            .expect(200);
+        const currentSettings = currentResponse.body.settings;
+        const nextMaintenanceMode = !currentSettings.maintenanceMode;
+        const before = await prisma.auditEvent.count({
+            where: {
+                action: "SETTING_CHANGED",
+                actorId: adminUserId,
+            },
+        });
+        const response = await request(app)
+            .patch("/api/v1/admin/settings")
+            .set("Authorization", `Bearer ${adminToken}`)
+            .send({
+            platformName: "SOMI Audit Test",
+            maintenanceMode: nextMaintenanceMode,
+        })
+            .expect(200);
+        expect(response.body.settings).toEqual(expect.objectContaining({
+            platformName: "SOMI Audit Test",
+            maintenanceMode: nextMaintenanceMode,
+        }));
+        const after = await prisma.auditEvent.count({
+            where: {
+                action: "SETTING_CHANGED",
+                actorId: adminUserId,
+            },
+        });
+        expect(after).toBe(before + 1);
+        const auditEvent = await prisma.auditEvent.findFirst({
+            where: {
+                action: "SETTING_CHANGED",
+                actorId: adminUserId,
+            },
+            orderBy: {
+                createdAt: "desc",
+            },
+        });
+        expect(auditEvent).not.toBeNull();
+        expect(auditEvent).toEqual(expect.objectContaining({
+            actorId: adminUserId,
+            actorName: "phase7h-admin@example.test",
+            action: "SETTING_CHANGED",
+            targetType: "PLATFORM_SETTINGS",
+        }));
+        expect(auditEvent?.metadata).toEqual(expect.objectContaining({
+            changedFields: expect.arrayContaining([
+                "platformName",
+                "maintenanceMode",
+            ]),
+        }));
+    });
+    it("does not create an audit event when settings are unchanged", async () => {
+        const currentResponse = await request(app)
+            .get("/api/v1/admin/settings")
+            .set("Authorization", `Bearer ${adminToken}`)
+            .expect(200);
+        const currentSettings = currentResponse.body.settings;
+        const before = await prisma.auditEvent.count({
+            where: {
+                action: "SETTING_CHANGED",
+                actorId: adminUserId,
+            },
+        });
+        await request(app)
+            .patch("/api/v1/admin/settings")
+            .set("Authorization", `Bearer ${adminToken}`)
+            .send({
+            platformName: currentSettings.platformName,
+        })
+            .expect(200);
+        const after = await prisma.auditEvent.count({
+            where: {
+                action: "SETTING_CHANGED",
+                actorId: adminUserId,
+            },
+        });
+        expect(after).toBe(before);
+    });
+});
+describe("Phase 7H admin audit endpoints", () => {
+    it("allows an admin to read audit events", async () => {
+        const response = await request(app)
+            .get("/api/v1/admin/audit")
+            .set("Authorization", `Bearer ${adminToken}`);
+        expect(response.status).toBe(200);
+        expect(response.body).toHaveProperty("items");
+        expect(response.body).toHaveProperty("pagination");
+        expect(Array.isArray(response.body.items)).toBe(true);
+        expect(response.body.pagination).toEqual(expect.objectContaining({
+            page: expect.any(Number),
+            limit: expect.any(Number),
+            total: expect.any(Number),
+            totalPages: expect.any(Number),
+        }));
+    });
+    it("rejects unauthenticated audit access", async () => {
+        const response = await request(app).get("/api/v1/admin/audit");
+        expect(response.status).toBe(401);
+    });
+    it("rejects non-admin audit access", async () => {
+        const response = await request(app)
+            .get("/api/v1/admin/audit")
+            .set("Authorization", `Bearer ${readerToken}`);
+        expect(response.status).toBe(403);
+    });
+    it("supports audit filtering", async () => {
+        await prisma.auditEvent.create({
+            data: {
+                actorId: adminUserId,
+                actorName: "phase7h-admin@example.test",
+                action: "C4_TEST_ACTION",
+                targetType: "TEST",
+                targetId: "c4-test-target",
+                metadata: {
+                    source: "admin.test",
+                },
+            },
+        });
+        const response = await request(app)
+            .get("/api/v1/admin/audit?action=C4_TEST_ACTION&targetType=TEST&search=c4-test-target")
+            .set("Authorization", `Bearer ${adminToken}`)
+            .expect(200);
+        expect(response.body.items.length).toBeGreaterThanOrEqual(1);
+        expect(response.body.items).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                action: "C4_TEST_ACTION",
+                targetType: "TEST",
+                targetId: "c4-test-target",
+            }),
+        ]));
+    });
+});
+describe("E14.5 writer withdrawal administration", () => {
+    it("executes the withdrawal lifecycle, releases failed funds, and requires support after three failures", async () => {
+        const suffix = `e145-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const writer = await prisma.user.create({
+            data: {
+                email: `e145-writer-${suffix}@example.test`,
+                username: `e145-writer-${suffix}`,
+                passwordHash: "placeholder-hash",
+                role: "WRITER",
+                status: "ACTIVE",
+                profile: {
+                    create: {
+                        displayName: "E14.5 Writer",
+                    },
+                },
+                writerProfile: {
+                    create: {
+                        preferredCurrency: "USD",
+                        payoutMethod: "MTN_MOBILE_MONEY",
+                        payoutAccount: "237670000000",
+                        payoutAccountName: "E14.5 Writer",
+                    },
+                },
+                writerKyc: {
+                    create: {
+                        status: "APPROVED",
+                        submittedAt: new Date(),
+                        reviewedAt: new Date(),
+                        reviewedBy: adminUserId,
+                    },
+                },
+            },
+        });
+        const book = await prisma.book.create({
+            data: {
+                title: "E14.5 Book",
+                slug: `e145-book-${suffix}`,
+                authorId: writer.id,
+                status: "PUBLISHED",
+            },
+        });
+        const chapter = await prisma.chapter.create({
+            data: {
+                bookId: book.id,
+                title: "E14.5 Chapter",
+                number: 1,
+                content: "E14.5",
+                status: "PUBLISHED",
+                accessType: "PREMIUM",
+                price: 21000,
+            },
+        });
+        await prisma.writerEarning.create({
+            data: {
+                writerId: writer.id,
+                bookId: book.id,
+                chapterId: chapter.id,
+                sourceTransactionId: `e145-source-${suffix}`,
+                coins: 42_000,
+                status: "AVAILABLE",
+            },
+        });
+        const writerToken = createAccessToken(writer.id, writer.role);
+        const requestWithdrawal = await request(app)
+            .post("/api/v1/writer/withdrawals")
+            .set("Authorization", `Bearer ${writerToken}`)
+            .send({ coins: 21_000 });
+        expect(requestWithdrawal.status).toBe(201);
+        expect(requestWithdrawal.body.withdrawal.status).toBe("PENDING");
+        expect(requestWithdrawal.body.withdrawal.currency).toBe("USD");
+        expect(requestWithdrawal.body.withdrawal.exchangeRateCfa).toBe(550);
+        expect(requestWithdrawal.body.withdrawal.amount).toBe(9.09);
+        const secondRequest = await request(app)
+            .post("/api/v1/writer/withdrawals")
+            .set("Authorization", `Bearer ${writerToken}`)
+            .send({ coins: 21_000 });
+        expect(secondRequest.status).toBe(201);
+        const list = await request(app)
+            .get("/api/v1/admin/withdrawals")
+            .query({ writerId: writer.id })
+            .set("Authorization", `Bearer ${adminToken}`);
+        expect(list.status).toBe(200);
+        expect(list.body.items).toHaveLength(2);
+        const firstId = requestWithdrawal.body.withdrawal.id;
+        const processing = await request(app)
+            .post(`/api/v1/admin/withdrawals/${firstId}/process`)
+            .set("Authorization", `Bearer ${adminToken}`);
+        expect(processing.status).toBe(200);
+        expect(processing.body.withdrawal.status).toBe("PROCESSING");
+        const complete = await request(app)
+            .post(`/api/v1/admin/withdrawals/${firstId}/complete`)
+            .set("Authorization", `Bearer ${adminToken}`);
+        expect(complete.status).toBe(200);
+        expect(complete.body.withdrawal.status).toBe("COMPLETED");
+        const invalidComplete = await request(app)
+            .post(`/api/v1/admin/withdrawals/${firstId}/complete`)
+            .set("Authorization", `Bearer ${adminToken}`);
+        expect(invalidComplete.status).toBe(409);
+        expect(invalidComplete.body.error.code).toBe("WITHDRAWAL_INVALID_STATE");
+        const third = await request(app)
+            .post("/api/v1/writer/withdrawals")
+            .set("Authorization", `Bearer ${writerToken}`)
+            .send({ coins: 1000 });
+        expect(third.status).toBe(400);
+        expect(third.body.error).toBeDefined();
+        const secondId = secondRequest.body.withdrawal.id;
+        const secondProcessing = await request(app)
+            .post(`/api/v1/admin/withdrawals/${secondId}/process`)
+            .set("Authorization", `Bearer ${adminToken}`);
+        expect(secondProcessing.status).toBe(200);
+        expect(secondProcessing.body.withdrawal.status).toBe("PROCESSING");
+        const failedWithdrawal = await request(app)
+            .post(`/api/v1/admin/withdrawals/${secondId}/fail`)
+            .set("Authorization", `Bearer ${adminToken}`)
+            .send({ failureMessage: "too late" });
+        expect(failedWithdrawal.status).toBe(200);
+        expect(failedWithdrawal.body.withdrawal.status).toBe("FAILED");
+        expect(failedWithdrawal.body.withdrawal.failureCount).toBe(1);
+        const failedRequest = await request(app)
+            .post("/api/v1/writer/withdrawals")
+            .set("Authorization", `Bearer ${writerToken}`)
+            .send({ coins: 21_000 });
+        expect(failedRequest.status).toBe(201);
+        const failedId = failedRequest.body.withdrawal.id;
+        const failWithoutReason = await request(app)
+            .post(`/api/v1/admin/withdrawals/${failedId}/fail`)
+            .set("Authorization", `Bearer ${adminToken}`)
+            .send({});
+        expect(failWithoutReason.status).toBe(400);
+        expect(failWithoutReason.body.error.code).toBe("WITHDRAWAL_FAILURE_REASON_REQUIRED");
+        for (let attempt = 1; attempt <= 3; attempt += 1) {
+            const toProcessing = await request(app)
+                .post(`/api/v1/admin/withdrawals/${failedId}/process`)
+                .set("Authorization", `Bearer ${adminToken}`);
+            expect(toProcessing.status).toBe(200);
+            const failed = await request(app)
+                .post(`/api/v1/admin/withdrawals/${failedId}/fail`)
+                .set("Authorization", `Bearer ${adminToken}`)
+                .send({ failureMessage: `failure ${attempt}` });
+            expect(failed.status).toBe(200);
+            expect(failed.body.withdrawal.status).toBe("FAILED");
+            expect(failed.body.withdrawal.failureCount).toBe(attempt);
+            expect(failed.body.supportRequired).toBe(attempt >= 3);
+        }
+        const summary = await request(app)
+            .get("/api/v1/writer/withdrawals/summary")
+            .set("Authorization", `Bearer ${writerToken}`);
+        expect(summary.status).toBe(200);
+        expect(summary.body.availableCoins).toBe(21_000);
+        expect(summary.body.eligible).toBe(true);
+        await prisma.auditEvent.deleteMany({
+            where: {
+                targetId: {
+                    in: [firstId, failedId],
+                },
+            },
+        });
+        await prisma.withdrawalRequest.deleteMany({
+            where: { writerId: writer.id },
+        });
+        await prisma.writerEarning.deleteMany({
+            where: { writerId: writer.id },
+        });
+        await prisma.chapter.delete({
+            where: { id: chapter.id },
+        });
+        await prisma.book.delete({
+            where: { id: book.id },
+        });
+        await prisma.user.delete({
+            where: { id: writer.id },
+        });
+    });
+    it("rejects withdrawal administration for unauthenticated and non-admin callers", async () => {
+        const unauthenticated = await request(app).get("/api/v1/admin/withdrawals");
+        expect(unauthenticated.status).toBe(401);
+        const nonAdmin = await request(app)
+            .get("/api/v1/admin/withdrawals")
+            .set("Authorization", `Bearer ${readerToken}`);
+        expect(nonAdmin.status).toBe(403);
+    });
+});
+describe("E14.6 support and failure escalation", () => {
+    it("automatically creates a high-priority support ticket after the third withdrawal failure", async () => {
+        const suffix = `e146-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const writer = await prisma.user.create({
+            data: {
+                email: `e146-writer-${suffix}@example.test`,
+                username: `e146-writer-${suffix}`,
+                passwordHash: "placeholder-hash",
+                role: "WRITER",
+                status: "ACTIVE",
+                profile: {
+                    create: {
+                        displayName: "E14.6 Writer",
+                    },
+                },
+            },
+        });
+        const withdrawal = await prisma.withdrawalRequest.create({
+            data: {
+                writerId: writer.id,
+                status: "PROCESSING",
+                coins: 21_000,
+                amountCfa: "5000",
+                currency: "USD",
+                exchangeRateCfa: "550",
+                amount: "9.09",
+                payoutMethod: "MTN_MOBILE_MONEY",
+                payoutAccount: "237670000000",
+            },
+        });
+        for (let attempt = 1; attempt <= 3; attempt += 1) {
+            const failed = await failAdminWithdrawal({
+                withdrawalId: withdrawal.id,
+                actorId: adminUserId,
+                failureMessage: `failure ${attempt}`,
+            });
+            expect(failed.failureCount).toBe(attempt);
+            if (attempt < 3) {
+                await prisma.withdrawalRequest.update({
+                    where: { id: withdrawal.id },
+                    data: { status: "PROCESSING" },
+                });
+            }
+        }
+        const ticket = await prisma.supportTicket.findFirst({
+            where: { relatedWithdrawalId: withdrawal.id },
+            include: { messages: true },
+        });
+        expect(ticket).not.toBeNull();
+        expect(ticket?.category).toBe("WITHDRAWAL_FAILURE");
+        expect(ticket?.priority).toBe("HIGH");
+        expect(ticket?.status).toBe("OPEN");
+        expect(ticket?.messages).toHaveLength(1);
+        await prisma.supportTicket.deleteMany({
+            where: { relatedWithdrawalId: withdrawal.id },
+        });
+        await prisma.withdrawalRequest.delete({
+            where: { id: withdrawal.id },
+        });
+        await prisma.user.delete({
+            where: { id: writer.id },
+        });
+    });
+    it("allows an admin to reply to and resolve a support ticket", async () => {
+        const suffix = `e146-support-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const writer = await prisma.user.create({
+            data: {
+                email: `e146-support-${suffix}@example.test`,
+                username: `e146-support-${suffix}`,
+                passwordHash: "placeholder-hash",
+                role: "WRITER",
+                status: "ACTIVE",
+            },
+        });
+        const ticket = await prisma.supportTicket.create({
+            data: {
+                userId: writer.id,
+                category: "WITHDRAWAL_FAILURE",
+                subject: "Payment issue",
+                priority: "HIGH",
+                messages: {
+                    create: {
+                        senderId: writer.id,
+                        body: "I need help with my withdrawal.",
+                    },
+                },
+            },
+        });
+        const reply = await replyToSupportTicket({
+            ticketId: ticket.id,
+            actorId: adminUserId,
+            body: "We are reviewing your withdrawal.",
+        });
+        expect(reply.body).toBe("We are reviewing your withdrawal.");
+        const resolved = await updateSupportTicket({
+            ticketId: ticket.id,
+            actorId: adminUserId,
+            status: "RESOLVED",
+        });
+        expect(resolved.status).toBe("RESOLVED");
+        await prisma.supportTicket.delete({
+            where: { id: ticket.id },
         });
         await prisma.user.delete({
             where: { id: writer.id },

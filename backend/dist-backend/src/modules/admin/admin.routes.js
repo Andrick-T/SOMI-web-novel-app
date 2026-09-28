@@ -1,10 +1,11 @@
 import { Router } from "express";
 import { z } from "zod";
 import { validate } from "../../common/middleware/validate.js";
+import { AppError } from "../../common/errors/http-error.js";
 import { requireAuth, requireRole } from "../auth/auth.middleware.js";
 import { updateBookSchema } from "../content/content.schemas.js";
 import { updateBook } from "../content/content.service.js";
-import { getAdminBookById, getAdminBooks, getAdminDashboardSummary, getAdminEconomySummary, getAdminTransactions, getAdminUserById, getAdminUsers, getAdminWriters, getAdminAuditEvents, getAdminPlatformSettings, updateAdminPlatformSettings, recordAdminAuditEvent, } from "./admin.service.js";
+import { getAdminBookById, getAdminBooks, getAdminDashboardSummary, getAdminEconomySummary, getAdminTransactions, getAdminUserById, getAdminUsers, getAdminWriters, getAdminAuditEvents, getAdminPlatformSettings, updateAdminPlatformSettings, recordAdminAuditEvent, getAdminWriterKyc, reviewAdminWriterKyc, getAdminWithdrawals, getAdminWithdrawal, processAdminWithdrawal, completeAdminWithdrawal, failAdminWithdrawal, getAdminSupportTickets, replyToSupportTicket, updateSupportTicket, } from "./admin.service.js";
 const asyncRoute = (handler) => (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
 const adminQuerySchema = z.object({
     page: z.coerce.number().int().min(1).default(1),
@@ -50,7 +51,7 @@ const updatePlatformSettingsSchema = z
     writerRegistrationEnabled: z.boolean().optional(),
     autoPublishEnabled: z.boolean().optional(),
     coinConversionRate: z.number().positive().optional(),
-    minimumPurchase: z.number().int().min(0).optional(),
+    minimumPurchase: z.number().int().min(125).optional(),
     chapterPricingRules: z.string().trim().min(1).max(2000).optional(),
     emailNotifications: z.boolean().optional(),
     moderationNotifications: z.boolean().optional(),
@@ -146,6 +147,178 @@ adminRouter.get("/books/:bookId", asyncRoute(async (req, res) => {
     res.json(result);
 }));
 /* -------------------------------------------------------------------------- */
+/* Support tickets                                                            */
+/* -------------------------------------------------------------------------- */
+adminRouter.get("/support/tickets", validate(z.object({
+    page: z.coerce.number().int().min(1).default(1),
+    limit: z.coerce.number().int().min(1).max(100).default(20),
+    status: z.string().optional(),
+    priority: z.string().optional(),
+}), "query"), asyncRoute(async (req, res) => {
+    const page = Number(req.query.page ?? 1);
+    const limit = Number(req.query.limit ?? 20);
+    const status = Array.isArray(req.query.status)
+        ? req.query.status[0]
+        : req.query.status;
+    const priority = Array.isArray(req.query.priority)
+        ? req.query.priority[0]
+        : req.query.priority;
+    res.json(await getAdminSupportTickets({
+        page,
+        limit,
+        status: typeof status === "string" ? status : undefined,
+        priority: typeof priority === "string" ? priority : undefined,
+    }));
+}));
+adminRouter.post("/support/tickets/:ticketId/messages", validate(z.object({ body: z.string().trim().min(1).max(5000) })), asyncRoute(async (req, res) => {
+    const message = await replyToSupportTicket({
+        ticketId: String(req.params.ticketId),
+        actorId: req.user.id,
+        body: req.body.body,
+    });
+    await recordAdminAuditEvent({
+        actorId: req.user.id,
+        actorName: req.user.email,
+        action: "SUPPORT_TICKET_REPLIED",
+        targetType: "SUPPORT_TICKET",
+        targetId: String(req.params.ticketId),
+        metadata: {},
+    });
+    res.status(201).json({ message });
+}));
+adminRouter.patch("/support/tickets/:ticketId", validate(z.object({
+    status: z.enum(["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"]).optional(),
+    priority: z.enum(["LOW", "NORMAL", "HIGH", "URGENT"]).optional(),
+})), asyncRoute(async (req, res) => {
+    const ticket = await updateSupportTicket({
+        ticketId: String(req.params.ticketId),
+        actorId: req.user.id,
+        status: req.body.status,
+        priority: req.body.priority,
+    });
+    await recordAdminAuditEvent({
+        actorId: req.user.id,
+        actorName: req.user.email,
+        action: "SUPPORT_TICKET_UPDATED",
+        targetType: "SUPPORT_TICKET",
+        targetId: ticket.id,
+        metadata: { status: ticket.status, priority: ticket.priority },
+    });
+    res.json({ ticket });
+}));
+/* -------------------------------------------------------------------------- */
+/* Writer withdrawals                                                        */
+/* -------------------------------------------------------------------------- */
+adminRouter.get("/withdrawals", validate(z.object({
+    page: z.coerce.number().int().min(1).default(1),
+    limit: z.coerce.number().int().min(1).max(100).default(20),
+    status: z.string().optional(),
+    writerId: z.string().optional(),
+}), "query"), asyncRoute(async (req, res) => {
+    const page = Number(req.query.page ?? 1);
+    const limit = Number(req.query.limit ?? 20);
+    const result = await getAdminWithdrawals({
+        page,
+        limit,
+        status: typeof req.query.status === "string" ? req.query.status : undefined,
+        writerId: typeof req.query.writerId === "string" ? req.query.writerId : undefined,
+    });
+    res.json(result);
+}));
+adminRouter.get("/withdrawals/:withdrawalId", asyncRoute(async (req, res) => {
+    res.json({
+        withdrawal: await getAdminWithdrawal(String(req.params.withdrawalId)),
+    });
+}));
+adminRouter.post("/withdrawals/:withdrawalId/process", asyncRoute(async (req, res) => {
+    const withdrawal = await processAdminWithdrawal({
+        withdrawalId: String(req.params.withdrawalId),
+        actorId: req.user.id,
+    });
+    await recordAdminAuditEvent({
+        actorId: req.user.id,
+        actorName: req.user.email,
+        action: "WRITER_WITHDRAWAL_PROCESSING",
+        targetType: "WITHDRAWAL",
+        targetId: withdrawal.id,
+        metadata: { writerId: withdrawal.writerId },
+    });
+    res.json({ withdrawal });
+}));
+adminRouter.post("/withdrawals/:withdrawalId/complete", asyncRoute(async (req, res) => {
+    const withdrawal = await completeAdminWithdrawal({
+        withdrawalId: String(req.params.withdrawalId),
+        actorId: req.user.id,
+    });
+    await recordAdminAuditEvent({
+        actorId: req.user.id,
+        actorName: req.user.email,
+        action: "WRITER_WITHDRAWAL_COMPLETED",
+        targetType: "WITHDRAWAL",
+        targetId: withdrawal.id,
+        metadata: { writerId: withdrawal.writerId },
+    });
+    res.json({ withdrawal });
+}));
+adminRouter.post("/withdrawals/:withdrawalId/fail", validate(z.object({
+    failureMessage: z.string().trim().min(1).max(2000),
+})), asyncRoute(async (req, res) => {
+    const withdrawal = await failAdminWithdrawal({
+        withdrawalId: String(req.params.withdrawalId),
+        actorId: req.user.id,
+        failureMessage: req.body.failureMessage,
+    });
+    await recordAdminAuditEvent({
+        actorId: req.user.id,
+        actorName: req.user.email,
+        action: "WRITER_WITHDRAWAL_FAILED",
+        targetType: "WITHDRAWAL",
+        targetId: withdrawal.id,
+        metadata: {
+            writerId: withdrawal.writerId,
+            failureCount: withdrawal.failureCount,
+            supportRequired: withdrawal.failureCount >= 3,
+        },
+    });
+    res.json({
+        withdrawal,
+        supportRequired: withdrawal.failureCount >= 3,
+    });
+}));
+/* -------------------------------------------------------------------------- */
+/* Writer KYC                                                                 */
+/* -------------------------------------------------------------------------- */
+adminRouter.get("/writers/:writerId/kyc", asyncRoute(async (req, res) => {
+    const kyc = await getAdminWriterKyc(String(req.params.writerId));
+    if (!kyc) {
+        throw new AppError(404, "KYC_NOT_FOUND", "Writer KYC record not found.");
+    }
+    res.json({ kyc });
+}));
+adminRouter.post("/writers/:writerId/kyc/review", validate(z.object({
+    approved: z.boolean(),
+    rejectionReason: z.string().trim().max(2000).optional(),
+})), asyncRoute(async (req, res) => {
+    const kyc = await reviewAdminWriterKyc({
+        writerId: String(req.params.writerId),
+        actorId: req.user.id,
+        approved: req.body.approved,
+        rejectionReason: req.body.rejectionReason,
+    });
+    await recordAdminAuditEvent({
+        actorId: req.user.id,
+        actorName: req.user.email,
+        action: req.body.approved ? "WRITER_KYC_APPROVED" : "WRITER_KYC_REJECTED",
+        targetType: "WRITER_KYC",
+        targetId: kyc.id,
+        metadata: {
+            writerId: String(req.params.writerId),
+            status: kyc.status,
+        },
+    });
+    res.json({ kyc });
+}));
+/* -------------------------------------------------------------------------- */
 /* Audit                                                                      */
 /* -------------------------------------------------------------------------- */
 adminRouter.get("/audit", validate(adminAuditQuerySchema, "query"), asyncRoute(async (req, res) => {
@@ -163,14 +336,14 @@ adminRouter.get("/audit", validate(adminAuditQuerySchema, "query"), asyncRoute(a
 /* Platform settings                                                          */
 /* -------------------------------------------------------------------------- */
 adminRouter.get("/settings", asyncRoute(async (_req, res) => {
-    const result = await getAdminPlatformSettings();
-    res.json(result);
+    const settings = await getAdminPlatformSettings();
+    res.json({ settings });
 }));
 adminRouter.patch("/settings", validate(updatePlatformSettingsSchema), asyncRoute(async (req, res) => {
-    const result = await updateAdminPlatformSettings({
+    const settings = await updateAdminPlatformSettings({
         actorId: req.user.id,
         actorName: req.user.email,
         changes: req.body,
     });
-    res.json(result);
+    res.json({ settings });
 }));

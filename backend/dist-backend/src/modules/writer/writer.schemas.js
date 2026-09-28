@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { SUPPORTED_WRITER_CURRENCIES, WRITER_PAYOUT_METHODS } from "./writer.finance.js";
 export const languageCodeSchema = z.enum(["en", "fr"]);
 const unsafeContentPattern = /<\s*(script|iframe|object|embed)|on[a-z]+\s*=|javascript:/i;
 export const richContentSchema = z
@@ -74,10 +75,17 @@ export const assetMetadataSchema = z.object({
 /**
  * Writer profile mutation schema.
  */
+export const withdrawalRequestSchema = z.object({
+    coins: z.number().int().min(21_000),
+});
 export const writerProfileSchema = z.object({
     displayName: z.string().trim().max(100).nullable().optional(),
     penName: z.string().trim().max(100).nullable().optional(),
     bio: z.string().trim().max(4000).nullable().optional(),
     avatar: z.string().url().nullable().optional(),
     banner: z.string().url().nullable().optional(),
+    preferredCurrency: z.enum(SUPPORTED_WRITER_CURRENCIES).optional(),
+    payoutMethod: z.enum(WRITER_PAYOUT_METHODS).nullable().optional(),
+    payoutAccount: z.string().trim().max(255).nullable().optional(),
+    payoutAccountName: z.string().trim().max(150).nullable().optional(),
 });

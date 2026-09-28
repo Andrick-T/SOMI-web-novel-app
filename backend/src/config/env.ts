@@ -8,23 +8,58 @@ const envSchema = z.object({
   NODE_ENV: z
     .enum(["development", "test", "production"])
     .default("development"),
+
   PORT: z.coerce.number().default(4000),
+
   DATABASE_URL: z.string().min(1).optional(),
   REDIS_URL: z.string().optional(),
+
   JWT_SECRET: z.string().min(12).optional(),
   JWT_REFRESH_SECRET: z.string().min(12).optional(),
+
   ACCESS_TOKEN_TTL_MINUTES: z.coerce.number().int().positive().default(15),
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(30),
+
   AUTH_COOKIE_NAME: z.string().default("somi_refresh_token"),
   CORS_ORIGIN: z.string().optional(),
   APP_NAME: z.string().default("SOMI API"),
+
+  /*
+   * CinetPay v1
+   *
+   * Secrets remain backend-only.
+   * The frontend must never receive apiKey/apiPassword.
+   */
   CINETPAY_API_KEY: z.string().min(1).optional(),
-  CINETPAY_SECRET_KEY: z.string().min(1).optional(),
-  CINETPAY_SITE_ID: z.string().min(1).optional(),
-  CINETPAY_API_URL: z.string().url().default("https://api-checkout.cinetpay.com/v2/payment"),
-  CINETPAY_NOTIFY_URL: z.string().url().optional(),
-  CINETPAY_RETURN_URL: z.string().url().optional(),
+
+  CINETPAY_API_PASSWORD: z.string().min(1).optional(),
+
+  CINETPAY_API_BASE_URL: z.string().url().default("https://api.cinetpay.net"),
+
+  CINETPAY_COUNTRY: z.string().length(2).default("CM"),
+
   CINETPAY_CURRENCY: z.string().length(3).default("XAF"),
+
+  CINETPAY_NOTIFY_URL: z.string().url().optional(),
+
+  CINETPAY_RETURN_URL: z.string().url().optional(),
+
+  /*
+   * Legacy CinetPay v2 configuration.
+   *
+   * Kept temporarily because the current client/routes still reference
+   * these fields. They will be removed during E14.9.2 / E14.9.3 when
+   * the v1 client and payment flow replace the legacy implementation.
+   */
+  CINETPAY_SECRET_KEY: z.string().min(1).optional(),
+
+  CINETPAY_SITE_ID: z.string().min(1).optional(),
+
+  CINETPAY_API_URL: z
+    .string()
+    .url()
+    .default("https://api-checkout.cinetpay.com/v2/payment"),
+
   CINETPAY_CHANNELS: z.string().default("ALL"),
 });
 
@@ -34,12 +69,16 @@ if (!parsed.success) {
   const issues = parsed.error.issues.map(
     (issue) => `${issue.path.join(".") || "env"}: ${issue.message}`,
   );
+
   throw new Error(`Invalid environment configuration:\n${issues.join("\n")}`);
 }
 
 export const env = parsed.data;
+
 export const isProduction = env.NODE_ENV === "production";
+
 export const isTest = env.NODE_ENV === "test";
+
 export const hasDatabaseUrl = Boolean(
   env.DATABASE_URL && env.DATABASE_URL.trim().length > 0,
 );

@@ -4,5 +4,5 @@ export const paginationSchema = z.object({
     offset: z.coerce.number().int().min(0).default(0),
 });
 export const purchaseSchema = z.object({
-    amountCfa: z.coerce.number().int().min(100).max(1000000),
+    packageId: z.enum(["starter", "standard", "plus", "premium"]),
 });

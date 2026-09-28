@@ -1,139 +1,170 @@
 import { AppError } from "../../common/errors/http-error.js";
 
-export type CinetPayCheckoutRequest = {
-  transactionId: string;
-  amount: number;
-  currency: string;
-  description: string;
-  notifyUrl: string;
-  returnUrl: string;
-  channels: string;
-};
-
-export type CinetPayCheckoutResponse = {
-  code: string;
+type CinetPayOAuthResponse = {
+  code: number;
+  status: string;
+  access_token?: string;
+  token_type?: string;
+  expires_in?: number;
+  user_email?: string;
   message?: string;
-  data?: {
-    payment_token?: string;
-    payment_url?: string;
-  };
 };
 
-export async function createCinetPayCheckout(
-  payment: {
-    somiReference: string;
-    amount: number;
-    currency: string;
-    coins: number;
-    packageId: string | null;
-  },
-  config: {
-    apiKey: string;
-    siteId: string;
-    apiUrl: string;
-    notifyUrl: string;
-    returnUrl: string;
-    channels: string;
-  },
-) {
-  const payload: CinetPayCheckoutRequest = {
-    transactionId: payment.somiReference,
-    amount: payment.amount,
-    currency: payment.currency,
-    description: `SOMI ${payment.packageId ?? "coin purchase"} - ${payment.coins} coins`,
-    notifyUrl: config.notifyUrl,
-    returnUrl: config.returnUrl,
-    channels: config.channels,
-  };
+type CinetPayOAuthToken = {
+  accessToken: string;
+  tokenType: string;
+  expiresAt: number;
+};
 
-  const response = await fetch(config.apiUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-      "User-Agent": "SOMI-Payment-Service/1.0",
-    },
-    body: JSON.stringify({
-      apikey: config.apiKey,
-      site_id: config.siteId,
-      transaction_id: payload.transactionId,
-      amount: payload.amount,
-      currency: payload.currency,
-      description: payload.description,
-      notify_url: payload.notifyUrl,
-      return_url: payload.returnUrl,
-      channels: payload.channels,
-      metadata: payment.somiReference,
-    }),
-  });
+let cachedOAuthToken: CinetPayOAuthToken | null = null;
 
-  if (!response.ok) {
+/**
+ * Safety margin used before the provider-reported expiration time.
+ *
+ * We deliberately refresh the token before it actually expires so that
+ * an API request does not start with a token that is about to become
+ * invalid during the request.
+ */
+const OAUTH_TOKEN_REFRESH_MARGIN_MS = 60_000;
+
+/**
+ * Authenticate against CinetPay v1 OAuth.
+ *
+ * Contract:
+ *
+ * POST {baseUrl}/v1/oauth/login
+ *
+ * {
+ *   "api_key": "...",
+ *   "api_password": "..."
+ * }
+ *
+ * The credentials remain strictly backend-side.
+ */
+export async function authenticateCinetPay(config: {
+  apiKey: string;
+  apiPassword: string;
+  apiBaseUrl: string;
+}): Promise<CinetPayOAuthToken> {
+  if (!config.apiKey.trim()) {
+    throw new AppError(
+      503,
+      "PAYMENT_PROVIDER_NOT_CONFIGURED",
+      "CinetPay API key is not configured.",
+    );
+  }
+
+  if (!config.apiPassword.trim()) {
+    throw new AppError(
+      503,
+      "PAYMENT_PROVIDER_NOT_CONFIGURED",
+      "CinetPay API password is not configured.",
+    );
+  }
+
+  const baseUrl = config.apiBaseUrl.replace(/\/+$/, "");
+  const loginUrl = `${baseUrl}/v1/oauth/login`;
+
+  let response: Response;
+
+  try {
+    response = await fetch(loginUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        "User-Agent": "SOMI-Payment-Service/1.0",
+      },
+      body: JSON.stringify({
+        api_key: config.apiKey,
+        api_password: config.apiPassword,
+      }),
+    });
+  } catch {
     throw new AppError(
       502,
       "PAYMENT_PROVIDER_UNAVAILABLE",
-      "Unable to initialize payment with the payment provider.",
+      "Unable to connect to the CinetPay authentication service.",
     );
   }
 
-  const body = (await response.json()) as CinetPayCheckoutResponse;
+  let body: CinetPayOAuthResponse;
 
-  if (body.code !== "201" || !body.data?.payment_url) {
+  try {
+    body = (await response.json()) as CinetPayOAuthResponse;
+  } catch {
     throw new AppError(
       502,
-      "PAYMENT_PROVIDER_ERROR",
-      body.message ?? "The payment provider rejected the payment request.",
+      "PAYMENT_PROVIDER_INVALID_RESPONSE",
+      "CinetPay returned an invalid authentication response.",
     );
   }
 
-  return {
-    paymentUrl: body.data.payment_url,
-    paymentToken: body.data.payment_token ?? null,
+  if (
+    !response.ok ||
+    body.code !== 200 ||
+    body.status !== "OK" ||
+    !body.access_token
+  ) {
+    throw new AppError(
+      502,
+      "PAYMENT_PROVIDER_AUTHENTICATION_FAILED",
+      body.message ?? "CinetPay authentication failed.",
+    );
+  }
+
+  const expiresInSeconds =
+    typeof body.expires_in === "number" && body.expires_in > 0
+      ? body.expires_in
+      : 0;
+
+  if (expiresInSeconds <= 0) {
+    throw new AppError(
+      502,
+      "PAYMENT_PROVIDER_INVALID_RESPONSE",
+      "CinetPay did not return a valid OAuth token expiration.",
+    );
+  }
+
+  const token: CinetPayOAuthToken = {
+    accessToken: body.access_token,
+    tokenType: body.token_type?.trim() || "bearer",
+    expiresAt: Date.now() + expiresInSeconds * 1000,
   };
+
+  cachedOAuthToken = token;
+
+  return token;
 }
 
-
-export type CinetPayVerification = {
-  code: string;
-  message?: string;
-  data?: {
-    amount?: string;
-    currency?: string;
-    status?: string;
-    payment_method?: string;
-    description?: string;
-    metadata?: string | null;
-    operator_id?: string | null;
-    payment_date?: string;
-    fund_availability_date?: string;
-  };
-  api_response_id?: string;
-};
-
-export async function verifyCinetPayTransaction(
-  transactionId: string,
-  config: { apiKey: string; siteId: string },
-) {
-  const response = await fetch("https://api-checkout.cinetpay.com/v2/payment/check", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-      "User-Agent": "SOMI-Payment-Service/1.0",
-    },
-    body: JSON.stringify({
-      apikey: config.apiKey,
-      site_id: config.siteId,
-      transaction_id: transactionId,
-    }),
-  });
-
-  if (!response.ok) {
-    throw new AppError(
-      502,
-      "PAYMENT_PROVIDER_UNAVAILABLE",
-      "Unable to verify the payment with the payment provider.",
-    );
+/**
+ * Return a valid CinetPay OAuth access token.
+ *
+ * A cached token is reused until it reaches the refresh safety margin.
+ * When it is expired or close to expiration, a new OAuth login is
+ * performed automatically.
+ */
+export async function getCinetPayAccessToken(config: {
+  apiKey: string;
+  apiPassword: string;
+  apiBaseUrl: string;
+}): Promise<CinetPayOAuthToken> {
+  if (
+    cachedOAuthToken &&
+    cachedOAuthToken.expiresAt - OAUTH_TOKEN_REFRESH_MARGIN_MS > Date.now()
+  ) {
+    return cachedOAuthToken;
   }
 
-  return (await response.json()) as CinetPayVerification;
+  return authenticateCinetPay(config);
+}
+
+/**
+ * Clear the in-memory OAuth token.
+ *
+ * This is useful when a later authenticated request receives an
+ * authentication failure and the caller needs to force a fresh login.
+ */
+export function clearCinetPayAccessToken(): void {
+  cachedOAuthToken = null;
 }

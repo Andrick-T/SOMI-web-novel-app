@@ -1,4 +1,4 @@
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { AppError } from "../../common/errors/http-error.js";
 import { prisma } from "../../config/database.js";
 import { getBookDetail } from "../content/content.service.js";

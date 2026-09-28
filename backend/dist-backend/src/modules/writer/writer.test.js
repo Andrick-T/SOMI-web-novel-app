@@ -4,6 +4,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createApp } from "../../app.js";
 import { prisma } from "../../config/database.js";
 import { creditWalletFromTrustedPayment } from "../economy/economy.service.js";
+import { calculateWriterEarningCoins } from "./writer.service.js";
+import { calculateWriterPayout, coinsToCfa, coinsToCurrency } from "./writer.finance.js";
 const app = createApp();
 const password = "Somi-writer-password-123";
 const created = {
@@ -11,6 +13,47 @@ const created = {
     books: [],
     chapters: [],
 };
+describe("writer multi-currency calculations", () => {
+    it("keeps coin-to-CFA conversion precise and rounds payout amounts to two decimals", () => {
+        expect(coinsToCfa(21_000)).toBeCloseTo(5_000, 10);
+        expect(coinsToCurrency(21_000, "XAF")).toBeCloseTo(5_000, 10);
+        expect(coinsToCurrency(21_000, "USD")).toBeCloseTo(9.090909, 5);
+        expect(coinsToCurrency(21_000, "EUR")).toBeCloseTo(7.692307, 5);
+        expect(coinsToCurrency(21_000, "CAD")).toBeCloseTo(12.376237, 5);
+        expect(calculateWriterPayout(21_000, "XAF")).toMatchObject({
+            coins: 21_000,
+            amountCfa: 5_000,
+            currency: "XAF",
+            exchangeRateCfa: 1,
+            amount: 5_000,
+        });
+        expect(calculateWriterPayout(21_000, "USD")).toMatchObject({
+            currency: "USD",
+            exchangeRateCfa: 550,
+            amount: 9.09,
+        });
+        expect(calculateWriterPayout(21_000, "EUR")).toMatchObject({
+            currency: "EUR",
+            exchangeRateCfa: 650,
+            amount: 7.69,
+        });
+        expect(calculateWriterPayout(21_000, "CAD")).toMatchObject({
+            currency: "CAD",
+            exchangeRateCfa: 404,
+            amount: 12.38,
+        });
+    });
+});
+describe("writer earning calculation", () => {
+    it("applies the 65 percent share with floor rounding", () => {
+        expect(calculateWriterEarningCoins(80)).toBe(52);
+        expect(calculateWriterEarningCoins(100)).toBe(65);
+        expect(calculateWriterEarningCoins(120)).toBe(78);
+        expect(calculateWriterEarningCoins(125)).toBe(81);
+        expect(calculateWriterEarningCoins(150)).toBe(97);
+        expect(calculateWriterEarningCoins(225)).toBe(146);
+    });
+});
 const createWriter = async () => {
     const email = `writer-${randomUUID()}@example.test`;
     const response = await request(app)
@@ -512,8 +555,8 @@ describe("Phase 7F Writer workflow", () => {
         expect(earningB).toBeDefined();
         expect(earningA.writerId).toBe(writerA.id);
         expect(earningB.writerId).toBe(writerB.id);
-        expect(earningA.coins).toBe(120);
-        expect(earningB.coins).toBe(120);
+        expect(earningA.coins).toBe(78);
+        expect(earningB.coins).toBe(78);
         /*
          * ============================================================
          * Writer A earnings
@@ -523,8 +566,8 @@ describe("Phase 7F Writer workflow", () => {
             .get("/api/v1/writer/earnings")
             .set("Authorization", `Bearer ${writerA.token}`);
         expect(writerAEarnings.status).toBe(200);
-        expect(writerAEarnings.body.totalCoins).toBe(120);
-        expect(writerAEarnings.body.pendingCoins).toBe(120);
+        expect(writerAEarnings.body.totalCoins).toBe(78);
+        expect(writerAEarnings.body.pendingCoins).toBe(78);
         expect(writerAEarnings.body.availableCoins).toBe(0);
         /*
          * Writer A transaction list must contain only A's earning.
@@ -538,7 +581,7 @@ describe("Phase 7F Writer workflow", () => {
             id: earningA.id,
             bookId: bookA.id,
             chapterId: chapterAId,
-            coins: 120,
+            coins: 78,
             status: "PENDING",
         });
         expect(writerATransactions.body.transactions.some((transaction) => transaction.id === earningB.id)).toBe(false);
@@ -551,8 +594,8 @@ describe("Phase 7F Writer workflow", () => {
             .get("/api/v1/writer/earnings")
             .set("Authorization", `Bearer ${writerB.token}`);
         expect(writerBEarnings.status).toBe(200);
-        expect(writerBEarnings.body.totalCoins).toBe(120);
-        expect(writerBEarnings.body.pendingCoins).toBe(120);
+        expect(writerBEarnings.body.totalCoins).toBe(78);
+        expect(writerBEarnings.body.pendingCoins).toBe(78);
         expect(writerBEarnings.body.availableCoins).toBe(0);
         /*
          * Writer B transaction list must contain only B's earning.
@@ -566,7 +609,7 @@ describe("Phase 7F Writer workflow", () => {
             id: earningB.id,
             bookId: bookB.id,
             chapterId: chapterBId,
-            coins: 120,
+            coins: 78,
             status: "PENDING",
         });
         expect(writerBTransactions.body.transactions.some((transaction) => transaction.id === earningA.id)).toBe(false);

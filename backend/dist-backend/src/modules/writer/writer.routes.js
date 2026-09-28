@@ -1,11 +1,13 @@
 import express, { Router } from "express";
+import { z } from "zod";
 import { prisma } from "../../config/database.js";
 import { AppError } from "../../common/errors/http-error.js";
 import { validate } from "../../common/middleware/validate.js";
 import { requireAuth, requireRole } from "../auth/auth.middleware.js";
-import { assetMetadataSchema, autosaveSchema, localizationSchema, writerProfileSchema, } from "./writer.schemas.js";
-import { readWriterImage, storeWriterImage } from "./writer.storage.js";
-import { getWriterEarnings, getWriterEarningTransactions, getWriterProfile, saveWriterProfile, autosaveChapter, saveBookLocalization, markBookLocalizationReady, markChapterLocalizationReady, submitBook, getWriterSubmissions, } from "./writer.service.js";
+import { assetMetadataSchema, autosaveSchema, localizationSchema, writerProfileSchema, withdrawalRequestSchema, } from "./writer.schemas.js";
+import { readWriterImage, storeWriterImage, storeWriterKycDocument, readWriterKycDocument } from "./writer.storage.js";
+import { getWriterEarnings, getWriterEarningTransactions, getWriterProfile, saveWriterProfile, autosaveChapter, saveBookLocalization, markBookLocalizationReady, markChapterLocalizationReady, submitBook, getWriterSubmissions, getWriterWithdrawalSummary, getWriterWithdrawals, requestWriterWithdrawal, getWriterSupportTickets, createWriterSupportTicket, } from "./writer.service.js";
+import { WRITER_PAYOUT_METHODS, SUPPORTED_WRITER_CURRENCIES, WRITER_EXCHANGE_RATES_CFA } from "./writer.finance.js";
 const writerRouter = Router();
 const asyncRoute = (handler) => (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
 /* ============================================================
@@ -184,6 +186,129 @@ writerRouter.get("/books/analytics", asyncRoute(async (req, res) => {
     });
 }));
 /* ============================================================
+   WRITER KYC
+   ============================================================ */
+const writerKycDocumentTypeSchema = z.enum([
+    "NATIONAL_ID",
+    "PASSPORT",
+    "DRIVER_LICENSE",
+]);
+writerRouter.get("/financial/rules", asyncRoute(async (_req, res) => {
+    res.json({
+        currencies: SUPPORTED_WRITER_CURRENCIES.map((currency) => ({
+            code: currency,
+            exchangeRateCfa: WRITER_EXCHANGE_RATES_CFA[currency],
+        })),
+        payoutMethods: WRITER_PAYOUT_METHODS,
+        coinsPerCfa: 4.2,
+        cfaPerCoin: 1 / 4.2,
+        minimumWithdrawalCoins: 21_000,
+        minimumWithdrawalCfa: 5_000,
+    });
+}));
+writerRouter.get("/kyc", asyncRoute(async (req, res) => {
+    const kyc = await prisma.writerKyc.findUnique({
+        where: { writerId: req.user.id },
+        include: {
+            documents: {
+                select: { id: true, documentType: true, status: true, createdAt: true },
+                orderBy: { createdAt: "desc" },
+            },
+        },
+    });
+    return res.json({
+        kyc: kyc
+            ? {
+                id: kyc.id,
+                status: kyc.status,
+                submittedAt: kyc.submittedAt,
+                reviewedAt: kyc.reviewedAt,
+                rejectionReason: kyc.rejectionReason,
+                documents: kyc.documents,
+            }
+            : { status: "NOT_STARTED", documents: [] },
+    });
+}));
+writerRouter.post("/kyc/documents/upload", express.raw({ type: () => true, limit: "10mb" }), asyncRoute(async (req, res) => {
+    const documentTypeResult = writerKycDocumentTypeSchema.safeParse(req.headers["x-kyc-document-type"]);
+    if (!documentTypeResult.success) {
+        throw new AppError(400, "VALIDATION_ERROR", "A valid KYC document type is required.");
+    }
+    const kyc = await prisma.writerKyc.upsert({
+        where: { writerId: req.user.id },
+        create: { writerId: req.user.id },
+        update: {},
+    });
+    if (kyc.status === "APPROVED" || kyc.status === "PENDING") {
+        throw new AppError(409, "KYC_NOT_EDITABLE", "KYC cannot be modified while it is pending or approved.");
+    }
+    const mimeType = String(req.headers["content-type"] ?? "").split(";")[0];
+    const buffer = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+    const stored = await storeWriterKycDocument(mimeType, buffer);
+    const document = await prisma.writerKycDocument.create({
+        data: {
+            writerId: req.user.id,
+            kycId: kyc.id,
+            documentType: documentTypeResult.data,
+            storageKey: stored.storageKey,
+            mimeType,
+            sizeBytes: stored.sizeBytes,
+            status: "PENDING",
+        },
+        select: {
+            id: true,
+            documentType: true,
+            mimeType: true,
+            sizeBytes: true,
+            status: true,
+            createdAt: true,
+        },
+    });
+    return res.status(201).json({ document });
+}));
+writerRouter.get("/kyc/documents/:documentId", asyncRoute(async (req, res) => {
+    const document = await prisma.writerKycDocument.findFirst({
+        where: { id: String(req.params.documentId), writerId: req.user.id },
+        select: { storageKey: true, mimeType: true, status: true },
+    });
+    if (!document || document.status === "REJECTED") {
+        throw new AppError(404, "KYC_DOCUMENT_NOT_FOUND", "KYC document not found.");
+    }
+    const data = await readWriterKycDocument(document.storageKey);
+    return res.type(document.mimeType).send(data);
+}));
+writerRouter.post("/kyc/submit", asyncRoute(async (req, res) => {
+    const kyc = await prisma.writerKyc.findUnique({
+        where: { writerId: req.user.id },
+        include: { documents: true },
+    });
+    if (!kyc || kyc.documents.length === 0) {
+        throw new AppError(400, "KYC_DOCUMENTS_REQUIRED", "At least one KYC document is required before submission.");
+    }
+    if (kyc.status === "PENDING") {
+        throw new AppError(409, "KYC_ALREADY_PENDING", "KYC is already pending review.");
+    }
+    if (kyc.status === "APPROVED") {
+        throw new AppError(409, "KYC_ALREADY_APPROVED", "KYC is already approved.");
+    }
+    const updated = await prisma.writerKyc.update({
+        where: { id: kyc.id },
+        data: {
+            status: "PENDING",
+            submittedAt: new Date(),
+            reviewedAt: null,
+            reviewedBy: null,
+            rejectionReason: null,
+        },
+        include: {
+            documents: {
+                select: { id: true, documentType: true, status: true, createdAt: true },
+            },
+        },
+    });
+    return res.json({ kyc: updated });
+}));
+/* ============================================================
    WRITER EARNINGS
    ============================================================ */
 writerRouter.get("/earnings", asyncRoute(async (req, res) => {
@@ -195,6 +320,37 @@ writerRouter.get("/earnings/transactions", asyncRoute(async (req, res) => {
     return res.json({
         transactions,
     });
+}));
+/* ============================================================
+   WRITER WITHDRAWALS
+   ============================================================ */
+writerRouter.get("/withdrawals/summary", asyncRoute(async (req, res) => {
+    const summary = await getWriterWithdrawalSummary(req.user);
+    return res.json(summary);
+}));
+writerRouter.get("/withdrawals", asyncRoute(async (req, res) => {
+    const withdrawals = await getWriterWithdrawals(req.user);
+    return res.json({ withdrawals });
+}));
+writerRouter.post("/withdrawals", validate(withdrawalRequestSchema), asyncRoute(async (req, res) => {
+    const withdrawal = await requestWriterWithdrawal(req.user, req.body);
+    return res.status(201).json({ withdrawal });
+}));
+/* ============================================================
+   WRITER SUPPORT
+   ============================================================ */
+const supportTicketSchema = z.object({
+    category: z.string().trim().min(2).max(50),
+    subject: z.string().trim().min(3).max(255),
+    body: z.string().trim().min(1).max(5000),
+    withdrawalId: z.string().uuid().optional(),
+});
+writerRouter.get("/support/tickets", asyncRoute(async (req, res) => {
+    res.json({ tickets: await getWriterSupportTickets(req.user) });
+}));
+writerRouter.post("/support/tickets", validate(supportTicketSchema), asyncRoute(async (req, res) => {
+    const ticket = await createWriterSupportTicket(req.user, req.body);
+    res.status(201).json({ ticket });
 }));
 /* ============================================================
    BOOK LOCALIZATIONS
