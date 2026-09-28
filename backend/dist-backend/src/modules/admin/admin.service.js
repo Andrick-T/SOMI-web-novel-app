@@ -963,8 +963,8 @@ export async function processAdminWithdrawal(args) {
         if (!current) {
             throw new AppError(404, "WITHDRAWAL_NOT_FOUND", "Withdrawal request not found.");
         }
-        if (current.status !== "PENDING") {
-            throw new AppError(409, "WITHDRAWAL_INVALID_STATE", "Only pending withdrawals can move to processing.");
+        if (current.status !== "PENDING" && current.status !== "FAILED") {
+            throw new AppError(409, "WITHDRAWAL_INVALID_STATE", "Only pending or failed withdrawals can move to processing.");
         }
         return tx.withdrawalRequest.update({
             where: { id: current.id },
@@ -972,6 +972,7 @@ export async function processAdminWithdrawal(args) {
                 status: "PROCESSING",
                 reviewedBy: args.actorId,
                 reviewedAt: new Date(),
+                processedAt: null,
                 failureMessage: null,
             },
         });
@@ -1081,7 +1082,9 @@ export async function getAdminSupportTickets(args) {
     const limit = clampLimit(args.limit ?? 20);
     const where = {
         ...(args.status && args.status !== "ALL" ? { status: args.status } : {}),
-        ...(args.priority && args.priority !== "ALL" ? { priority: args.priority } : {}),
+        ...(args.priority && args.priority !== "ALL"
+            ? { priority: args.priority }
+            : {}),
     };
     const [items, total] = await Promise.all([
         prisma.supportTicket.findMany({
@@ -1101,7 +1104,12 @@ export async function getAdminSupportTickets(args) {
     ]);
     return {
         items,
-        pagination: { page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) },
+        pagination: {
+            page,
+            limit,
+            total,
+            totalPages: Math.max(1, Math.ceil(total / limit)),
+        },
     };
 }
 export async function replyToSupportTicket(args) {
@@ -1109,7 +1117,9 @@ export async function replyToSupportTicket(args) {
     if (!body) {
         throw new AppError(400, "SUPPORT_MESSAGE_REQUIRED", "A support message is required.");
     }
-    const ticket = await prisma.supportTicket.findUnique({ where: { id: args.ticketId } });
+    const ticket = await prisma.supportTicket.findUnique({
+        where: { id: args.ticketId },
+    });
     if (!ticket)
         throw new AppError(404, "SUPPORT_TICKET_NOT_FOUND", "Support ticket not found.");
     if (ticket.status === "CLOSED") {
@@ -1128,14 +1138,17 @@ export async function updateSupportTicket(args) {
     if (args.priority && !allowedPriorities.includes(args.priority)) {
         throw new AppError(400, "INVALID_SUPPORT_PRIORITY", "Invalid support priority.");
     }
-    const ticket = await prisma.supportTicket.update({
+    const ticket = await prisma.supportTicket
+        .update({
         where: { id: args.ticketId },
         data: {
             ...(args.status ? { status: args.status } : {}),
             ...(args.priority ? { priority: args.priority } : {}),
         },
-    }).catch((error) => {
-        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
+    })
+        .catch((error) => {
+        if (error instanceof Prisma.PrismaClientKnownRequestError &&
+            error.code === "P2025") {
             throw new AppError(404, "SUPPORT_TICKET_NOT_FOUND", "Support ticket not found.");
         }
         throw error;
@@ -1343,7 +1356,13 @@ export async function getAdminWriterKyc(writerId) {
         where: { writerId },
         include: {
             writer: {
-                select: { id: true, email: true, username: true, role: true, status: true },
+                select: {
+                    id: true,
+                    email: true,
+                    username: true,
+                    role: true,
+                    status: true,
+                },
             },
             documents: {
                 select: {

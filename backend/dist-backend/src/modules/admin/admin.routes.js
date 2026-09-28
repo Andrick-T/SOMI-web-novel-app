@@ -261,12 +261,12 @@ adminRouter.post("/withdrawals/:withdrawalId/complete", asyncRoute(async (req, r
     res.json({ withdrawal });
 }));
 adminRouter.post("/withdrawals/:withdrawalId/fail", validate(z.object({
-    failureMessage: z.string().trim().min(1).max(2000),
+    failureMessage: z.string().trim().max(2000).optional(),
 })), asyncRoute(async (req, res) => {
     const withdrawal = await failAdminWithdrawal({
         withdrawalId: String(req.params.withdrawalId),
         actorId: req.user.id,
-        failureMessage: req.body.failureMessage,
+        failureMessage: req.body.failureMessage ?? "",
     });
     await recordAdminAuditEvent({
         actorId: req.user.id,

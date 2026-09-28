@@ -1,6 +1,40 @@
 import { AppError } from "../../common/errors/http-error.js";
 let cachedOAuthToken = null;
 const OAUTH_TOKEN_REFRESH_MARGIN_MS = 60_000;
+/**
+ * ============================================================
+ * E14.9.9 — Provider resilience
+ * ============================================================
+ *
+ * Every outbound CinetPay request has a bounded execution time.
+ *
+ * We deliberately do not implement automatic retries here.
+ * A payment initialization or verification request can have
+ * financial consequences, so retries must be introduced only
+ * together with an explicit idempotency/reconciliation strategy.
+ */
+const CINETPAY_REQUEST_TIMEOUT_MS = 15_000;
+async function fetchCinetPay(input, init) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => {
+        controller.abort();
+    }, CINETPAY_REQUEST_TIMEOUT_MS);
+    try {
+        return await fetch(input, {
+            ...init,
+            signal: controller.signal,
+        });
+    }
+    catch (error) {
+        if (error instanceof Error && error.name === "AbortError") {
+            throw new AppError(504, "PAYMENT_PROVIDER_TIMEOUT", "CinetPay did not respond within the allowed time.");
+        }
+        throw new AppError(502, "PAYMENT_PROVIDER_UNAVAILABLE", "Unable to connect to the CinetPay payment service.");
+    }
+    finally {
+        clearTimeout(timeout);
+    }
+}
 export async function authenticateCinetPay(config) {
     if (!config.apiKey.trim()) {
         throw new AppError(503, "PAYMENT_PROVIDER_NOT_CONFIGURED", "CinetPay API key is not configured.");
@@ -10,24 +44,18 @@ export async function authenticateCinetPay(config) {
     }
     const baseUrl = config.apiBaseUrl.replace(/\/+$/, "");
     const loginUrl = `${baseUrl}/v1/oauth/login`;
-    let response;
-    try {
-        response = await fetch(loginUrl, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                Accept: "application/json",
-                "User-Agent": "SOMI-Payment-Service/1.0",
-            },
-            body: JSON.stringify({
-                api_key: config.apiKey,
-                api_password: config.apiPassword,
-            }),
-        });
-    }
-    catch {
-        throw new AppError(502, "PAYMENT_PROVIDER_UNAVAILABLE", "Unable to connect to the CinetPay authentication service.");
-    }
+    const response = await fetchCinetPay(loginUrl, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+            "User-Agent": "SOMI-Payment-Service/1.0",
+        },
+        body: JSON.stringify({
+            api_key: config.apiKey,
+            api_password: config.apiPassword,
+        }),
+    });
     let body;
     try {
         body = (await response.json());
@@ -109,22 +137,16 @@ export async function createCinetPayPayment(payment, config) {
         channel: config.channel,
         direct_pay: false,
     };
-    let response;
-    try {
-        response = await fetch(paymentEndpoint, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                Accept: "application/json",
-                Authorization: `${token.tokenType} ${token.accessToken}`,
-                "User-Agent": "SOMI-Payment-Service/1.0",
-            },
-            body: JSON.stringify(payload),
-        });
-    }
-    catch {
-        throw new AppError(502, "PAYMENT_PROVIDER_UNAVAILABLE", "Unable to connect to the CinetPay payment service.");
-    }
+    const response = await fetchCinetPay(paymentEndpoint, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+            Authorization: `${token.tokenType} ${token.accessToken}`,
+            "User-Agent": "SOMI-Payment-Service/1.0",
+        },
+        body: JSON.stringify(payload),
+    });
     let body;
     try {
         body = (await response.json());
@@ -151,42 +173,62 @@ export async function createCinetPayPayment(payment, config) {
         paymentUrl: providerPaymentUrl,
     };
 }
-export async function verifyCinetPayTransaction(transactionId, config) {
-    if (!transactionId.trim()) {
-        throw new AppError(422, "INVALID_PAYMENT_REFERENCE", "The CinetPay transaction reference is required.");
+export async function verifyCinetPayPayment(merchantTransactionId, config) {
+    const reference = merchantTransactionId.trim();
+    if (!reference) {
+        throw new AppError(422, "INVALID_PAYMENT_REFERENCE", "The CinetPay merchant transaction reference is required.");
     }
-    if (!config.apiKey.trim() || !config.siteId.trim()) {
-        throw new AppError(503, "PAYMENT_PROVIDER_NOT_CONFIGURED", "CinetPay verification credentials are not configured.");
+    if (reference.length > 30) {
+        throw new AppError(422, "INVALID_PAYMENT_REFERENCE", "The CinetPay merchant transaction reference is too long.");
     }
-    const verificationUrl = "https://api-checkout.cinetpay.com/v2/payment/check";
-    let response;
-    try {
-        response = await fetch(verificationUrl, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                Accept: "application/json",
-                "User-Agent": "SOMI-Payment-Service/1.0",
-            },
-            body: JSON.stringify({
-                apikey: config.apiKey,
-                site_id: config.siteId,
-                transaction_id: transactionId,
-            }),
-        });
-    }
-    catch {
-        throw new AppError(502, "PAYMENT_PROVIDER_UNAVAILABLE", "Unable to connect to the CinetPay verification service.");
-    }
+    const token = await getCinetPayAccessToken({
+        apiKey: config.apiKey,
+        apiPassword: config.apiPassword,
+        apiBaseUrl: config.apiBaseUrl,
+    });
+    const baseUrl = config.apiBaseUrl.replace(/\/+$/, "");
+    const verificationUrl = `${baseUrl}/v1/payment/${encodeURIComponent(reference)}`;
+    const response = await fetchCinetPay(verificationUrl, {
+        method: "GET",
+        headers: {
+            Accept: "application/json",
+            Authorization: `${token.tokenType} ${token.accessToken}`,
+            "User-Agent": "SOMI-Payment-Service/1.0",
+        },
+    });
     let body;
     try {
         body = (await response.json());
     }
     catch {
-        throw new AppError(502, "PAYMENT_PROVIDER_INVALID_RESPONSE", "CinetPay returned an invalid verification response.");
+        throw new AppError(502, "PAYMENT_PROVIDER_INVALID_RESPONSE", "CinetPay returned an invalid payment verification response.");
     }
     if (!response.ok) {
-        throw new AppError(502, "PAYMENT_PROVIDER_ERROR", body.message ?? "CinetPay transaction verification failed.");
+        if (response.status === 401 || response.status === 403) {
+            clearCinetPayAccessToken();
+        }
+        throw new AppError(502, "PAYMENT_PROVIDER_ERROR", body.message ?? "CinetPay payment verification failed.");
     }
-    return body;
+    const returnedReference = body.merchant_transaction_id?.trim();
+    if (!returnedReference) {
+        throw new AppError(502, "PAYMENT_PROVIDER_INVALID_RESPONSE", "CinetPay did not return a merchant transaction reference.");
+    }
+    if (returnedReference !== reference) {
+        throw new AppError(409, "PAYMENT_PROVIDER_REFERENCE_MISMATCH", "CinetPay returned a different merchant transaction reference.");
+    }
+    const providerReference = body.transaction_id?.trim();
+    if (!providerReference) {
+        throw new AppError(502, "PAYMENT_PROVIDER_INVALID_RESPONSE", "CinetPay did not return a provider transaction reference.");
+    }
+    const status = body.status?.trim().toUpperCase();
+    if (!status) {
+        throw new AppError(502, "PAYMENT_PROVIDER_INVALID_RESPONSE", "CinetPay did not return a payment status.");
+    }
+    return {
+        code: body.code,
+        status,
+        merchantTransactionId: returnedReference,
+        providerReference,
+        paymentMethod: body.payment_method?.trim() || null,
+    };
 }
