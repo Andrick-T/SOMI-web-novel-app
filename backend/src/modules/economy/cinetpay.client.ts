@@ -26,6 +26,54 @@ let cachedOAuthToken: CinetPayOAuthToken | null = null;
 
 const OAUTH_TOKEN_REFRESH_MARGIN_MS = 60_000;
 
+/**
+ * ============================================================
+ * E14.9.9 — Provider resilience
+ * ============================================================
+ *
+ * Every outbound CinetPay request has a bounded execution time.
+ *
+ * We deliberately do not implement automatic retries here.
+ * A payment initialization or verification request can have
+ * financial consequences, so retries must be introduced only
+ * together with an explicit idempotency/reconciliation strategy.
+ */
+const CINETPAY_REQUEST_TIMEOUT_MS = 15_000;
+
+async function fetchCinetPay(
+  input: string | URL,
+  init: RequestInit,
+): Promise<Response> {
+  const controller = new AbortController();
+
+  const timeout = setTimeout(() => {
+    controller.abort();
+  }, CINETPAY_REQUEST_TIMEOUT_MS);
+
+  try {
+    return await fetch(input, {
+      ...init,
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new AppError(
+        504,
+        "PAYMENT_PROVIDER_TIMEOUT",
+        "CinetPay did not respond within the allowed time.",
+      );
+    }
+
+    throw new AppError(
+      502,
+      "PAYMENT_PROVIDER_UNAVAILABLE",
+      "Unable to connect to the CinetPay payment service.",
+    );
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export async function authenticateCinetPay(config: {
   apiKey: string;
   apiPassword: string;
@@ -50,28 +98,18 @@ export async function authenticateCinetPay(config: {
   const baseUrl = config.apiBaseUrl.replace(/\/+$/, "");
   const loginUrl = `${baseUrl}/v1/oauth/login`;
 
-  let response: Response;
-
-  try {
-    response = await fetch(loginUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        "User-Agent": "SOMI-Payment-Service/1.0",
-      },
-      body: JSON.stringify({
-        api_key: config.apiKey,
-        api_password: config.apiPassword,
-      }),
-    });
-  } catch {
-    throw new AppError(
-      502,
-      "PAYMENT_PROVIDER_UNAVAILABLE",
-      "Unable to connect to the CinetPay authentication service.",
-    );
-  }
+  const response = await fetchCinetPay(loginUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      "User-Agent": "SOMI-Payment-Service/1.0",
+    },
+    body: JSON.stringify({
+      api_key: config.apiKey,
+      api_password: config.apiPassword,
+    }),
+  });
 
   let body: CinetPayOAuthResponse;
 
@@ -268,26 +306,16 @@ export async function createCinetPayPayment(
     direct_pay: false,
   };
 
-  let response: Response;
-
-  try {
-    response = await fetch(paymentEndpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        Authorization: `${token.tokenType} ${token.accessToken}`,
-        "User-Agent": "SOMI-Payment-Service/1.0",
-      },
-      body: JSON.stringify(payload),
-    });
-  } catch {
-    throw new AppError(
-      502,
-      "PAYMENT_PROVIDER_UNAVAILABLE",
-      "Unable to connect to the CinetPay payment service.",
-    );
-  }
+  const response = await fetchCinetPay(paymentEndpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      Authorization: `${token.tokenType} ${token.accessToken}`,
+      "User-Agent": "SOMI-Payment-Service/1.0",
+    },
+    body: JSON.stringify(payload),
+  });
 
   let body: CinetPayPaymentInitializationResponse;
 
@@ -417,24 +445,14 @@ export async function verifyCinetPayPayment(
     reference,
   )}`;
 
-  let response: Response;
-
-  try {
-    response = await fetch(verificationUrl, {
-      method: "GET",
-      headers: {
-        Accept: "application/json",
-        Authorization: `${token.tokenType} ${token.accessToken}`,
-        "User-Agent": "SOMI-Payment-Service/1.0",
-      },
-    });
-  } catch {
-    throw new AppError(
-      502,
-      "PAYMENT_PROVIDER_UNAVAILABLE",
-      "Unable to connect to the CinetPay payment verification service.",
-    );
-  }
+  const response = await fetchCinetPay(verificationUrl, {
+    method: "GET",
+    headers: {
+      Accept: "application/json",
+      Authorization: `${token.tokenType} ${token.accessToken}`,
+      "User-Agent": "SOMI-Payment-Service/1.0",
+    },
+  });
 
   let body: CinetPayPaymentStatusResponse;
 

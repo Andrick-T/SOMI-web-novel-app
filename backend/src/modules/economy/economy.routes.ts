@@ -17,6 +17,7 @@ import {
   expirePendingPayments,
   persistCinetPayInitialization,
   getPaymentBySomiReference,
+  handleVerifiedCinetPayEvent,
 } from "./economy.service.js";
 import {
   createCinetPayPayment,
@@ -32,7 +33,7 @@ export const economyRouter = Router();
 
 /**
  * ============================================================
- * E14.9.6 / E14.9.7 — CinetPay notification
+ * E14.9.6 / E14.9.7 / E14.9.8 — CinetPay notification
  * ============================================================
  *
  * CinetPay calls this endpoint directly.
@@ -117,25 +118,55 @@ economyRouter.post(
     });
 
     /*
-     * E14.9.7 deliberately stops here.
+     * E14.9.8:
      *
-     * We DO NOT call handleVerifiedCinetPayEvent() yet.
+     * CinetPay's verified status is now mapped to the SOMI
+     * payment lifecycle. The notification itself is never used
+     * as the source of truth.
      *
-     * E14.9.8 will define:
+     * CinetPay:
      *
-     *   CinetPay status
-     *        ↓
-     *   SOMI payment status
-     *        ↓
-     *   settlement
-     *        ↓
-     *   wallet credit
-     *        ↓
-     *   ledger transaction
-     *
-     * This separation ensures that verification and settlement
-     * remain distinct operations.
+     *   INITIATED -> SOMI PENDING
+     *   SUCCESS   -> SOMI ACCEPTED -> settlement
+     *   FAILED    -> SOMI REFUSED -> FAILED
      */
+    const statusMap: Record<string, "PENDING" | "ACCEPTED" | "REFUSED"> = {
+      INITIATED: "PENDING",
+      SUCCESS: "ACCEPTED",
+      FAILED: "REFUSED",
+    };
+
+    const somiStatus = statusMap[verification.status];
+
+    if (!somiStatus) {
+      throw new AppError(
+        422,
+        "UNSUPPORTED_PAYMENT_PROVIDER_STATUS",
+        `Unsupported CinetPay payment status: ${verification.status}.`,
+      );
+    }
+
+    /*
+     * The provider verification response currently gives us the
+     * authoritative provider reference, status and payment method.
+     *
+     * Amount and currency are taken from the persisted SOMI payment
+     * intent, because the CinetPay status endpoint does not expose
+     * those fields in the documented response used by this integration.
+     *
+     * handleVerifiedCinetPayEvent() then performs the existing
+     * server-side amount/currency/reference validation and settlement.
+     */
+    const settlement = await handleVerifiedCinetPayEvent({
+      somiReference: payment.somiReference,
+      providerReference: verification.providerReference,
+      status: somiStatus,
+      amount: Number(payment.amount),
+      currency: payment.currency,
+      paymentMethod: verification.paymentMethod,
+      verifiedAt: new Date(),
+    });
+
     res.status(200).json({
       received: true,
       processed: true,
@@ -144,6 +175,9 @@ economyRouter.post(
       providerReference: verification.providerReference,
       providerStatus: verification.status,
       paymentMethod: verification.paymentMethod,
+      paymentStatus: settlement.status,
+      walletTransactionId: settlement.walletTransactionId ?? null,
+      alreadySettled: settlement.alreadySettled ?? false,
     });
   }),
 );
@@ -271,14 +305,32 @@ economyRouter.post(
       });
     } catch (error) {
       /*
-       * CinetPay initialization failed.
+       * E14.9.9 — resilience:
        *
-       * The SOMI payment intent must not remain indefinitely PENDING
-       * when initialization itself failed.
+       * A provider/network/timeout error is NOT enough to mark the
+       * payment as FAILED.
        *
-       * No coins have been credited.
+       * The customer may have reached CinetPay or even completed
+       * the payment while SOMI was unable to receive the response.
+       *
+       * Leaving the payment PENDING allows a later notification,
+       * verification or reconciliation process to determine the
+       * authoritative result.
+       *
+       * Only explicit business-level failures should transition
+       * the payment to FAILED.
        */
-      await markPaymentFailed(payment.paymentId);
+      if (
+        error instanceof AppError &&
+        [
+          "INVALID_PAYMENT_AMOUNT",
+          "INVALID_PAYMENT_REFERENCE",
+          "INVALID_PAYMENT_CURRENCY",
+          "PAYMENT_PROVIDER_NOT_CONFIGURED",
+        ].includes(error.code)
+      ) {
+        await markPaymentFailed(payment.paymentId);
+      }
 
       throw error;
     }
