@@ -10,7 +10,7 @@
     "format": "oxfmt",
     "backend:dev": "tsx watch backend/src/server.ts",
     "backend:test": "vitest run",
-    "backend:build": "tsc -p backend/tsconfig.json",
+    "backend:build": "prisma generate --schema backend/prisma/schema.prisma && tsc -p backend/tsconfig.json",
     "writer:test": "tsx backend/scripts/create-test-writer.ts",
     "db:seed": "tsx backend/src/prisma/seed.ts"
   },
