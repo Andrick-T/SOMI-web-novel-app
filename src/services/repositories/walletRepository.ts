@@ -67,13 +67,32 @@ const apiWalletRepository = {
     return response.wallet;
   },
 
-  async purchase(packageId: string) {\n    return apiAuthRepository.authorizedRequest<{ paymentId: string; somiReference: string; packageId: string; amount: number; currency: string; coins: number; provider: string; status: string; expiresAt: string | null; checkoutUrl: string; paymentToken: string }>("/api/v1/wallet/purchase", { method: "POST", body: JSON.stringify({ packageId }) });\n  },\n\n  async getTransactions(): Promise<WalletTransaction[]> {
+  async purchase(packageId: string) {
+    return apiAuthRepository.authorizedRequest<{
+      paymentId: string;
+      somiReference: string;
+      packageId: string;
+      amount: number;
+      currency: string;
+      coins: number;
+      provider: string;
+      status: string;
+      expiresAt: string | null;
+      checkoutUrl: string;
+      paymentToken: string;
+    }>("/api/v1/wallet/purchase", {
+      method: "POST",
+      body: JSON.stringify({ packageId }),
+    });
+  },
+  async getTransactions(): Promise<WalletTransaction[]> {
     const response = await apiAuthRepository.authorizedRequest<{
       transactions: WalletTransaction[];
     }>("/api/v1/wallet/transactions");
 
     return response.transactions;
-  },\n  async getPaymentHistory(limit = 25, offset = 0) {
+  },
+  async getPaymentHistory(limit = 25, offset = 0) {
     return apiAuthRepository.authorizedRequest<{
       payments: Array<{
         id: string;
@@ -114,11 +133,8 @@ const apiWalletRepository = {
       expiresAt?: string | null;
       createdAt: string;
       updatedAt: string;
-    }>(
-      `/api/v1/payments/reference/${encodeURIComponent(somiReference)}`,
-    );
+    }>(`/api/v1/payments/reference/${encodeURIComponent(somiReference)}`);
   },
-
 
   async getEntitlement(
     bookId: string,

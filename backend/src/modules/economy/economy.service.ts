@@ -15,18 +15,21 @@ const COMPLETED = "COMPLETED";
 
 export const coinPackages = COIN_PACKAGES;
 
-export type TrustedPaymentEvent = {
-  userId: string;
-  packageId?: CoinPackageId;
-  amountCfa?: number;
-  providerReference: string;
-  verified: true;
-};
-
-// Persisted balances are whole coins. The 4.2 CFA conversion is represented as
-// 21/5 and rounded to the nearest whole coin, with halves rounded up, without
-// floating point math.
-export function getCoinsForCustomPurchase(amountCfa: number) {
+/**
+ * SOMI coin conversion:
+ *
+ * 1 CFA = 4.2 coins
+ *
+ * Persisted wallet balances are whole coins.
+ * Conversion is therefore implemented as:
+ *
+ * amountCfa × 21 / 5
+ *
+ * and rounded to the nearest whole coin, with halves rounded up.
+ *
+ * No floating-point arithmetic is used for the conversion.
+ */
+export function getCoinsForCustomPurchase(amountCfa: number): number {
   if (!Number.isSafeInteger(amountCfa) || amountCfa < MINIMUM_PURCHASE_CFA) {
     throw new AppError(
       422,
@@ -38,59 +41,18 @@ export function getCoinsForCustomPurchase(amountCfa: number) {
   return Math.floor((amountCfa * 21 + 2) / 5);
 }
 
-export function getPurchaseRule(event: TrustedPaymentEvent) {
-  if (event.verified !== true || !event.providerReference.trim()) {
-    throw new AppError(
-      422,
-      "UNVERIFIED_PAYMENT",
-      "A verified payment event is required.",
-    );
-  }
-
-  if (event.packageId) {
-    const packageConfig = coinPackages[event.packageId];
-
-    if (
-      !packageConfig ||
-      (event.amountCfa !== undefined &&
-        event.amountCfa !== packageConfig.amountCfa)
-    ) {
-      throw new AppError(
-        422,
-        "INVALID_PAYMENT_AMOUNT",
-        "Payment amount does not match the selected package.",
-      );
-    }
-
-    return packageConfig;
-  }
-
-  if (event.amountCfa === undefined) {
-    throw new AppError(
-      422,
-      "INVALID_PURCHASE_AMOUNT",
-      "A package or custom amount is required.",
-    );
-  }
-
-  return {
-    amountCfa: event.amountCfa,
-    coins: getCoinsForCustomPurchase(event.amountCfa),
-  };
-}
-
-const isPrismaConflict = (error: unknown) =>
-  error instanceof Prisma.PrismaClientKnownRequestError &&
-  (error.code === "P2002" || error.code === "P2034");
-
 /**
- * Read-only wallet lookup.
+ * Create a persisted SOMI payment intent.
  *
- * IMPORTANT:
- * GET /wallet must never create persistent financial state.
+ * This function does NOT credit coins.
  *
- * Wallets are created by trusted financial operations such as a verified
- * payment. A user who has no wallet yet receives a zero-balance projection.
+ * Flow:
+ *   1. Validate the selected package.
+ *   2. Generate a unique SOMI reference.
+ *   3. Persist the payment as PENDING.
+ *   4. Return the information required to initiate the provider checkout.
+ *
+ * Coins are credited only after a trusted provider verification event.
  */
 export async function createPaymentIntent(
   userId: string,
@@ -102,7 +64,10 @@ export async function createPaymentIntent(
     throw new AppError(422, "INVALID_PACKAGE", "Unknown coin package.");
   }
 
-  const somiReference = `SOMI-${new Date().toISOString().replace(/[-:TZ.]/g, "").slice(0, 14)}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
+  const somiReference = `SOMI-${new Date()
+    .toISOString()
+    .replace(/[-:TZ.]/g, "")
+    .slice(0, 14)}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
 
   const payment = await prisma.payment.create({
     data: {
@@ -132,8 +97,11 @@ export async function createPaymentIntent(
   };
 }
 
-
-
+/**
+ * Mark a pending payment as failed.
+ *
+ * This operation never credits the wallet.
+ */
 export async function markPaymentFailed(paymentId: string) {
   await prisma.payment.updateMany({
     where: {
@@ -146,27 +114,42 @@ export async function markPaymentFailed(paymentId: string) {
   });
 }
 
-
-
-
-
+/**
+ * Expire payments that were never completed before their expiration time.
+ */
 export async function expirePendingPayments(now = new Date()) {
   const result = await prisma.payment.updateMany({
     where: {
-      status: { in: ["PENDING", "PROCESSING"] },
-      expiresAt: { not: null, lte: now },
+      status: {
+        in: ["PENDING", "PROCESSING"],
+      },
+      expiresAt: {
+        not: null,
+        lte: now,
+      },
     },
     data: {
       status: "EXPIRED",
     },
   });
 
-  return { expired: result.count };
+  return {
+    expired: result.count,
+  };
 }
 
+/**
+ * Cancel a payment belonging to the authenticated user.
+ *
+ * A completed payment can never be cancelled.
+ * Terminal failed/cancelled/expired payments are returned unchanged.
+ */
 export async function cancelPayment(userId: string, paymentId: string) {
   const payment = await prisma.payment.findFirst({
-    where: { id: paymentId, userId },
+    where: {
+      id: paymentId,
+      userId,
+    },
   });
 
   if (!payment) {
@@ -174,7 +157,11 @@ export async function cancelPayment(userId: string, paymentId: string) {
   }
 
   if (payment.status === "SUCCESS") {
-    throw new AppError(409, "PAYMENT_ALREADY_COMPLETED", "A completed payment cannot be cancelled.");
+    throw new AppError(
+      409,
+      "PAYMENT_ALREADY_COMPLETED",
+      "A completed payment cannot be cancelled.",
+    );
   }
 
   if (["FAILED", "CANCELLED", "EXPIRED"].includes(payment.status)) {
@@ -188,20 +175,38 @@ export async function cancelPayment(userId: string, paymentId: string) {
     where: {
       id: payment.id,
       userId,
-      status: { in: ["PENDING", "PROCESSING"] },
+      status: {
+        in: ["PENDING", "PROCESSING"],
+      },
     },
-    data: { status: "CANCELLED" },
+    data: {
+      status: "CANCELLED",
+    },
   });
 
   if (updated.count !== 1) {
-    const current = await prisma.payment.findUnique({ where: { id: payment.id } });
+    const current = await prisma.payment.findUnique({
+      where: {
+        id: payment.id,
+      },
+    });
+
     if (!current) {
       throw new AppError(404, "PAYMENT_NOT_FOUND", "Payment not found.");
     }
+
     if (current.status === "SUCCESS") {
-      throw new AppError(409, "PAYMENT_ALREADY_COMPLETED", "A completed payment cannot be cancelled.");
+      throw new AppError(
+        409,
+        "PAYMENT_ALREADY_COMPLETED",
+        "A completed payment cannot be cancelled.",
+      );
     }
-    return { paymentId: current.id, status: current.status };
+
+    return {
+      paymentId: current.id,
+      status: current.status,
+    };
   }
 
   return {
@@ -210,9 +215,20 @@ export async function cancelPayment(userId: string, paymentId: string) {
   };
 }
 
-export async function getPaymentByReference(userId: string, somiReference: string) {
+/**
+ * Retrieve a user's payment using the SOMI reference.
+ *
+ * User scoping prevents IDOR.
+ */
+export async function getPaymentByReference(
+  userId: string,
+  somiReference: string,
+) {
   const payment = await prisma.payment.findFirst({
-    where: { userId, somiReference },
+    where: {
+      userId,
+      somiReference,
+    },
   });
 
   if (!payment) {
@@ -238,9 +254,17 @@ export async function getPaymentByReference(userId: string, somiReference: strin
   };
 }
 
+/**
+ * Retrieve a user's payment by internal payment ID.
+ *
+ * User scoping prevents IDOR.
+ */
 export async function getPayment(userId: string, paymentId: string) {
   const payment = await prisma.payment.findFirst({
-    where: { id: paymentId, userId },
+    where: {
+      id: paymentId,
+      userId,
+    },
   });
 
   if (!payment) {
@@ -266,6 +290,14 @@ export async function getPayment(userId: string, paymentId: string) {
   };
 }
 
+/**
+ * Trusted CinetPay verification event.
+ *
+ * This type represents a result that has already been obtained
+ * from the CinetPay verification layer.
+ *
+ * The service does not trust arbitrary client-side payment data.
+ */
 export type CinetPayVerifiedEvent = {
   somiReference: string;
   providerReference: string;
@@ -276,9 +308,61 @@ export type CinetPayVerifiedEvent = {
   verifiedAt: Date;
 };
 
-export async function handleVerifiedCinetPayEvent(event: CinetPayVerifiedEvent) {
+/**
+ * Process a verified CinetPay event.
+ *
+ * This is the ONLY entry point that converts a verified external
+ * payment into a successful SOMI wallet credit.
+ *
+ * Flow:
+ *
+ * ACCEPTED
+ *   → validate payment
+ *   → mark PROCESSING
+ *   → atomically settle payment
+ *   → credit wallet
+ *   → create ledger transaction
+ *   → SUCCESS
+ *
+ * PENDING
+ *   → mark PROCESSING
+ *   → no wallet credit
+ *
+ * REFUSED
+ *   → mark FAILED
+ *   → no wallet credit
+ */
+export async function handleVerifiedCinetPayEvent(
+  event: CinetPayVerifiedEvent,
+) {
+  if (!event.somiReference.trim()) {
+    throw new AppError(
+      422,
+      "INVALID_PAYMENT_REFERENCE",
+      "A SOMI payment reference is required.",
+    );
+  }
+
+  if (!event.providerReference.trim()) {
+    throw new AppError(
+      422,
+      "INVALID_PROVIDER_REFERENCE",
+      "A CinetPay provider reference is required.",
+    );
+  }
+
+  if (!Number.isFinite(event.amount) || event.amount <= 0) {
+    throw new AppError(
+      422,
+      "INVALID_PAYMENT_AMOUNT",
+      "A valid payment amount is required.",
+    );
+  }
+
   const payment = await prisma.payment.findUnique({
-    where: { somiReference: event.somiReference },
+    where: {
+      somiReference: event.somiReference,
+    },
   });
 
   if (!payment) {
@@ -286,32 +370,122 @@ export async function handleVerifiedCinetPayEvent(event: CinetPayVerifiedEvent) 
   }
 
   if (payment.provider !== "CINETPAY") {
-    throw new AppError(409, "PAYMENT_PROVIDER_MISMATCH", "Payment provider mismatch.");
+    throw new AppError(
+      409,
+      "PAYMENT_PROVIDER_MISMATCH",
+      "Payment provider mismatch.",
+    );
   }
 
-  if (Number(payment.amount) !== event.amount || payment.currency !== event.currency) {
-    throw new AppError(409, "PAYMENT_AMOUNT_MISMATCH", "Verified payment does not match the SOMI payment.");
+  if (
+    Number(payment.amount) !== event.amount ||
+    payment.currency !== event.currency
+  ) {
+    throw new AppError(
+      409,
+      "PAYMENT_AMOUNT_MISMATCH",
+      "Verified payment does not match the SOMI payment.",
+    );
   }
 
-  if (payment.providerReference && payment.providerReference !== event.providerReference) {
-    throw new AppError(409, "PAYMENT_REFERENCE_MISMATCH", "Provider reference mismatch.");
+  if (
+    payment.providerReference &&
+    payment.providerReference !== event.providerReference
+  ) {
+    throw new AppError(
+      409,
+      "PAYMENT_REFERENCE_MISMATCH",
+      "Provider reference mismatch.",
+    );
+  }
+
+  /**
+   * A payment already successfully settled is idempotent.
+   *
+   * Do not attempt to credit it a second time.
+   */
+  if (payment.status === "SUCCESS") {
+    const existingTransaction = await prisma.walletTransaction.findUnique({
+      where: {
+        paymentId: payment.id,
+      },
+    });
+
+    return {
+      status: "SUCCESS" as const,
+      paymentId: payment.id,
+      walletTransactionId: existingTransaction?.id ?? null,
+      alreadySettled: true,
+    };
+  }
+
+  if (["FAILED", "CANCELLED", "EXPIRED"].includes(payment.status)) {
+    throw new AppError(
+      409,
+      "PAYMENT_NOT_SETTLEABLE",
+      "This payment cannot be settled.",
+    );
   }
 
   if (event.status === "PENDING") {
-    await prisma.payment.update({
-      where: { id: payment.id },
+    const updated = await prisma.payment.updateMany({
+      where: {
+        id: payment.id,
+        status: {
+          in: ["PENDING", "PROCESSING"],
+        },
+      },
       data: {
         status: "PROCESSING",
         providerReference: event.providerReference,
         paymentMethod: event.paymentMethod ?? payment.paymentMethod,
       },
     });
-    return { status: "PROCESSING", paymentId: payment.id };
+
+    if (updated.count === 0) {
+      const current = await prisma.payment.findUnique({
+        where: {
+          id: payment.id,
+        },
+      });
+
+      if (current?.status === "SUCCESS") {
+        return {
+          status: "SUCCESS" as const,
+          paymentId: current.id,
+          walletTransactionId:
+            (
+              await prisma.walletTransaction.findUnique({
+                where: {
+                  paymentId: current.id,
+                },
+              })
+            )?.id ?? null,
+          alreadySettled: true,
+        };
+      }
+
+      throw new AppError(
+        409,
+        "PAYMENT_NOT_SETTLEABLE",
+        "This payment is no longer pending.",
+      );
+    }
+
+    return {
+      status: "PROCESSING" as const,
+      paymentId: payment.id,
+    };
   }
 
   if (event.status === "REFUSED") {
-    await prisma.payment.update({
-      where: { id: payment.id },
+    const updated = await prisma.payment.updateMany({
+      where: {
+        id: payment.id,
+        status: {
+          in: ["PENDING", "PROCESSING"],
+        },
+      },
       data: {
         status: "FAILED",
         providerReference: event.providerReference,
@@ -319,11 +493,52 @@ export async function handleVerifiedCinetPayEvent(event: CinetPayVerifiedEvent) 
         verifiedAt: event.verifiedAt,
       },
     });
-    return { status: "FAILED", paymentId: payment.id };
+
+    if (updated.count === 0) {
+      const current = await prisma.payment.findUnique({
+        where: {
+          id: payment.id,
+        },
+      });
+
+      if (current?.status === "SUCCESS") {
+        return {
+          status: "SUCCESS" as const,
+          paymentId: current.id,
+          alreadySettled: true,
+        };
+      }
+
+      if (current) {
+        return {
+          status: current.status,
+          paymentId: current.id,
+        };
+      }
+
+      throw new AppError(404, "PAYMENT_NOT_FOUND", "Payment not found.");
+    }
+
+    return {
+      status: "FAILED" as const,
+      paymentId: payment.id,
+    };
   }
 
-  await prisma.payment.update({
-    where: { id: payment.id },
+  /**
+   * ACCEPTED
+   *
+   * Move the payment into PROCESSING before settlement.
+   * The actual wallet credit happens only inside
+   * settleVerifiedPayment().
+   */
+  await prisma.payment.updateMany({
+    where: {
+      id: payment.id,
+      status: {
+        in: ["PENDING", "PROCESSING"],
+      },
+    },
     data: {
       status: "PROCESSING",
       providerReference: event.providerReference,
@@ -335,9 +550,20 @@ export async function handleVerifiedCinetPayEvent(event: CinetPayVerifiedEvent) 
   return settleVerifiedPayment(payment.id);
 }
 
+/**
+ * Read-only wallet lookup.
+ *
+ * IMPORTANT:
+ * GET /wallet must never create financial state.
+ *
+ * A user without a wallet receives a zero-balance projection.
+ * Wallet creation occurs only during a trusted financial operation.
+ */
 export async function getWallet(userId: string) {
   const wallet = await prisma.wallet.findUnique({
-    where: { userId },
+    where: {
+      userId,
+    },
   });
 
   if (!wallet) {
@@ -353,16 +579,27 @@ export async function getWallet(userId: string) {
     wallet: {
       id: wallet.id,
       balance: wallet.balance,
-      currency: wallet.currency,
+      currency: "SOMI",
     },
   };
 }
 
-export async function getPaymentHistory(userId: string, limit: number, offset: number) {
+/**
+ * Retrieve paginated payment history for the authenticated user.
+ */
+export async function getPaymentHistory(
+  userId: string,
+  limit: number,
+  offset: number,
+) {
   const [payments, total] = await prisma.$transaction([
     prisma.payment.findMany({
-      where: { userId },
-      orderBy: { createdAt: "desc" },
+      where: {
+        userId,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
       take: limit,
       skip: offset,
       select: {
@@ -383,7 +620,12 @@ export async function getPaymentHistory(userId: string, limit: number, offset: n
         updatedAt: true,
       },
     }),
-    prisma.payment.count({ where: { userId } }),
+
+    prisma.payment.count({
+      where: {
+        userId,
+      },
+    }),
   ]);
 
   return {
@@ -401,14 +643,21 @@ export async function getPaymentHistory(userId: string, limit: number, offset: n
   };
 }
 
+/**
+ * Retrieve the authenticated user's wallet ledger.
+ */
 export async function getTransactions(
   userId: string,
   limit: number,
   offset: number,
 ) {
   const transactions = await prisma.walletTransaction.findMany({
-    where: { userId },
-    orderBy: { createdAt: "desc" },
+    where: {
+      userId,
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
     take: limit,
     skip: offset,
   });
@@ -425,18 +674,27 @@ export async function getTransactions(
   }));
 }
 
+/**
+ * Check whether a user has access to a chapter.
+ */
 export async function getChapterEntitlement(
   userId: string,
   bookId: string,
   chapterId: string,
 ) {
   const chapter = await prisma.chapter.findUnique({
-    where: { id: chapterId },
+    where: {
+      id: chapterId,
+    },
     select: {
       bookId: true,
       status: true,
       accessType: true,
-      book: { select: { status: true } },
+      book: {
+        select: {
+          status: true,
+        },
+      },
     },
   });
 
@@ -450,11 +708,19 @@ export async function getChapterEntitlement(
   }
 
   if (chapter.accessType !== PREMIUM) {
-    return { entitled: true, access: "FREE" };
+    return {
+      entitled: true,
+      access: "FREE",
+    };
   }
 
   const entitlement = await prisma.chapterEntitlement.findUnique({
-    where: { userId_chapterId: { userId, chapterId } },
+    where: {
+      userId_chapterId: {
+        userId,
+        chapterId,
+      },
+    },
   });
 
   return {
@@ -463,23 +729,55 @@ export async function getChapterEntitlement(
   };
 }
 
+/**
+ * Unlock a premium chapter using the user's existing SOMI balance.
+ *
+ * IMPORTANT:
+ * The client does NOT provide or control the chapter price.
+ * The server always reads the persisted chapter.price.
+ *
+ * Flow:
+ *   1. Validate the chapter.
+ *   2. Validate that it is premium.
+ *   3. Detect an existing entitlement.
+ *   4. Read the wallet.
+ *   5. Verify sufficient balance.
+ *   6. Atomically decrement the wallet.
+ *   7. Create the CHAPTER_UNLOCK ledger entry.
+ *   8. Create the entitlement.
+ *   9. Attribute writer earnings after the transaction succeeds.
+ *
+ * Serializable isolation + retry protects against concurrent
+ * duplicate unlock requests.
+ */
 export async function unlockChapter(
   userId: string,
   bookId: string,
   chapterId: string,
   attempt = 0,
-) {
+): Promise<{
+  entitled: boolean;
+  alreadyUnlocked: boolean;
+  balance: number;
+  transactionId?: string;
+}> {
   try {
     const result = await prisma.$transaction(
       async (tx) => {
         const chapter = await tx.chapter.findUnique({
-          where: { id: chapterId },
+          where: {
+            id: chapterId,
+          },
           select: {
             bookId: true,
             status: true,
             accessType: true,
             price: true,
-            book: { select: { status: true } },
+            book: {
+              select: {
+                status: true,
+              },
+            },
           },
         });
 
@@ -509,12 +807,19 @@ export async function unlockChapter(
         }
 
         const existing = await tx.chapterEntitlement.findUnique({
-          where: { userId_chapterId: { userId, chapterId } },
+          where: {
+            userId_chapterId: {
+              userId,
+              chapterId,
+            },
+          },
         });
 
         if (existing) {
           const wallet = await tx.wallet.findUnique({
-            where: { userId },
+            where: {
+              userId,
+            },
           });
 
           return {
@@ -525,7 +830,9 @@ export async function unlockChapter(
         }
 
         const wallet = await tx.wallet.findUnique({
-          where: { userId },
+          where: {
+            userId,
+          },
         });
 
         if (!wallet) {
@@ -543,10 +850,14 @@ export async function unlockChapter(
         const updated = await tx.wallet.updateMany({
           where: {
             id: wallet.id,
-            balance: { gte: chapter.price },
+            balance: {
+              gte: chapter.price,
+            },
           },
           data: {
-            balance: { decrement: chapter.price },
+            balance: {
+              decrement: chapter.price,
+            },
           },
         });
 
@@ -604,7 +915,12 @@ export async function unlockChapter(
   } catch (error) {
     if (isPrismaConflict(error)) {
       const entitlement = await prisma.chapterEntitlement.findUnique({
-        where: { userId_chapterId: { userId, chapterId } },
+        where: {
+          userId_chapterId: {
+            userId,
+            chapterId,
+          },
+        },
       });
 
       if (entitlement) {
@@ -624,57 +940,122 @@ export async function unlockChapter(
   }
 }
 
-export async function settleVerifiedPayment(paymentId: string) {
+/**
+ * Atomically settle a verified payment.
+ *
+ * This function is deliberately separate from payment intent creation.
+ *
+ * A payment becomes SUCCESS and credits coins only here.
+ *
+ * Transaction:
+ *   Payment claim
+ *       ↓
+ *   Wallet upsert
+ *       ↓
+ *   Wallet increment
+ *       ↓
+ *   WalletTransaction creation
+ *
+ * All operations happen inside the same serializable transaction.
+ *
+ * The paymentId unique constraint on WalletTransaction provides
+ * an additional idempotency boundary.
+ */
+export async function settleVerifiedPayment(paymentId: string, attempt = 0) {
   try {
     return await prisma.$transaction(
       async (tx) => {
         const payment = await tx.payment.findUnique({
-          where: { id: paymentId },
+          where: {
+            id: paymentId,
+          },
         });
 
         if (!payment) {
           throw new AppError(404, "PAYMENT_NOT_FOUND", "Payment not found.");
         }
 
-        if (payment.status === "FAILED" || payment.status === "CANCELLED" || payment.status === "EXPIRED") {
-          throw new AppError(409, "PAYMENT_NOT_SETTLEABLE", "This payment cannot be settled.");
+        if (
+          payment.status === "FAILED" ||
+          payment.status === "CANCELLED" ||
+          payment.status === "EXPIRED"
+        ) {
+          throw new AppError(
+            409,
+            "PAYMENT_NOT_SETTLEABLE",
+            "This payment cannot be settled.",
+          );
         }
 
+        /**
+         * Claim the payment.
+         *
+         * Only PENDING/PROCESSING payments can be claimed.
+         * This prevents duplicate settlement from creating
+         * duplicate wallet credits.
+         */
         const claim = await tx.payment.updateMany({
           where: {
             id: payment.id,
-            status: { in: ["PENDING", "PROCESSING"] },
+            status: {
+              in: ["PENDING", "PROCESSING"],
+            },
           },
-          data: { status: "SUCCESS" },
+          data: {
+            status: "SUCCESS",
+          },
         });
 
         if (claim.count === 0) {
-          const settled = await tx.payment.findUnique({ where: { id: payment.id } });
+          const settled = await tx.payment.findUnique({
+            where: {
+              id: payment.id,
+            },
+          });
+
           if (settled?.status === "SUCCESS") {
             const existing = await tx.walletTransaction.findUnique({
-              where: { paymentId: payment.id },
+              where: {
+                paymentId: payment.id,
+              },
             });
+
             return {
               paymentId: payment.id,
               walletTransactionId: existing?.id ?? null,
               balance: null,
               coins: payment.coins,
-              status: "SUCCESS",
+              status: "SUCCESS" as const,
               alreadySettled: true,
             };
           }
-          throw new AppError(409, "PAYMENT_NOT_SETTLEABLE", "This payment is not ready for settlement.");
+
+          throw new AppError(
+            409,
+            "PAYMENT_NOT_SETTLEABLE",
+            "This payment is not ready for settlement.",
+          );
         }
 
         const wallet = await tx.wallet.upsert({
-          where: { userId: payment.userId },
-          create: { userId: payment.userId },
+          where: {
+            userId: payment.userId,
+          },
+          create: {
+            userId: payment.userId,
+          },
           update: {},
         });
 
         const updatedWallet = await tx.wallet.update({
-          where: { id: wallet.id },
-          data: { balance: { increment: payment.coins } },
+          where: {
+            id: wallet.id,
+          },
+          data: {
+            balance: {
+              increment: payment.coins,
+            },
+          },
         });
 
         const walletTransaction = await tx.walletTransaction.create({
@@ -701,16 +1082,37 @@ export async function settleVerifiedPayment(paymentId: string) {
           walletTransactionId: walletTransaction.id,
           balance: updatedWallet.balance,
           coins: payment.coins,
-          status: "SUCCESS",
+          status: "SUCCESS" as const,
           alreadySettled: false,
         };
       },
-      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      },
     );
   } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") {
-      return settleVerifiedPayment(paymentId);
+    /**
+     * Serializable transactions can legitimately fail with
+     * P2034 under concurrent payment callbacks.
+     *
+     * Retry a bounded number of times rather than recursively
+     * retrying forever.
+     */
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2034" &&
+      attempt < 3
+    ) {
+      return settleVerifiedPayment(paymentId, attempt + 1);
     }
+
     throw error;
   }
+}
+
+function isPrismaConflict(error: unknown): boolean {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    (error.code === "P2002" || error.code === "P2034")
+  );
 }

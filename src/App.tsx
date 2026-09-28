@@ -46,7 +46,8 @@ const BookDetailPage = lazy(() => import("./pages/BookDetailPage"));
 const ReaderPage = lazy(() => import("./pages/ReaderPage"));
 const LibraryPage = lazy(() => import("./pages/LibraryPage"));
 const WalletPage = lazy(() => import("./pages/WalletPage"));
-const PaymentReturnPage = lazy(() => import("./pages/PaymentReturnPage"));\nconst PaymentHistoryPage = lazy(() => import("./pages/PaymentHistoryPage"));
+const PaymentReturnPage = lazy(() => import("./pages/PaymentReturnPage"));
+const PaymentHistoryPage = lazy(() => import("./pages/PaymentHistoryPage"));
 const ProfilePage = lazy(() => import("./pages/ProfilePage"));
 const AuthPage = lazy(() => import("./pages/AuthPage"));
 
@@ -924,7 +925,10 @@ function AppShell() {
 
                       <Route path="/admin/economy" element={<AdminEconomy />} />
 
-                      <Route path="/admin/economy/withdrawals" element={<AdminWithdrawals />} />
+                      <Route
+                        path="/admin/economy/withdrawals"
+                        element={<AdminWithdrawals />}
+                      />
 
                       <Route path="/admin/support" element={<AdminSupport />} />
 

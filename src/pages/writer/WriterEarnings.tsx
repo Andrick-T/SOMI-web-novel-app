@@ -399,7 +399,7 @@ export default function WriterEarnings({}: CommonProps) {
                     <label className="text-sm"><span className="mb-1 block text-xs text-[var(--color-text-muted)]">Payout method</span>
                       <select value={financialProfile?.payoutMethod ?? ""} onChange={(e) => setFinancialProfile((p) => p ? { ...p, payoutMethod: (e.target.value || null) as typeof p.payoutMethod } : p)} className="w-full rounded-lg border border-[var(--color-border-default)] bg-[var(--color-active-surface)] px-3 py-2.5">
                         <option value="">Select method</option>
-                        {financialRules?.payoutMethods.map((method) => <option key={method} value={method}>{method.replaceAll("_", " ")}</option>)}
+                        {financialRules?.payoutMethods.map((method) => <option key={method} value={method}>{method.replace(/_/g, " ")}</option>)}
                       </select>
                     </label>
                     <label className="text-sm"><span className="mb-1 block text-xs text-[var(--color-text-muted)]">Account / phone / email</span>
@@ -530,6 +530,7 @@ export default function WriterEarnings({}: CommonProps) {
                   ))}
                 </div>
               )}
+            </section>
 
             <section className="somi-writer-section">
               <div className="somi-c5-section-heading">
@@ -608,8 +609,6 @@ export default function WriterEarnings({}: CommonProps) {
             </section>
           </>
         )}
-
-        </section>
 
         <section className="somi-writer-section">
           <div className="somi-c5-insight">

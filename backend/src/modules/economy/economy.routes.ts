@@ -8,8 +8,10 @@ import {
   getChapterEntitlement,
   coinPackages,
   getTransactions,
-  getWallet,\n  getPayment,
-  getPaymentByReference,\n  getPaymentHistory,
+  getWallet,
+  getPayment,
+  getPaymentByReference,
+  getPaymentHistory,
   unlockChapter,
   createPaymentIntent,
   markPaymentFailed,
@@ -17,7 +19,10 @@ import {
   cancelPayment,
   expirePendingPayments,
 } from "./economy.service.js";
-import { createCinetPayCheckout, verifyCinetPayTransaction } from "./cinetpay.client.js";
+import {
+  createCinetPayCheckout,
+  verifyCinetPayTransaction,
+} from "./cinetpay.client.js";
 
 const asyncRoute =
   (handler: RequestHandler): RequestHandler =>
@@ -30,13 +35,23 @@ economyRouter.post(
   asyncRoute(async (req, res) => {
     const { env } = await import("../../config/env.js");
     if (!env.CINETPAY_API_KEY || !env.CINETPAY_SITE_ID) {
-      throw new AppError(503, "PAYMENT_PROVIDER_NOT_CONFIGURED", "Payment provider is not configured.");
+      throw new AppError(
+        503,
+        "PAYMENT_PROVIDER_NOT_CONFIGURED",
+        "Payment provider is not configured.",
+      );
     }
 
     const body = req.body as Record<string, unknown>;
-    const transactionId = String(body.cpm_trans_id ?? body.transaction_id ?? "").trim();
+    const transactionId = String(
+      body.cpm_trans_id ?? body.transaction_id ?? "",
+    ).trim();
     if (!transactionId) {
-      throw new AppError(400, "INVALID_PAYMENT_NOTIFICATION", "Missing CinetPay transaction reference.");
+      throw new AppError(
+        400,
+        "INVALID_PAYMENT_NOTIFICATION",
+        "Missing CinetPay transaction reference.",
+      );
     }
 
     const verified = await verifyCinetPayTransaction(transactionId, {
@@ -46,17 +61,32 @@ economyRouter.post(
 
     const data = verified.data;
     if (!data?.amount || !data.currency || !data.status) {
-      throw new AppError(502, "INVALID_PROVIDER_RESPONSE", "CinetPay verification response is incomplete.");
+      throw new AppError(
+        502,
+        "INVALID_PROVIDER_RESPONSE",
+        "CinetPay verification response is incomplete.",
+      );
     }
 
     const amount = Number(data.amount);
     if (!Number.isFinite(amount)) {
-      throw new AppError(502, "INVALID_PROVIDER_AMOUNT", "CinetPay returned an invalid amount.");
+      throw new AppError(
+        502,
+        "INVALID_PROVIDER_AMOUNT",
+        "CinetPay returned an invalid amount.",
+      );
     }
 
     const status = String(data.status).toUpperCase();
-    const normalizedStatus = status === "ACCEPTED" ? "ACCEPTED" : status === "REFUSED" ? "REFUSED" : "PENDING";
-    const somiReference = String(data.metadata ?? data.description ?? transactionId).trim();
+    const normalizedStatus =
+      status === "ACCEPTED"
+        ? "ACCEPTED"
+        : status === "REFUSED"
+          ? "REFUSED"
+          : "PENDING";
+    const somiReference = String(
+      data.metadata ?? data.description ?? transactionId,
+    ).trim();
 
     const result = await handleVerifiedCinetPayEvent({
       somiReference,
@@ -77,7 +107,12 @@ economyRouter.use(requireAuth);
 economyRouter.get(
   "/payments/reference/:somiReference",
   asyncRoute(async (req: AuthRequest, res) => {
-    res.json(await getPaymentByReference(req.user!.id, String(req.params.somiReference)));
+    res.json(
+      await getPaymentByReference(
+        req.user!.id,
+        String(req.params.somiReference),
+      ),
+    );
   }),
 );
 
@@ -138,7 +173,11 @@ economyRouter.post(
           siteId: env.CINETPAY_SITE_ID,
           apiUrl: env.CINETPAY_API_URL,
           notifyUrl: env.CINETPAY_NOTIFY_URL,
-          returnUrl: (() => {\n            const url = new URL(env.CINETPAY_RETURN_URL!);\n            url.searchParams.set("reference", payment.somiReference);\n            return url.toString();\n          })(),
+          returnUrl: (() => {
+            const url = new URL(env.CINETPAY_RETURN_URL!);
+            url.searchParams.set("reference", payment.somiReference);
+            return url.toString();
+          })(),
           channels: env.CINETPAY_CHANNELS,
         },
       );

@@ -101,7 +101,7 @@ export default function PaymentHistoryPage({ navigate, isLoggedIn }: CommonProps
           ) : (
             <div className="divide-y divide-[var(--color-border-default)]">
               {payments.map((payment) => (
-                <button key={payment.id} onClick={() => navigate("payment-return", { reference: payment.somiReference } as never)} className="w-full px-5 py-4 text-left transition hover:bg-[var(--color-surface-muted)]">
+                <button key={payment.id} onClick={() => navigate("payment-return" as never, { reference: payment.somiReference } as never)} className="w-full px-5 py-4 text-left transition hover:bg-[var(--color-surface-muted)]">
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
                       <p className="font-semibold text-[var(--color-text-primary)]">{payment.packageId ?? "Coin purchase"}</p>

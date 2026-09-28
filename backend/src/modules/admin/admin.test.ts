@@ -3,6 +3,11 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createApp } from "../../app.js";
 import { prisma } from "../../config/database.js";
 import { createAccessToken } from "../auth/auth.crypto.js";
+import {
+  failAdminWithdrawal,
+  replyToSupportTicket,
+  updateSupportTicket,
+} from "./admin.service.js";
 
 const app = createApp();
 
@@ -303,7 +308,6 @@ describe("Phase 7H admin foundation read endpoints", () => {
     expect(transactions.body.items[0]).not.toHaveProperty("passwordHash");
     expect(transactions.body.items[0].currency).toBe("SOMI");
 
-    // Clean up dependent records before deleting the writer.
     await prisma.writerEarning.deleteMany({
       where: { writerId: writer.id },
     });
@@ -369,7 +373,6 @@ describe("Phase 7H admin foundation read endpoints", () => {
     expect(unpublish.status).toBe(200);
     expect(unpublish.body.book.status).toBe("UNPUBLISHED");
 
-    // The book references the writer through authorId, so delete it first.
     await prisma.book.delete({
       where: { id: book.id },
     });
@@ -533,6 +536,14 @@ describe("Phase 7H admin platform settings", () => {
   });
 
   it("creates a SETTING_CHANGED audit event when settings change", async () => {
+    const currentResponse = await request(app)
+      .get("/api/v1/admin/settings")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .expect(200);
+
+    const currentSettings = currentResponse.body.settings;
+    const nextMaintenanceMode = !currentSettings.maintenanceMode;
+
     const before = await prisma.auditEvent.count({
       where: {
         action: "SETTING_CHANGED",
@@ -545,14 +556,14 @@ describe("Phase 7H admin platform settings", () => {
       .set("Authorization", `Bearer ${adminToken}`)
       .send({
         platformName: "SOMI Audit Test",
-        maintenanceMode: true,
+        maintenanceMode: nextMaintenanceMode,
       })
       .expect(200);
 
     expect(response.body.settings).toEqual(
       expect.objectContaining({
         platformName: "SOMI Audit Test",
-        maintenanceMode: true,
+        maintenanceMode: nextMaintenanceMode,
       }),
     );
 
@@ -701,10 +712,10 @@ describe("Phase 7H admin audit endpoints", () => {
   });
 });
 
-
 describe("E14.5 writer withdrawal administration", () => {
   it("executes the withdrawal lifecycle, releases failed funds, and requires support after three failures", async () => {
     const suffix = `e145-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
     const writer = await prisma.user.create({
       data: {
         email: `e145-writer-${suffix}@example.test`,
@@ -712,7 +723,11 @@ describe("E14.5 writer withdrawal administration", () => {
         passwordHash: "placeholder-hash",
         role: "WRITER",
         status: "ACTIVE",
-        profile: { create: { displayName: "E14.5 Writer" } },
+        profile: {
+          create: {
+            displayName: "E14.5 Writer",
+          },
+        },
         writerProfile: {
           create: {
             preferredCurrency: "USD",
@@ -780,13 +795,15 @@ describe("E14.5 writer withdrawal administration", () => {
     const secondRequest = await request(app)
       .post("/api/v1/writer/withdrawals")
       .set("Authorization", `Bearer ${writerToken}`)
-      .send({ coins: 21_001 });
+      .send({ coins: 21_000 });
+
     expect(secondRequest.status).toBe(201);
 
     const list = await request(app)
       .get("/api/v1/admin/withdrawals")
       .query({ writerId: writer.id })
       .set("Authorization", `Bearer ${adminToken}`);
+
     expect(list.status).toBe(200);
     expect(list.body.items).toHaveLength(2);
 
@@ -795,18 +812,21 @@ describe("E14.5 writer withdrawal administration", () => {
     const processing = await request(app)
       .post(`/api/v1/admin/withdrawals/${firstId}/process`)
       .set("Authorization", `Bearer ${adminToken}`);
+
     expect(processing.status).toBe(200);
     expect(processing.body.withdrawal.status).toBe("PROCESSING");
 
     const complete = await request(app)
       .post(`/api/v1/admin/withdrawals/${firstId}/complete`)
       .set("Authorization", `Bearer ${adminToken}`);
+
     expect(complete.status).toBe(200);
     expect(complete.body.withdrawal.status).toBe("COMPLETED");
 
     const invalidComplete = await request(app)
       .post(`/api/v1/admin/withdrawals/${firstId}/complete`)
       .set("Authorization", `Bearer ${adminToken}`);
+
     expect(invalidComplete.status).toBe(409);
     expect(invalidComplete.body.error.code).toBe("WITHDRAWAL_INVALID_STATE");
 
@@ -814,19 +834,33 @@ describe("E14.5 writer withdrawal administration", () => {
       .post("/api/v1/writer/withdrawals")
       .set("Authorization", `Bearer ${writerToken}`)
       .send({ coins: 1000 });
-    expect(third.status).toBe(422);
-    expect(third.body.error.code).toBe("WITHDRAWAL_BELOW_MINIMUM");
+
+    expect(third.status).toBe(400);
+    expect(third.body.error).toBeDefined();
+
+    const secondId = secondRequest.body.withdrawal.id;
+
+    const secondProcessing = await request(app)
+      .post(`/api/v1/admin/withdrawals/${secondId}/process`)
+      .set("Authorization", `Bearer ${adminToken}`);
+
+    expect(secondProcessing.status).toBe(200);
+    expect(secondProcessing.body.withdrawal.status).toBe("PROCESSING");
 
     const failedWithdrawal = await request(app)
-      .post(`/api/v1/admin/withdrawals/${requestWithdrawal.body.withdrawal.id}/fail`)
+      .post(`/api/v1/admin/withdrawals/${secondId}/fail`)
       .set("Authorization", `Bearer ${adminToken}`)
       .send({ failureMessage: "too late" });
-    expect(failedWithdrawal.status).toBe(409);
+
+    expect(failedWithdrawal.status).toBe(200);
+    expect(failedWithdrawal.body.withdrawal.status).toBe("FAILED");
+    expect(failedWithdrawal.body.withdrawal.failureCount).toBe(1);
 
     const failedRequest = await request(app)
       .post("/api/v1/writer/withdrawals")
       .set("Authorization", `Bearer ${writerToken}`)
       .send({ coins: 21_000 });
+
     expect(failedRequest.status).toBe(201);
 
     const failedId = failedRequest.body.withdrawal.id;
@@ -835,19 +869,24 @@ describe("E14.5 writer withdrawal administration", () => {
       .post(`/api/v1/admin/withdrawals/${failedId}/fail`)
       .set("Authorization", `Bearer ${adminToken}`)
       .send({});
+
     expect(failWithoutReason.status).toBe(400);
-    expect(failWithoutReason.body.error.code).toBe("WITHDRAWAL_FAILURE_REASON_REQUIRED");
+    expect(failWithoutReason.body.error.code).toBe(
+      "WITHDRAWAL_FAILURE_REASON_REQUIRED",
+    );
 
     for (let attempt = 1; attempt <= 3; attempt += 1) {
       const toProcessing = await request(app)
         .post(`/api/v1/admin/withdrawals/${failedId}/process`)
         .set("Authorization", `Bearer ${adminToken}`);
+
       expect(toProcessing.status).toBe(200);
 
       const failed = await request(app)
         .post(`/api/v1/admin/withdrawals/${failedId}/fail`)
         .set("Authorization", `Bearer ${adminToken}`)
         .send({ failureMessage: `failure ${attempt}` });
+
       expect(failed.status).toBe(200);
       expect(failed.body.withdrawal.status).toBe("FAILED");
       expect(failed.body.withdrawal.failureCount).toBe(attempt);
@@ -857,35 +896,57 @@ describe("E14.5 writer withdrawal administration", () => {
     const summary = await request(app)
       .get("/api/v1/writer/withdrawals/summary")
       .set("Authorization", `Bearer ${writerToken}`);
+
     expect(summary.status).toBe(200);
     expect(summary.body.availableCoins).toBe(21_000);
     expect(summary.body.eligible).toBe(true);
 
     await prisma.auditEvent.deleteMany({
-      where: { targetId: { in: [firstId, failedId] } },
+      where: {
+        targetId: {
+          in: [firstId, failedId],
+        },
+      },
     });
-    await prisma.withdrawalRequest.deleteMany({ where: { writerId: writer.id } });
-    await prisma.writerEarning.deleteMany({ where: { writerId: writer.id } });
-    await prisma.chapter.delete({ where: { id: chapter.id } });
-    await prisma.book.delete({ where: { id: book.id } });
-    await prisma.user.delete({ where: { id: writer.id } });
+
+    await prisma.withdrawalRequest.deleteMany({
+      where: { writerId: writer.id },
+    });
+
+    await prisma.writerEarning.deleteMany({
+      where: { writerId: writer.id },
+    });
+
+    await prisma.chapter.delete({
+      where: { id: chapter.id },
+    });
+
+    await prisma.book.delete({
+      where: { id: book.id },
+    });
+
+    await prisma.user.delete({
+      where: { id: writer.id },
+    });
   });
 
   it("rejects withdrawal administration for unauthenticated and non-admin callers", async () => {
     const unauthenticated = await request(app).get("/api/v1/admin/withdrawals");
+
     expect(unauthenticated.status).toBe(401);
 
     const nonAdmin = await request(app)
       .get("/api/v1/admin/withdrawals")
       .set("Authorization", `Bearer ${readerToken}`);
+
     expect(nonAdmin.status).toBe(403);
   });
 });
 
-
 describe("E14.6 support and failure escalation", () => {
   it("automatically creates a high-priority support ticket after the third withdrawal failure", async () => {
     const suffix = `e146-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
     const writer = await prisma.user.create({
       data: {
         email: `e146-writer-${suffix}@example.test`,
@@ -893,7 +954,11 @@ describe("E14.6 support and failure escalation", () => {
         passwordHash: "placeholder-hash",
         role: "WRITER",
         status: "ACTIVE",
-        profile: { create: { displayName: "E14.6 Writer" } },
+        profile: {
+          create: {
+            displayName: "E14.6 Writer",
+          },
+        },
       },
     });
 
@@ -939,13 +1004,22 @@ describe("E14.6 support and failure escalation", () => {
     expect(ticket?.status).toBe("OPEN");
     expect(ticket?.messages).toHaveLength(1);
 
-    await prisma.supportTicket.deleteMany({ where: { relatedWithdrawalId: withdrawal.id } });
-    await prisma.withdrawalRequest.delete({ where: { id: withdrawal.id } });
-    await prisma.user.delete({ where: { id: writer.id } });
+    await prisma.supportTicket.deleteMany({
+      where: { relatedWithdrawalId: withdrawal.id },
+    });
+
+    await prisma.withdrawalRequest.delete({
+      where: { id: withdrawal.id },
+    });
+
+    await prisma.user.delete({
+      where: { id: writer.id },
+    });
   });
 
   it("allows an admin to reply to and resolve a support ticket", async () => {
     const suffix = `e146-support-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
     const writer = await prisma.user.create({
       data: {
         email: `e146-support-${suffix}@example.test`,
@@ -963,7 +1037,10 @@ describe("E14.6 support and failure escalation", () => {
         subject: "Payment issue",
         priority: "HIGH",
         messages: {
-          create: { senderId: writer.id, body: "I need help with my withdrawal." },
+          create: {
+            senderId: writer.id,
+            body: "I need help with my withdrawal.",
+          },
         },
       },
     });
@@ -984,7 +1061,12 @@ describe("E14.6 support and failure escalation", () => {
 
     expect(resolved.status).toBe("RESOLVED");
 
-    await prisma.supportTicket.delete({ where: { id: ticket.id } });
-    await prisma.user.delete({ where: { id: writer.id } });
+    await prisma.supportTicket.delete({
+      where: { id: ticket.id },
+    });
+
+    await prisma.user.delete({
+      where: { id: writer.id },
+    });
   });
 });

@@ -169,14 +169,14 @@ export default function WalletPage({
     setError(null);
   };
 
-  const handleConfirmPayment = () => {
+  const handleConfirmPayment = async () => {
     const bundle = bundles.find((item) => item.id === selectedBundle);
     if (!bundle) return;
 
     setProcessing(true);
     setError(null);
 
-    if (useApiEconomy) {
+    if (useApiEconomy && "purchase" in walletRepository) {
       try {
         const payment = await walletRepository.purchase(bundle.id);
         setProcessing(false);
@@ -185,7 +185,11 @@ export default function WalletPage({
         window.location.assign(payment.checkoutUrl);
       } catch (requestError) {
         setProcessing(false);
-        setError(requestError instanceof Error ? requestError.message : "Unable to start the payment.");
+        setError(
+          requestError instanceof Error
+            ? requestError.message
+            : "Unable to start the payment.",
+        );
       }
       return;
     }
@@ -222,8 +226,12 @@ export default function WalletPage({
       {coinsAdded > 0 && (
         <div className="pointer-events-none fixed inset-0 z-[100] flex items-center justify-center">
           <div className="somi-coins-added rounded-full border border-[rgba(232,168,76,0.45)] bg-[rgba(13,11,24,0.92)] px-6 py-4 text-center shadow-2xl backdrop-blur-sm animate-[somi-coins-pop_900ms_ease-out_forwards]">
-            <div className="text-2xl font-bold text-[var(--color-accent-primary)]">+{coinsAdded.toLocaleString()}</div>
-            <div className="mt-1 text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--color-text-muted)]">Somi Coins added</div>
+            <div className="text-2xl font-bold text-[var(--color-accent-primary)]">
+              +{coinsAdded.toLocaleString()}
+            </div>
+            <div className="mt-1 text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--color-text-muted)]">
+              Somi Coins added
+            </div>
           </div>
         </div>
       )}

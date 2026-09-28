@@ -279,7 +279,6 @@ adminRouter.get(
   }),
 );
 
-
 /* -------------------------------------------------------------------------- */
 /* Support tickets                                                            */
 /* -------------------------------------------------------------------------- */
@@ -296,12 +295,23 @@ adminRouter.get(
     "query",
   ),
   asyncRoute(async (req, res) => {
-    res.json(await getAdminSupportTickets({
-      page: req.query.page as number,
-      limit: req.query.limit as number,
-      status: req.query.status as string | undefined,
-      priority: req.query.priority as string | undefined,
-    }));
+    const page = Number(req.query.page ?? 1);
+    const limit = Number(req.query.limit ?? 20);
+    const status = Array.isArray(req.query.status)
+      ? req.query.status[0]
+      : req.query.status;
+    const priority = Array.isArray(req.query.priority)
+      ? req.query.priority[0]
+      : req.query.priority;
+
+    res.json(
+      await getAdminSupportTickets({
+        page,
+        limit,
+        status: typeof status === "string" ? status : undefined,
+        priority: typeof priority === "string" ? priority : undefined,
+      }),
+    );
   }),
 );
 
@@ -328,10 +338,12 @@ adminRouter.post(
 
 adminRouter.patch(
   "/support/tickets/:ticketId",
-  validate(z.object({
-    status: z.enum(["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"]).optional(),
-    priority: z.enum(["LOW", "NORMAL", "HIGH", "URGENT"]).optional(),
-  })),
+  validate(
+    z.object({
+      status: z.enum(["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"]).optional(),
+      priority: z.enum(["LOW", "NORMAL", "HIGH", "URGENT"]).optional(),
+    }),
+  ),
   asyncRoute(async (req: AuthRequest, res) => {
     const ticket = await updateSupportTicket({
       ticketId: String(req.params.ticketId),
@@ -367,11 +379,14 @@ adminRouter.get(
     "query",
   ),
   asyncRoute(async (req: AuthRequest, res) => {
+    const page = Number(req.query.page ?? 1);
+    const limit = Number(req.query.limit ?? 20);
+
     const result = await getAdminWithdrawals({
-      page: req.query.page as number,
-      limit: req.query.limit as number,
-      status: req.query.status as string | undefined,
-      writerId: req.query.writerId as string | undefined,
+      page,
+      limit,
+      status: typeof req.query.status === "string" ? req.query.status : undefined,
+      writerId: typeof req.query.writerId === "string" ? req.query.writerId : undefined,
     });
     res.json(result);
   }),
@@ -555,12 +570,12 @@ adminRouter.patch(
   "/settings",
   validate(updatePlatformSettingsSchema),
   asyncRoute(async (req: AuthRequest, res) => {
-    const result = await updateAdminPlatformSettings({
+    const settings = await updateAdminPlatformSettings({
       actorId: req.user!.id,
       actorName: req.user!.email,
       changes: req.body,
     });
 
-    res.json(result);
+    res.json({ settings });
   }),
 );
