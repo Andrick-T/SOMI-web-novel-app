@@ -839,6 +839,8 @@ export async function requestWriterWithdrawal(
     );
   }
 
+  const payoutAccountName = profile.payoutAccountName ?? null;
+
   if (!isSupportedWriterCurrency(profile.preferredCurrency)) {
     throw new AppError(
       422,

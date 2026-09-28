@@ -547,6 +547,7 @@ export async function requestWriterWithdrawal(writer, input) {
     if (!profile) {
         throw new AppError(422, "PAYOUT_PROFILE_REQUIRED", "Complete your payout profile before requesting a withdrawal.");
     }
+    const payoutAccountName = profile.payoutAccountName ?? null;
     if (!isSupportedWriterCurrency(profile.preferredCurrency)) {
         throw new AppError(422, "INVALID_PAYOUT_CURRENCY", "The configured payout currency is not supported.");
     }
