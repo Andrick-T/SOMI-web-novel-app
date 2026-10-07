@@ -120,6 +120,12 @@ export async function authenticateCinetPay(config: {
       502,
       "PAYMENT_PROVIDER_INVALID_RESPONSE",
       "CinetPay returned an invalid authentication response.",
+      [
+        {
+          stage: "oauth",
+          httpStatus: response.status,
+        },
+      ],
     );
   }
 
@@ -133,6 +139,15 @@ export async function authenticateCinetPay(config: {
       502,
       "PAYMENT_PROVIDER_AUTHENTICATION_FAILED",
       body.message ?? "CinetPay authentication failed.",
+      [
+        {
+          stage: "oauth",
+          httpStatus: response.status,
+          providerCode: body.code,
+          providerStatus: body.status,
+          providerMessage: body.message ?? null,
+        },
+      ],
     );
   }
 
@@ -146,6 +161,14 @@ export async function authenticateCinetPay(config: {
       502,
       "PAYMENT_PROVIDER_INVALID_RESPONSE",
       "CinetPay did not return a valid OAuth token expiration.",
+      [
+        {
+          stage: "oauth",
+          httpStatus: response.status,
+          providerCode: body.code,
+          providerStatus: body.status,
+        },
+      ],
     );
   }
 
@@ -311,8 +334,8 @@ export async function createCinetPayPayment(
     headers: {
       "Content-Type": "application/json",
       Accept: "application/json",
-      Authorization: `${token.tokenType} ${token.accessToken}`,
       "User-Agent": "SOMI-Payment-Service/1.0",
+      Authorization: `${token.tokenType} ${token.accessToken}`,
     },
     body: JSON.stringify(payload),
   });
@@ -322,10 +345,20 @@ export async function createCinetPayPayment(
   try {
     body = (await response.json()) as CinetPayPaymentInitializationResponse;
   } catch {
+    if (response.status === 401 || response.status === 403) {
+      clearCinetPayAccessToken();
+    }
+
     throw new AppError(
       502,
       "PAYMENT_PROVIDER_INVALID_RESPONSE",
       "CinetPay returned an invalid payment initialization response.",
+      [
+        {
+          stage: "payment_initialization",
+          httpStatus: response.status,
+        },
+      ],
     );
   }
 
@@ -338,6 +371,15 @@ export async function createCinetPayPayment(
       502,
       "PAYMENT_PROVIDER_ERROR",
       body.message ?? "CinetPay rejected the payment initialization request.",
+      [
+        {
+          stage: "payment_initialization",
+          httpStatus: response.status,
+          providerCode: body.code,
+          providerStatus: body.status ?? null,
+          providerMessage: body.message ?? null,
+        },
+      ],
     );
   }
 
@@ -349,6 +391,14 @@ export async function createCinetPayPayment(
       502,
       "PAYMENT_PROVIDER_INVALID_RESPONSE",
       "CinetPay did not return a payment token.",
+      [
+        {
+          stage: "payment_initialization",
+          httpStatus: response.status,
+          providerCode: body.code,
+          providerStatus: body.status ?? null,
+        },
+      ],
     );
   }
 
@@ -357,6 +407,14 @@ export async function createCinetPayPayment(
       502,
       "PAYMENT_PROVIDER_INVALID_RESPONSE",
       "CinetPay did not return a payment URL.",
+      [
+        {
+          stage: "payment_initialization",
+          httpStatus: response.status,
+          providerCode: body.code,
+          providerStatus: body.status ?? null,
+        },
+      ],
     );
   }
 
@@ -463,6 +521,12 @@ export async function verifyCinetPayPayment(
       502,
       "PAYMENT_PROVIDER_INVALID_RESPONSE",
       "CinetPay returned an invalid payment verification response.",
+      [
+        {
+          stage: "payment_verification",
+          httpStatus: response.status,
+        },
+      ],
     );
   }
 
@@ -475,6 +539,15 @@ export async function verifyCinetPayPayment(
       502,
       "PAYMENT_PROVIDER_ERROR",
       body.message ?? "CinetPay payment verification failed.",
+      [
+        {
+          stage: "payment_verification",
+          httpStatus: response.status,
+          providerCode: body.code,
+          providerStatus: body.status ?? null,
+          providerMessage: body.message ?? null,
+        },
+      ],
     );
   }
 
@@ -485,6 +558,14 @@ export async function verifyCinetPayPayment(
       502,
       "PAYMENT_PROVIDER_INVALID_RESPONSE",
       "CinetPay did not return a merchant transaction reference.",
+      [
+        {
+          stage: "payment_verification",
+          httpStatus: response.status,
+          providerCode: body.code,
+          providerStatus: body.status ?? null,
+        },
+      ],
     );
   }
 
@@ -503,6 +584,14 @@ export async function verifyCinetPayPayment(
       502,
       "PAYMENT_PROVIDER_INVALID_RESPONSE",
       "CinetPay did not return a provider transaction reference.",
+      [
+        {
+          stage: "payment_verification",
+          httpStatus: response.status,
+          providerCode: body.code,
+          providerStatus: body.status ?? null,
+        },
+      ],
     );
   }
 
@@ -513,6 +602,14 @@ export async function verifyCinetPayPayment(
       502,
       "PAYMENT_PROVIDER_INVALID_RESPONSE",
       "CinetPay did not return a payment status.",
+      [
+        {
+          stage: "payment_verification",
+          httpStatus: response.status,
+          providerCode: body.code,
+          providerStatus: body.status ?? null,
+        },
+      ],
     );
   }
 
